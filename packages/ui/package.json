@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "check:cn": "node --experimental-strip-types scripts/cn-check.mjs",
+    "check:adapter": "node --experimental-strip-types scripts/adapter-check.mjs",
     "accept:m1": "node scripts/m1-acceptance.mjs",
     "accept:m2": "node scripts/m2-acceptance.mjs",
     "accept:m3": "node scripts/m3-acceptance.mjs",
