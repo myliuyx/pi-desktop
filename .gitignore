@@ -7,6 +7,7 @@ dist/
 
 # 本机临时输出（跑脚本时产生的 _chk*.txt 等）
 _chk*.txt
+_pi-*.log
 
 # 截图缓存（可随时重新生成，不入库）
 .workbuddy/cache/
