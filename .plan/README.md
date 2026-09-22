@@ -19,7 +19,8 @@
 
 | 文档 | 什么时候读 |
 |---|---|
-| [`survey/S0-our-contract.md`](./survey/S0-our-contract.md) | **梳理 Pi 前先读**——我们这侧冻结的契约：Block 六型字段、chat-store 五方法语义、92 个 testid 清单 |
+| [`survey/S1-event-mapping.md`](./survey/S1-event-mapping.md) | **写适配层前必读**——Pi 事件→Block 映射表、实测与文档的三处不一致、对 chat-store 的冲击 |
+| [`survey/S0-our-contract.md`](./survey/S0-our-contract.md) | 梳理 Pi 的靶子——我们这侧冻结的契约：Block 六型字段、chat-store 五方法语义、92 个 testid 清单 |
 | [`pi-integration-points.md`](./pi-integration-points.md) | **任何"接 Pi / 换 mock / 改数据链路"的工作**。含逐文件替换点、模型配置对接口径、思考档位、不动清单 |
 | [`pi-survey-plan.md`](./pi-survey-plan.md) | 梳理 Pi、决定对接顺序时。六阶段，每阶段绑定"动我们哪些文件 + 影响哪些验收" |
 | [`poc-pi-2026-09-22.md`](./poc-pi-2026-09-22.md) | 需要 Pi 可行性证据、环境坑、复现方式时。结论：Electron 内真实会话已跑通 |

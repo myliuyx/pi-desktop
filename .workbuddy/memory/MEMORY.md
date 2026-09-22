@@ -99,6 +99,9 @@ shiki + react-markdown + remark-gfm + @tanstack/react-virtual。**共 8 个依�
 - 已知例外：`--text-tertiary` 浅色 2.93:1（跨 8 屏一致，改令牌定稿值才可解，设计稿定稿值不在原型期改）
   —— **2026-09-22 用户裁决接受为已知例外**，后续对比度审计遇此直接放行，不再当失败上报
 
+- 梳理产物：`.plan/survey/S0-our-contract.md`（我方契约）、**`S1-event-mapping.md`（事件→Block 映射，
+  含"一次 prompt 可产生多 turn / 多条 assistant 消息"这条与文档不同的实测结论）**
+
 ## Pi 接入 POC（2026-09-22 通过，架构风险已销账）
 
 - **调研文档第七节的「唯一高风险项」已证伪**：Electron 44.4.3（内置 Node 24.21.0 / ABI 149）主进程里
