@@ -19,6 +19,7 @@
 
 | 文档 | 什么时候读 |
 |---|---|
+| [`survey/S4-transport-decision.md`](./survey/S4-transport-decision.md) | **动 core 包前必读**——传输层选型结论（独立 core 进程 + HTTP/SSE）、`AgentTransport` 接口草案、四个必做设计点 |
 | [`survey/S1-event-mapping.md`](./survey/S1-event-mapping.md) | **写适配层前必读**——Pi 事件→Block 映射表、实测与文档的三处不一致、对 chat-store 的冲击 |
 | [`survey/S0-our-contract.md`](./survey/S0-our-contract.md) | 梳理 Pi 的靶子——我们这侧冻结的契约：Block 六型字段、chat-store 五方法语义、92 个 testid 清单 |
 | [`pi-integration-points.md`](./pi-integration-points.md) | **任何"接 Pi / 换 mock / 改数据链路"的工作**。含逐文件替换点、模型配置对接口径、思考档位、不动清单 |
