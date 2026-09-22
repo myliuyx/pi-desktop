@@ -1,7 +1,7 @@
 # 开发计划 · M0–M5
 
 > 制定日期：2026-09-21
-> 配套：[README.md](./README.md) · [design-tokens.md](./design-tokens.md) · [screens.md](./screens.md)
+> 配套：[README.md](../README.md) · [design-tokens.md](../design-tokens.md) · [screens.md](../screens.md)
 
 ---
 

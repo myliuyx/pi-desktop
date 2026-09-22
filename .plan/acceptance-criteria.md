@@ -1,7 +1,7 @@
 # 验收标准
 
 > 制定日期：2026-09-21
-> 配套：[README.md](./README.md) · [design-tokens.md](./design-tokens.md) · [screens.md](./screens.md) · [development-plan.md](./development-plan.md)
+> 配套：[README.md](./README.md)（文档索引） · [design-tokens.md](./design-tokens.md) · [screens.md](./screens.md) · [archive/development-plan.md](./archive/development-plan.md)（已完成的 M0–M5 排期）
 
 ---
 

@@ -1,7 +1,8 @@
 # 项目长期记忆 · Tiktok_auto / packages/ui
 
 > 桌面 Agent 跨平台设计系统（纯 UI 原型阶段）。本文件只放**跨会话有长期价值**的事实与惯例。
-> 逐日细节见 `YYYY-MM-DD.md`；里程碑结论见 `.plan/progress-Mn.md`。
+> 逐日细节见 `YYYY-MM-DD.md`；里程碑结论见 `.plan/archive/progress-M*.md`（已归档，日常不读）。
+> **文档唯一入口：`.plan/README.md`** —— 索引 + 读法规则 + 活跃/参考/归档三层。改文档前先看它。
 
 ## 项目定位与边界
 
@@ -42,10 +43,10 @@ shiki + react-markdown + remark-gfm + @tanstack/react-virtual。**共 8 个依�
 
 ## 验收流程铁律
 
-1. 主控写 `.plan/task-Mn.md` 规格书（含逐条 testid 契约表）
+1. 主控写 `task-Mn.md` 规格书（含逐条 testid 契约表；历史规格书已归档至 `.plan/archive/`）
 2. 派执行方实现；执行方产 progress 文档，**逐条标「待主控复核」，自己不下通过结论**
 3. **验收脚本必须由非实现方（主控）编写** —— 这是 M2 定下的铁律
-4. 主控独立复跑全部命令，**不采信执行方回报**，结论写入 `progress-Mn.md` 末章
+4. 主控独立复跑全部命令，**不采信执行方回报**，结论写入 `progress-Mn.md` 末章（该类文件现归档于 `.plan/archive/`）
 
 ## ★ 反复验证的教训（M2~M5 持续验证）
 

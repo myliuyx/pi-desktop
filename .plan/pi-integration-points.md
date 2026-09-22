@@ -2,7 +2,7 @@
 
 > 用途：原型（`packages/ui`）所有数据来自 `src/mock/*`。接 Pi 真实数据时按本文档逐点替换——
 > **UI 组件树、data-testid 契约、`lib/layout.ts` / `styles/tokens.css` 全部不动**。
-> 配套阅读：`.plan/ui-rulings.md`（布局终态裁决台账）、`.plan/README.md`（里程碑口径）。
+> 配套阅读：`.plan/ui-rulings.md`（布局终态裁决台账）、`.plan/README.md`（文档索引与读法）。
 > 消费点清单由 grep 实证（`from "@/mock` 全扫），非凭记忆。
 
 ## 核心结论（先读这个）

@@ -1,132 +1,72 @@
-# 纯 UI 原型 · 实现方案总览
+# 文档索引（唯一入口）
 
-> 制定日期：2026-09-21
-> 阶段目标：**只用 mock 数据把 8 屏界面做出来**，不接 Pi、不接 LLM、不接后端。
-
----
-
-## 一、目标与范围
-
-### 做什么
-
-把 Ardot 上的「桌面 Agent · 跨平台设计系统」（8 屏）在浏览器里实现为可交互的 React 原型，能：
-
-- 切换深浅模式
-- 折叠 / 展开左右栏
-- 浏览消息流（文本流式、执行计划、终端步骤、授权卡片）
-- 在预览区切换「预览效果 / 预览源码」
-- 在各屏之间跳转，用于设计走查
-
-### 不做什么
-
-- 不接 Pi / 不调用任何 LLM（Agent Core 接入是下一阶段）
-- 不做 Electron 壳（壳层后置，前端代码可 90% 复用）
-- 不做真实文件系统与终端（全部 mock）
-- 不做持久化（刷新即重置，除主题与折叠偏好）
-
-### 为什么先做这一步
-
-设计稿已迭代 12 轮，说明还会继续改。浏览器 HMR 是秒级反馈，套进桌面壳后每次看效果都要重载，迭代成本差一个量级。定稿后再套壳，前端代码几乎不用动。
+> 最后更新：2026-09-22
+> **当前阶段**：纯 UI 原型 M0–M5 已全部完成并通过验收（8 屏六路由可演示），进入 **Pi 对接阶段**。
+> 本文件是文档的唯一入口。**新增文档必须登记到这里，否则视为不存在。**
 
 ---
 
-## 二、关键决策
+## 一、读法（给未来的我 / AI 会话的硬规则）
 
-| # | 决策 | 理由 |
-|---|---|---|
-| 1 | **单包起步**：只建 `packages/ui`，暂不搭 monorepo | 本阶段只有一个前端包，workspace 配置是纯开销。接入 Pi 时再拆 `core` / `desktop` / `web` |
-| 2 | **令牌用 CSS 变量，不用 Tailwind 内置调色板** | 设计稿的 `Theme` 变量集是语义化的（`bg_app` / `bg_subtle` / `border_subtle`），语义令牌才能一键换肤，且与 Figma `variableModes` 心智一致 |
-| 3 | **组件用 headless（Radix），不用 AntD / MUI** | 现成组件库自带设计语言，与稿子打架，改起来比手写更累 |
-| 4 | **先做浅色，深色靠令牌自动派生** | 对应设计稿第 11 轮的做法：深色是浅色副本施加 `variableModes` 的结果，不是独立维护的第二套样式 |
-| 5 | **8 屏用路由切换，都挂在同一套布局上** | 便于设计走查时快速对比，也提前暴露布局不一致 |
+1. **项目长期记忆 `.workbuddy/memory/MEMORY.md` 会自动注入**——不要重复读它，更不要读每日日志
+   （`.workbuddy/memory/YYYY-MM-DD.md`）除非要追溯某次具体改动。
+2. **不要通读 `.plan/`**。按任务类型只读 A 层对应的一两份；B 层按需；**C 层（archive）默认不读**。
+3. 不确定读哪份时，先读本文件的表格，不要逐个打开文件"看看"。
 
 ---
 
-## 三、工程结构
+## 二、A 层 · 活跃（当前阶段直接指导工作）
 
-```
-packages/ui/
-├── index.html
-├── package.json
-├── vite.config.ts
-├── tsconfig.json
-└── src/
-    ├── main.tsx
-    ├── App.tsx                      # 路由 + 屏幕切换
-    ├── styles/
-    │   ├── tokens.css               # 语义令牌（浅色 / 深色），唯一颜色来源
-    │   └── globals.css              # reset + 基础排版
-    ├── lib/
-    │   └── cn.ts                    # className 合并
-    ├── components/
-    │   ├── primitives/              # 无业务的基础件
-    │   │   ├── Button.tsx
-    │   │   ├── IconButton.tsx
-    │   │   ├── Chip.tsx
-    │   │   ├── Segmented.tsx
-    │   │   ├── Tabs.tsx
-    │   │   ├── ScrollArea.tsx
-    │   │   └── Tooltip.tsx
-    │   ├── shell/                   # 窗口与布局
-    │   │   ├── WindowShell.tsx      # 接受 os="mac" | "win" | "linux"
-    │   │   ├── TitleBar.tsx         # 含收起左/右、主题切换、设置
-    │   │   ├── Sidebar.tsx
-    │   │   ├── SidebarFooter.tsx    # 模型/设置 分段控件
-    │   │   └── PreviewPane.tsx      # 预览效果 / 预览源码 双 Tab
-    │   ├── chat/
-    │   │   ├── MessageList.tsx
-    │   │   ├── MessageBubble.tsx
-    │   │   ├── PlanCard.tsx         # 执行计划
-    │   │   ├── TerminalCard.tsx     # 终端步骤
-    │   │   ├── ApprovalCard.tsx     # 授权卡片
-    │   │   └── Composer.tsx         # 输入区 + 工具条
-    │   └── common/
-    │       ├── TokenStats.tsx       # 输入/输出/消耗/上下文
-    │       └── icons.tsx            # 统一图标出口
-    ├── screens/
-    │   ├── WorkbenchScreen.tsx      # 01 浅色 / 02 深色
-    │   ├── WorkbenchSourceScreen.tsx# 01b 源码态
-    │   ├── RunDetailScreen.tsx      # 03
-    │   ├── SkillsScreen.tsx         # 04
-    │   ├── SettingsScreen.tsx       # 05
-    │   └── ShellsScreen.tsx         # 06
-    ├── mock/
-    │   ├── types.ts
-    │   └── sessions.ts
-    └── store/
-        └── ui-store.ts              # 主题、折叠、当前屏
-```
-
----
-
-## 四、里程碑
-
-| 里程碑 | 内容 | 产出 | 状态 |
-|---|---|---|---|
-| **M0** | 工程搭建 + 令牌体系 | Vite 跑起来，深浅切换可用，色板页可查 | ✅ 已完成（[progress-M0.md](./progress-M0.md)） |
-| **M1** | 布局骨架 | `WindowShell` + 三栏 + 折叠 + 侧边栏（含通底条带） | ✅ 已完成（[progress-M1.md](./progress-M1.md)） |
-| **M2** | **会话工作台 01**（最重） | 消息流、执行计划、终端步骤、授权卡片、输入区 | ✅ 已完成（[progress-M2.md](./progress-M2.md)） |
-| **M3** | 预览区 + 深色版 | 01b 源码态、02 深色版由令牌自动派生 | ⏳ 未开工 |
-| **M4** | 其余三屏 | 03 运行详情 / 04 技能与工具 / 05 设置 | ⏳ 未开工 |
-| **M5** | 窗口壳 + 走查 | 06 三端壳、整体对齐设计稿、交互细节打磨 | ⏳ 未开工 |
-
-**M2 是重点**，其余屏可快速带过。
-
-> 进度口径：M0 8.5h + M1 12h + M2 20h = **40.5h / 83.5h ≈ 48.5%**（按含 20% 缓冲的总口径）。
-> 每个里程碑结束都产出 `progress-M{里程碑}.md`，作为该里程碑「做到哪」的**单一权威记录**。
-
----
-
-## 五、文件导航
-
-| 文件 | 内容 |
+| 文档 | 什么时候读 |
 |---|---|
-| [design-tokens.md](./design-tokens.md) | 令牌体系：命名规则、CSS 变量定义、Tailwind 映射、深浅切换 |
-| [screens.md](./screens.md) | 8 屏逐个拆解、组件清单、mock 数据结构、验收标准 |
+| [`pi-integration-points.md`](./pi-integration-points.md) | **任何"接 Pi / 换 mock / 改数据链路"的工作**。含逐文件替换点、模型配置对接口径、思考档位三档→七档、不动清单 |
+| [`pi-survey-plan.md`](./pi-survey-plan.md) | 梳理 Pi、决定对接顺序时。六阶段，每阶段绑定"动我们哪些文件 + 影响哪些验收" |
+| [`poc-pi-2026-09-22.md`](./poc-pi-2026-09-22.md) | 需要 Pi 可行性证据、环境坑、复现方式时。结论：Electron 内真实会话已跑通 |
+
+## 三、B 层 · 按需参考（改 UI / 令牌 / 验收时才读）
+
+| 文档 | 什么时候读 |
+|---|---|
+| [`ui-rulings.md`](./ui-rulings.md) | 改布局或交互前——**防回退台账**，记录 R1–R10 逐条裁决 |
+| [`screens.md`](./screens.md) | 需要 8 屏定义、组件清单、mock 数据结构时 |
+| [`design-tokens.md`](./design-tokens.md) | 动颜色/令牌时。颜色唯一来源仍是 `packages/ui/src/styles/tokens.css` |
+| [`acceptance-criteria.md`](./acceptance-criteria.md) | 需要验收标准总纲时。实际验收跑 `packages/ui` 的 accept 脚本 |
+| [`sync-verification-result.md`](./sync-verification-result.md) | 设计稿 ↔ 代码令牌同步的**单一权威来源** |
+| [`docs/pi-agent-core-调研.md`](../docs/pi-agent-core-调研.md) | 需要选型理由、Pi 的风险清单、落地步骤原议 |
+
+## 四、C 层 · 归档（历史，默认不读）
+
+放在 [`archive/`](./archive/)。**只有在追溯"某个里程碑当时怎么定的"时才看**，日常不用打开。
+
+| 文件 | 是什么 |
+|---|---|
+| `task-M1..M5.md` | 各里程碑的执行规格书（已完成） |
+| `progress-M0..M5.md` | 各里程碑的验收记录与实测证据（已完成） |
+| `development-plan.md` | M0–M5 总排期（净工时 69.5h 已用尽，缓冲 14h 未动用） |
+| `README-prototype-2026-09-21.md` | 旧版 README（原型方案总览），**M3–M5 状态已过时**，仅作历史 |
+| `sync-check-report.md` | 历史问题核查报告，问题已关闭，转为方法论留档 |
+| `figma-reverse-sync-status.md` | 设计稿反向同步状态（已完成） |
+| `m2-notes-B.md` | M2 执行方交接笔记（含一条被主控推翻的根因判断，有教训价值） |
+| `diffs/` | M5 全屏走查差异清单、R7–R9 设计稿回写执行单 |
+| `shots/` | M1 阶段截图证据（6 张） |
+
+## 五、当前状态速览
+
+- **原型**：M0–M5 全部完成并通过验收；8 屏六路由（00 令牌 / 01 工作台含源码态 / 03 运行详情 /
+  04 技能与工具 / 05 设置 / 06 窗口壳）全部可演示
+- **工时**：净工时 69.5h 用尽，**14h 缓冲未动用**
+- **Pi 侧**：依赖已装、构建已通、POC 四步全过（Electron 44.4.3 内真实会话跑通）
+- **下一步**：按 `pi-survey-plan.md` 梳理 Pi → 适配层（Pi 事件 → Block）
+- **遗留（非阻断）**：06 屏缩略窗口文字不可读（有单壳全尺寸替代）、主包 520 kB、
+  DEV 下 `window.__chatStore` 桩（接 Pi 时改回真实 UI 驱动）
 
 ---
 
-## 六、开工前需确认的两件事
+## 六、文档纪律（从踩过的坑里长出来的）
 
-1. **令牌的具体色值**需要从设计稿核对。本方案给出的是建议初值，命名体系与结构是正确的，数值需对照 Figma `Theme` 变量集校正。
-2. **窗口尺寸**：设计稿画布每屏间距 1540，估计 frame 宽约 1440。需确认实际设计宽度（1440 还是 1280），这决定三栏的断点与间距。
+1. **新文档必须登记到本索引**，否则下个会话找不到、也容易重复造。
+2. **里程碑结束后**，把该里程碑的规格书与验收记录移入 `archive/`，根目录只留活跃文档。
+3. **同一结论只放一处。** 状态类信息散落在 N 个文件里，必然"改了一部分、漏了一部分"
+   （`sync-check-report.md` 就是这么来的）——需要多处引用时，只放指针，不放副本。
+4. **写结论标出处**（`文件:行号`），不凭记忆或上一轮摘要。
+5. 归档用 `git mv`（保留历史，随时可回溯），不要直接删内容文档。
