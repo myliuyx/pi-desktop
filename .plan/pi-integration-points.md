@@ -125,22 +125,30 @@ Pi 把「有哪些模型 / 用什么凭据 / 当前选哪个」拆成三层，**
 - `SettingsScreen` 模型组：`mock/settings.ts` → 读写同一份 `settings.json`。
 - 工具条与 05 屏共享同一真相（延续 ChipMenu 改上拉菜单时定下的口径）。
 
-## 八、思考档位：mock 三档 → Pi 七档
+## 八、思考档位：类型已对齐 Pi，只需扩「暴露清单」
 
-| 来源 | 档位 |
-|---|---|
-| Pi（`settings.json` 的 `defaultThinkingLevel`） | `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` |
-| 我们 mock（`COMPOSER_THINKING_LEVELS` / `THINKING_LABEL`） | Low / High / Max（仅 3 档） |
+> 2026-09-22 修订：初版写的是「mock 三档 → Pi 七档」，**经实证不准确**，已按源码更正。
 
-`modelThinkingLevels` 还能按 `"provider/modelId"` 分别记默认档 —— **切模型时档位可能跟着变**。
+| 层 | 现状 | 出处 |
+|---|---|---|
+| Pi（`settings.json` 的 `defaultThinkingLevel`） | `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` | `docs/settings.md` L32 |
+| 我们的**类型** `ThinkingLevel` | **已是七档全集**（注释：取值直接对齐 Pi 的 `set_thinking_level`） | `mock/types.ts` L28 |
+| 我们的**文案** `THINKING_LABEL` | **已覆盖七档** | `mock/composer.ts` L44 |
+| 我们的**暴露清单** `COMPOSER_THINKING_LEVELS` | `["low","high","max"]` 三档 | `mock/composer.ts` L41 |
 
-### 接真数据时的四个影响（原型期未预留，需显式处理）
+→ 准确结论：**类型与文案层已经对齐 Pi，只有"UI 暴露哪几档"是三档**。改动面比初版估计的小——
+不需要改类型、不需要补文案。
 
-1. **档位表整体替换**：`THINKING_LABEL` 要补四档文案，UI 不能假定只有三档。
+`modelThinkingLevels`（Pi）还能按 `"provider/modelId"` 分别记默认档 —— **切模型时档位可能跟着变**。
+我们这边已有对应机制：`ModelOption.supportsXhigh`（`types.ts` L163，"只有支持的模型才暴露 xhigh / max 档位"）。
+
+### 接真数据时仍需处理的三件事
+
+1. **暴露清单要扩**：从固定三档改为按模型能力动态决定（沿用 `supportsXhigh` 的语义），不再写死。
 2. **菜单项从 3 增到 7**：面板在底部恒上拉，7 项 × 29.1px ≈ 204px + 分组标题 —— 需评估高度与滚动，
    以及窄容器下的容器查询分层（沿用工具条溢出治理那套做法）。
-3. **切模型 → 档位联动**：切模型后档位可能被 `modelThinkingLevels` 改写，UI 要能反映"不是我改的"。
-4. **`off` 是合法值**：档位可以被关掉，UI 不能只渲染"开着的档"。
+3. **切模型 → 档位联动**：切模型后档位可能被 `modelThinkingLevels` 改写，UI 要能反映"不是我改的"；
+   且 `off` 是合法值，UI 不能只渲染"开着的档"。
 
 ## 九、不动清单（接 Pi 时不许碰）
 
