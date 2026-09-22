@@ -1,0 +1,122 @@
+/*
+ * 语义令牌 —— 颜色的唯一来源。
+ * 禁止在组件中硬编码色值，图标的 --icon-neutral 除外（见 design-tokens.md 第五节）。
+ */
+
+:root {
+  /* 图标固定中性色，不随主题变化 */
+  --icon-neutral: #8a919e;
+
+  /* ---------------------------------------------------------------------------
+   * 窗口控件品牌色（macOS 交通灯）—— M1 新增。
+   *
+   * 为什么放在 tokens.css 而不是 globals.css：G1 要求「#hex 只允许出现在 tokens.css」。
+   * 这三色是**平台标志色**，与 --icon-neutral 同属「刻意的固定色」：
+   * 深浅两模式下都不变，不是语义令牌，所以不进深色块、也不参与换肤。
+   * 新增颜色令牌时请沿用这个位置，否则 G1 搜索会命中 globals.css 之外的第二个文件。
+   * ------------------------------------------------------------------------- */
+  --window-close: #ff5f57;
+  --window-minimize: #febc2e;
+  --window-maximize: #28c840;
+
+  /* 背景 */
+  --bg-app: #ffffff; /* 页面底 */
+  --bg-surface: #fcfcfd; /* 面板、卡片 */
+  --bg-subtle: #f5f6f8; /* 芯片、分段控件底、侧边栏条带 */
+  --bg-elevated: #ffffff; /* 浮层、下拉 */
+  --bg-hover: rgba(0, 0, 0, 0.045);
+  --bg-active: rgba(0, 0, 0, 0.075);
+
+  /* 文字 */
+  --text-primary: #1a1d21;
+  --text-secondary: #61656b;
+  --text-tertiary: #8a919e;
+  --text-inverse: #ffffff;
+
+  /* 描边 */
+  --border-subtle: #e8eaed;
+  --border-default: #d8dbdf;
+  --border-strong: #b9bdc3;
+
+  /* 强调色 */
+  --accent: #3563e8; /* 白字对比度 5.12:1（原 #3b6ef5 仅 4.44:1，未达 G3 正文 4.5 门槛） */
+  --accent-hover: #2a55cf;
+  --accent-soft: #eef2fe; /* 发送按钮底、选中态底；--accent 在其上 4.58:1 */
+  --accent-fg: #ffffff; /* 强调色上的文字 */
+
+  /* 语义色
+     浅色语义色作为文字放在各自 soft 底上，必须 >= 4.5:1（G3）。
+     原建议初值（#1d9e75 / #ba7517 / #378add / #e24b4a）实测仅 2.98~3.41:1，故整体压暗一档。 */
+  --success: #0f7a58; /* on --success-soft = 4.69:1 */
+  --success-soft: #e1f5ee;
+  --warning: #8f5b0e; /* on --warning-soft = 4.99:1 */
+  --warning-soft: #faeeda;
+  --danger: #c0392b; /* on --danger-soft = 4.72:1；白字在其上 5.44:1 */
+  --danger-soft: #fcebeb;
+  --info: #1a6bbd; /* on --info-soft = 4.72:1 */
+  --info-soft: #e6f1fb;
+
+  /* 圆角 */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+
+  /* 字体 */
+  --font-sans: "Inter", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Consolas, monospace;
+
+  /* 字号 */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+
+  /* 阴影（桌面应用克制使用） */
+  --shadow-sm: 0 1px 2px rgba(16, 20, 26, 0.06);
+  --shadow-md: 0 4px 12px rgba(16, 20, 26, 0.1);
+  --shadow-lg: 0 12px 32px rgba(16, 20, 26, 0.14);
+}
+
+:root[data-theme="dark"] {
+  --bg-app: #16181c;
+  --bg-surface: #1c1f24;
+  --bg-subtle: #24272d;
+  --bg-elevated: #23262c;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+
+  --text-primary: #e8eaed;
+  --text-secondary: #9aa0a8;
+  --text-tertiary: #6e747c;
+  --text-inverse: #16181c;
+
+  --border-subtle: #2a2e35;
+  --border-default: #343941;
+  --border-strong: #454b54;
+
+  --accent: #6b93ff;
+  --accent-hover: #85a6ff;
+  --accent-soft: #1e2a47;
+  /* 深色下 accent 提亮为浅蓝，白字在其上仅 2.90:1 —— 故改用深色前景（实测 6.13:1）。
+     注意：此处是「深色模式下用深色前景」的刻意反例，改回 #ffffff 会直接跌破 G3。 */
+  --accent-fg: #16181c;
+
+  --success: #5dcaa5;
+  --success-soft: #14352b;
+  --warning: #ef9f27;
+  --warning-soft: #3a2a11;
+  --danger: #f09595;
+  --danger-soft: #3d1f1f;
+  --info: #85b7eb;
+  --info-soft: #16293d;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* 圆角、字号、字体在深浅模式下不变，不重复定义。 */

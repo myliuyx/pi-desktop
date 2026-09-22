@@ -1,0 +1,977 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-22T13:07:07.039Z",
+  "steps": [
+    {
+      "name": "G1_G2_G5_静态颜色检查",
+      "value": {
+        "扫描文件数": 57,
+        "hex在tokens之外": [],
+        "dark变体命中": [],
+        "内置调色板命中": [],
+        "G1_hex仅tokens": true,
+        "G2_无dark变体": true,
+        "G5_无内置调色板": true
+      }
+    },
+    {
+      "name": "M5_硬编码尺寸扫描",
+      "value": {
+        "扫描文件": [
+          "components/screens/ShellPreview.tsx",
+          "screens/ShellsScreen.tsx",
+          "mock/shells.ts",
+          "components/shell/WorkbenchScreen.tsx"
+        ],
+        "命中": [],
+        "M5文件无硬编码尺寸": true
+      }
+    },
+    {
+      "name": "5-1_并排模式原始观测",
+      "value": {
+        "screenExists": true,
+        "previewCount": 3,
+        "osList": [
+          "mac",
+          "win",
+          "linux"
+        ],
+        "osUnique": 3,
+        "labelCount": 3,
+        "labelOs": [
+          "mac",
+          "win",
+          "linux"
+        ],
+        "probeCount": 3,
+        "framesPerCard": [
+          1,
+          1,
+          1
+        ],
+        "cardsWithOs": [
+          {
+            "card": "mac",
+            "frame": "mac"
+          },
+          {
+            "card": "win",
+            "frame": "win"
+          },
+          {
+            "card": "linux",
+            "frame": "linux"
+          }
+        ],
+        "mode": "grid",
+        "hScroll": {
+          "scrollWidth": 1424,
+          "clientWidth": 1424
+        }
+      }
+    },
+    {
+      "name": "5-2a_并排三端实际布局坐标",
+      "value": [
+        {
+          "os": "mac",
+          "offsetLeft": 0,
+          "offsetTop": 36,
+          "parent": "div"
+        },
+        {
+          "os": "win",
+          "offsetLeft": 0,
+          "offsetTop": 36,
+          "parent": "div"
+        },
+        {
+          "os": "linux",
+          "offsetLeft": 0,
+          "offsetTop": 36,
+          "parent": "div"
+        }
+      ]
+    },
+    {
+      "name": "5-2b_单壳逐端原始观测",
+      "value": [
+        {
+          "os": "mac",
+          "singleExists": true,
+          "singleOs": "mac",
+          "probeOs": "mac",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          },
+          "frameOs": "mac",
+          "frameCount": 1,
+          "mode": "single",
+          "titleBarHeight": 36,
+          "firstChildDots": 3
+        },
+        {
+          "os": "win",
+          "singleExists": true,
+          "singleOs": "win",
+          "probeOs": "win",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          },
+          "frameOs": "win",
+          "frameCount": 1,
+          "mode": "single",
+          "titleBarHeight": 36,
+          "firstChildDots": 0
+        },
+        {
+          "os": "linux",
+          "singleExists": true,
+          "singleOs": "linux",
+          "probeOs": "linux",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          },
+          "frameOs": "linux",
+          "frameCount": 1,
+          "mode": "single",
+          "titleBarHeight": 36,
+          "firstChildDots": 0
+        }
+      ]
+    },
+    {
+      "name": "5-2c_并排三卡尺寸",
+      "value": [
+        {
+          "os": "mac",
+          "w": 1102,
+          "h": 408
+        },
+        {
+          "os": "win",
+          "w": 1102,
+          "h": 408
+        },
+        {
+          "os": "linux",
+          "w": 1102,
+          "h": 408
+        }
+      ]
+    },
+    {
+      "name": "5-3_06屏并排横向滚动",
+      "value": {
+        "scrollWidth": 1424,
+        "clientWidth": 1424
+      }
+    },
+    {
+      "name": "5-3b_06屏单壳横向滚动",
+      "value": {
+        "scrollWidth": 1424,
+        "clientWidth": 1424
+      }
+    },
+    {
+      "name": "5-9_八屏横向滚动与图标色走查",
+      "value": [
+        {
+          "route": "01 工作台",
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          },
+          "hasNeutralIcon": true,
+          "strokeSamples": [
+            "rgb(138, 145, 158)",
+            "rgb(15, 122, 88)",
+            "rgb(53, 99, 232)",
+            "rgb(192, 57, 43)",
+            "rgb(97, 101, 107)"
+          ]
+        },
+        {
+          "route": "00 令牌",
+          "hScroll": {
+            "scrollWidth": 1414,
+            "clientWidth": 1414
+          },
+          "hasNeutralIcon": true,
+          "strokeSamples": [
+            "rgb(97, 101, 107)",
+            "rgb(26, 29, 33)",
+            "rgb(138, 145, 158)"
+          ]
+        },
+        {
+          "route": "01b 源码态",
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          },
+          "hasNeutralIcon": true,
+          "strokeSamples": [
+            "rgb(138, 145, 158)",
+            "rgb(15, 122, 88)",
+            "rgb(53, 99, 232)",
+            "rgb(192, 57, 43)",
+            "rgb(97, 101, 107)"
+          ]
+        },
+        {
+          "route": "03 运行详情",
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          },
+          "hasNeutralIcon": true,
+          "strokeSamples": [
+            "rgb(138, 145, 158)",
+            "rgb(97, 101, 107)",
+            "rgb(15, 122, 88)",
+            "rgb(53, 99, 232)",
+            "rgb(192, 57, 43)"
+          ]
+        },
+        {
+          "route": "04 技能与工具",
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          },
+          "hasNeutralIcon": true,
+          "strokeSamples": [
+            "rgb(138, 145, 158)",
+            "rgb(97, 101, 107)"
+          ]
+        },
+        {
+          "route": "05 设置",
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          },
+          "hasNeutralIcon": true,
+          "strokeSamples": [
+            "rgb(138, 145, 158)",
+            "rgb(97, 101, 107)"
+          ]
+        },
+        {
+          "route": "06 窗口壳",
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          },
+          "hasNeutralIcon": true,
+          "strokeSamples": [
+            "rgb(138, 145, 158)",
+            "rgb(97, 101, 107)",
+            "rgb(15, 122, 88)",
+            "rgb(53, 99, 232)",
+            "rgb(192, 57, 43)"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5-4_深色七屏走查",
+      "value": [
+        {
+          "route": "01 工作台",
+          "theme": "dark",
+          "brightBlocks": 0,
+          "measured": 338,
+          "tokenValuesExcluded": 0,
+          "bodyMin": 5.16,
+          "bodyMinSample": {
+            "t": "查看完整内容（还有 8 行）",
+            "c": 5.16,
+            "color": "rgb(107, 147, 255)"
+          },
+          "auxMin": 3.17,
+          "auxCount": 13,
+          "minText": 3.17,
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          }
+        },
+        {
+          "route": "00 令牌",
+          "theme": "dark",
+          "brightBlocks": 0,
+          "measured": 189,
+          "tokenValuesExcluded": 52,
+          "bodyMin": 4.9,
+          "bodyMinSample": {
+            "t": "Claude Sonnet",
+            "c": 4.9,
+            "color": "rgb(107, 147, 255)"
+          },
+          "auxMin": 3.17,
+          "auxCount": 99,
+          "minText": 3.17,
+          "hScroll": {
+            "scrollWidth": 1414,
+            "clientWidth": 1414
+          }
+        },
+        {
+          "route": "01b 源码态",
+          "theme": "dark",
+          "brightBlocks": 0,
+          "measured": 338,
+          "tokenValuesExcluded": 0,
+          "bodyMin": 5.16,
+          "bodyMinSample": {
+            "t": "查看完整内容（还有 8 行）",
+            "c": 5.16,
+            "color": "rgb(107, 147, 255)"
+          },
+          "auxMin": 3.17,
+          "auxCount": 13,
+          "minText": 3.17,
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          }
+        },
+        {
+          "route": "03 运行详情",
+          "theme": "dark",
+          "brightBlocks": 0,
+          "measured": 73,
+          "tokenValuesExcluded": 0,
+          "bodyMin": 5.68,
+          "bodyMinSample": {
+            "t": "~ / projects / atlas",
+            "c": 5.68,
+            "color": "rgb(154, 160, 168)"
+          },
+          "auxMin": 3.5,
+          "auxCount": 32,
+          "minText": 3.5,
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          }
+        },
+        {
+          "route": "04 技能与工具",
+          "theme": "dark",
+          "brightBlocks": 0,
+          "measured": 100,
+          "tokenValuesExcluded": 0,
+          "bodyMin": 5.68,
+          "bodyMinSample": {
+            "t": "~ / projects / atlas",
+            "c": 5.68,
+            "color": "rgb(154, 160, 168)"
+          },
+          "auxMin": 3.17,
+          "auxCount": 34,
+          "minText": 3.17,
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          }
+        },
+        {
+          "route": "05 设置",
+          "theme": "dark",
+          "brightBlocks": 0,
+          "measured": 69,
+          "tokenValuesExcluded": 0,
+          "bodyMin": 4.9,
+          "bodyMinSample": {
+            "t": "支持 Max",
+            "c": 4.9,
+            "color": "rgb(107, 147, 255)"
+          },
+          "auxMin": 3.5,
+          "auxCount": 29,
+          "minText": 3.5,
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          }
+        },
+        {
+          "route": "06 窗口壳",
+          "theme": "dark",
+          "brightBlocks": 0,
+          "measured": 309,
+          "tokenValuesExcluded": 0,
+          "bodyMin": 5.16,
+          "bodyMinSample": {
+            "t": "查看完整内容（还有 8 行）",
+            "c": 5.16,
+            "color": "rgb(107, 147, 255)"
+          },
+          "auxMin": 3.17,
+          "auxCount": 29,
+          "minText": 3.17,
+          "hScroll": {
+            "scrollWidth": 1424,
+            "clientWidth": 1424
+          }
+        }
+      ]
+    },
+    {
+      "name": "5-5_交互元素三态抽查",
+      "value": [
+        {
+          "testid": "titlebar-toggle-sidebar",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "name": "收起左侧"
+        },
+        {
+          "testid": "titlebar-toggle-theme",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "name": "切换到深色"
+        },
+        {
+          "testid": "titlebar-toggle-preview",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "name": "收起右侧"
+        },
+        {
+          "testid": "sidebar-new-task",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "name": "新建任务"
+        },
+        {
+          "testid": "sidebar-history-item-1",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "name": "重构执行计划卡片"
+        },
+        {
+          "testid": "sidebar-history-item-2",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "name": "修复深色模式对比度"
+        },
+        {
+          "testid": "sidebar-change-directory",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "name": "打开文件夹"
+        },
+        {
+          "testid": "screen-back",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "name": "返回工作台"
+        }
+      ]
+    },
+    {
+      "name": "5-6_键盘 Tab 焦点环采样",
+      "value": [
+        {
+          "testid": "titlebar-toggle-sidebar",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "focusVisible": true
+        },
+        {
+          "testid": "titlebar-toggle-theme",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "focusVisible": true
+        },
+        {
+          "testid": "titlebar-open-settings",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "focusVisible": true
+        },
+        {
+          "testid": "titlebar-toggle-preview",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-new-task",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(73, 100, 174)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-search",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-history-item-0",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-history-item-1",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-history-item-2",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-history-item-3",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-history-item-4",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(73, 100, 174)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-history-item-5",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-history-item-6",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "focusVisible": true
+        },
+        {
+          "testid": "sidebar-history-item-7",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "focusVisible": true
+        }
+      ]
+    },
+    {
+      "name": "5-7_空状态原始观测",
+      "value": {
+        "emptyExists": true,
+        "emptyHeight": 586,
+        "emptyText": "还没有消息在下方输入框里给 Pi 下达第一个任务，回复会出现在这里。",
+        "listExists": true,
+        "totalCount": "0",
+        "listHeight": 634,
+        "hScroll": {
+          "scrollWidth": 1424,
+          "clientWidth": 1424
+        }
+      }
+    },
+    {
+      "name": "5-8_长文本省略策略",
+      "value": {
+        "results": [
+          {
+            "name": "sidebar-history-title",
+            "scrollW": 224,
+            "clientW": 224,
+            "noOverflow": true,
+            "hasTitle": true
+          },
+          {
+            "name": "sidebar-working-directory",
+            "scrollW": 157,
+            "clientW": 157,
+            "noOverflow": true,
+            "hasTitle": true
+          },
+          {
+            "name": "shell-preview-note",
+            "scrollW": 192,
+            "clientW": 192,
+            "noOverflow": true,
+            "hasTitle": true
+          },
+          {
+            "name": "titlebar-session-title",
+            "scrollW": 48,
+            "clientW": 48,
+            "noOverflow": true,
+            "hasTitle": true
+          }
+        ],
+        "hScroll": {
+          "scrollWidth": 1424,
+          "clientWidth": 1424
+        }
+      }
+    },
+    {
+      "name": "遗留_折叠时长观测",
+      "value": {
+        "sidebarTransition": "0.12s",
+        "prefersReduced": true
+      }
+    },
+    {
+      "name": "遗留_Tabs aria 接线观测",
+      "value": {
+        "tabCount": 2,
+        "panelCount": 1,
+        "panels": [
+          {
+            "id": "preview-panel-code",
+            "labelledby": "preview-tab-code",
+            "labelledbyResolves": true
+          }
+        ],
+        "tabsAriaControls": [
+          {
+            "controls": null,
+            "resolves": false,
+            "selected": "false"
+          },
+          {
+            "controls": "preview-panel-code",
+            "resolves": true,
+            "selected": "true"
+          }
+        ],
+        "activeTab": "preview-tab-code"
+      }
+    },
+    {
+      "name": "回归_01工作台",
+      "value": {
+        "previewPane": true,
+        "messageList": true,
+        "composer": true,
+        "titleBarHeight": 36,
+        "hasProbe": false
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "G1 颜色来源唯一（hex 仅 tokens.css）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "越界数": 0
+      }
+    },
+    {
+      "name": "G2 无 dark: 变体补丁",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "命中数为0": true
+      }
+    },
+    {
+      "name": "G5 不用 Tailwind 内置调色板",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "命中数为0": true
+      }
+    },
+    {
+      "name": "M5 新增/改动文件无硬编码布局尺寸（尺寸走 layout.ts）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "无裸尺寸": true,
+        "命中数": 0
+      }
+    },
+    {
+      "name": "5-1 三端壳并存：mac / win / linux 三种表现均呈现",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "屏存在": true,
+        "恰好三张卡片": true,
+        "os集合为mac_win_linux": true,
+        "os三者互不相同": true,
+        "三张标签齐全": true,
+        "每卡恰一个窗口壳": true,
+        "卡片os与壳os一致": true,
+        "模式为grid": true
+      }
+    },
+    {
+      "name": "5-2a 内容区零位移（并排三卡）：三端布局坐标完全一致",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三端齐全": true,
+        "offsetLeft三端一致": true,
+        "offsetTop三端一致": true,
+        "offsetTop等于标题栏高36": true,
+        "offsetLeft全为0": true
+      }
+    },
+    {
+      "name": "5-2b 内容区零位移（单壳全尺寸）：三端布局坐标完全一致",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三次请求均得探针": true,
+        "每端shellSingle存在且os匹配": true,
+        "每端探针os匹配": true,
+        "每端壳os匹配": true,
+        "每端恰一个壳实例": true,
+        "模式均为single": true,
+        "offsetLeft三端一致": true,
+        "offsetTop三端一致": true,
+        "三端标题栏高度一致": true,
+        "三端标题栏高为36": true
+      }
+    },
+    {
+      "name": "5-1b 三端壳的形态差异真的呈现（mac 交通灯 3 圆点，win/linux 为控件）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "mac有3个圆点": true,
+        "win无圆点": true
+      }
+    },
+    {
+      "name": "5-2c 并排三卡尺寸一致（缩放口径统一，坐标才有可比性）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三卡宽度一致": true,
+        "三卡高度一致": true
+      }
+    },
+    {
+      "name": "5-3 06 屏缩放视图不产生横向滚动（G6）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "scrollWidth不超clientWidth加1": true
+      }
+    },
+    {
+      "name": "5-3b 06 屏单壳视图不产生横向滚动",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "scrollWidth不超clientWidth加1": true
+      }
+    },
+    {
+      "name": "5-9a 全部屏（含 06）无横向滚动（G6）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "所有屏都测了": true,
+        "每屏scrollWidth不超clientWidth": true,
+        "各屏溢出量": [
+          "01 工作台: 0",
+          "00 令牌: 0",
+          "01b 源码态: 0",
+          "03 运行详情: 0",
+          "04 技能与工具: 0",
+          "05 设置: 0",
+          "06 窗口壳: 0"
+        ]
+      }
+    },
+    {
+      "name": "5-9b 各屏可见中性图标色 rgb(138,145,158)（G4）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "所有屏都测了": true,
+        "每屏都含中性图标色": true
+      }
+    },
+    {
+      "name": "5-4 深色下全部屏无大面积白底；正文对比度 >= 4.5、辅助文字 >= 3（分层口径同 M4；颜色字面量令牌展示值除外）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "七屏都测了": true,
+        "深色确实生效": true,
+        "无大面积浅底": true,
+        "每屏量到文字节点": true,
+        "令牌展示值仅出现在00屏": true,
+        "00屏确实排除了令牌展示值": true,
+        "正文对比度达标": true,
+        "辅助文字对比度达标": true,
+        "深色下仍无横向滚动": true,
+        "各屏正文最低对比度": [
+          "01 工作台: 5.16",
+          "00 令牌: 4.9",
+          "01b 源码态: 5.16",
+          "03 运行详情: 5.68",
+          "04 技能与工具: 5.68",
+          "05 设置: 4.9",
+          "06 窗口壳: 5.16"
+        ],
+        "各屏正文最低样本": [
+          "01 工作台: \"查看完整内容（还有 8 行）\"",
+          "00 令牌: \"Claude Sonnet\"",
+          "01b 源码态: \"查看完整内容（还有 8 行）\"",
+          "03 运行详情: \"~ / projects / atlas\"",
+          "04 技能与工具: \"~ / projects / atlas\"",
+          "05 设置: \"支持 Max\"",
+          "06 窗口壳: \"查看完整内容（还有 8 行）\""
+        ],
+        "各屏辅助最低对比度": [
+          "01 工作台: 3.17 (13 处)",
+          "00 令牌: 3.17 (99 处)",
+          "01b 源码态: 3.17 (13 处)",
+          "03 运行详情: 3.5 (32 处)",
+          "04 技能与工具: 3.17 (34 处)",
+          "05 设置: 3.5 (29 处)",
+          "06 窗口壳: 3.17 (29 处)"
+        ],
+        "各屏排除的令牌展示值数": [
+          "01 工作台: 0",
+          "00 令牌: 52",
+          "01b 源码态: 0",
+          "03 运行详情: 0",
+          "04 技能与工具: 0",
+          "05 设置: 0",
+          "06 窗口壳: 0"
+        ]
+      }
+    },
+    {
+      "name": "5-5 hover / active 状态齐全（抽查 ≥5 个可点击元素）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "抽查数量不少于5": true,
+        "全部有hover反馈": true,
+        "全部有active反馈": true,
+        "全部有过渡声明": true,
+        "全部有可读名称": true
+      }
+    },
+    {
+      "name": "5-6 焦点环可见（纯键盘 Tab，:focus-visible 下 outlineWidth 非 0）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "采样到可聚焦元素": true,
+        "命中focus_visible": true,
+        "全部命中项outlineWidth非0": true,
+        "全部命中项outlineStyle非none": true
+      }
+    },
+    {
+      "name": "5-7 空状态不塌陷（?empty=1 占位存在且高度 > 0）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "占位节点存在": true,
+        "占位高度大于0": true,
+        "占位有提示文案": true,
+        "消息列表存在": true,
+        "列表总数为0": true,
+        "列表未塌陷": true,
+        "无横向滚动": true
+      }
+    },
+    {
+      "name": "5-8 长文本有省略策略且不横向溢出",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "采样到不少于3处文本": true,
+        "全部无横向溢出": true,
+        "省略项均可查看全称": true,
+        "屏无横向滚动": true
+      }
+    },
+    {
+      "name": "遗留裁决 1：reduced-motion 下折叠时长已改为 120ms（非 90ms / 非瞬间跳变）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "折叠时长为012s": true,
+        "未出现0s或0_001s": true
+      }
+    },
+    {
+      "name": "遗留裁决 2：Tab 面板 role=tabpanel + aria-labelledby 闭环；aria-controls 仅激活 tab 持有且可解析（G7）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "存在面板": true,
+        "存在tab": true,
+        "每个面板有id": true,
+        "每个面板有aria_labelledby": true,
+        "aria_labelledby可解析到tab": true,
+        "恰一个激活tab": true,
+        "激活tab带aria_controls": true,
+        "非激活tab不带aria_controls": true,
+        "出现的aria_controls均可解析": true
+      }
+    },
+    {
+      "name": "回归：01 工作台未被破坏，且未残留 06 屏专用探针",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "预览区在": true,
+        "消息流在": true,
+        "Composer在": true,
+        "标题栏高36": true,
+        "无06屏探针残留": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 21,
+    "passed": 21,
+    "failed": 0,
+    "failedNames": []
+  }
+}

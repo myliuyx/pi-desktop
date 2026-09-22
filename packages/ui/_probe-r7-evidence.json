@@ -1,0 +1,157 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-22T13:04:54.521Z",
+  "steps": [
+    {
+      "name": "首次测量（双展开）",
+      "value": {
+        "ws": {
+          "left": 264,
+          "right": 944,
+          "width": 680,
+          "cx": 604
+        },
+        "msg": {
+          "left": 288,
+          "right": 910,
+          "width": 622,
+          "cx": 599
+        },
+        "toolbar": {
+          "left": 288,
+          "right": 920,
+          "width": 632,
+          "cx": 604
+        },
+        "area": {
+          "left": 264,
+          "right": 944,
+          "width": 680,
+          "cx": 604
+        },
+        "sidebarCollapsed": false,
+        "previewCollapsed": false,
+        "wsOverflowX": false,
+        "docOverflowX": false
+      }
+    },
+    {
+      "name": "我方气泡几何",
+      "value": {
+        "userRows": 2,
+        "infos": [
+          {
+            "width": 324,
+            "colWidth": 622,
+            "rightGap": 0
+          },
+          {
+            "width": 196,
+            "colWidth": 622,
+            "rightGap": 0
+          }
+        ],
+        "allRightAligned": true,
+        "someNotFull": true,
+        "listOverflowX": false
+      }
+    },
+    {
+      "name": "R9 发送图标光学偏移",
+      "value": {
+        "dxSvg": -0.5,
+        "dySvg": 0.5,
+        "tx": -0.5,
+        "ty": 0.5
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "R7[双展开]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "stateOk(侧收=false,预收=false)": true,
+        "msgCentered(|Δ|≤8px, Δ=-5.0)": true,
+        "areaFullWidth(左Δ=0.0,右Δ=0.0)": true,
+        "toolbarInset24(左=24.0,右=24.0)": true,
+        "noOverflowX": true
+      }
+    },
+    {
+      "name": "R7[我方气泡]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "存在我方消息": true,
+        "我方气泡全部贴右": true,
+        "我方气泡内容自适应不占满": true,
+        "无横向溢出": true
+      }
+    },
+    {
+      "name": "R9[发送图标]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "声明偏移已应用": true,
+        "svg偏移与声明一致": true
+      }
+    },
+    {
+      "name": "R7[仅收左]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "stateOk(侧收=true,预收=false)": true,
+        "msgCentered(|Δ|≤8px, Δ=-5.0)": true,
+        "areaFullWidth(左Δ=0.0,右Δ=0.0)": true,
+        "toolbarInset24(左=24.0,右=24.0)": true,
+        "noOverflowX": true
+      }
+    },
+    {
+      "name": "R7[双收]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "stateOk(侧收=true,预收=true)": true,
+        "msgCentered(|Δ|≤8px, Δ=-5.0)": true,
+        "areaFullWidth(左Δ=0.0,右Δ=0.0)": true,
+        "toolbarInset24(左=24.0,右=24.0)": true,
+        "noOverflowX": true
+      }
+    },
+    {
+      "name": "R7[仅收右]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "stateOk(侧收=false,预收=true)": true,
+        "msgCentered(|Δ|≤8px, Δ=-5.0)": true,
+        "areaFullWidth(左Δ=0.0,右Δ=0.0)": true,
+        "toolbarInset24(左=24.0,右=24.0)": true,
+        "noOverflowX": true
+      }
+    },
+    {
+      "name": "R7[复位双展开]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "stateOk(侧收=false,预收=false)": true,
+        "msgCentered(|Δ|≤8px, Δ=-5.0)": true,
+        "areaFullWidth(左Δ=0.0,右Δ=0.0)": true,
+        "toolbarInset24(左=24.0,右=24.0)": true,
+        "noOverflowX": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 7,
+    "passed": 7,
+    "failed": 0,
+    "failedNames": []
+  }
+}

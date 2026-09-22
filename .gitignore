@@ -1,0 +1,17 @@
+# 依赖
+node_modules/
+
+# 构建产物与类型缓存
+dist/
+*.tsbuildinfo
+
+# 本机临时输出（跑脚本时产生的 _chk*.txt 等）
+_chk*.txt
+
+# 截图缓存（可随时重新生成，不入库）
+.workbuddy/cache/
+
+# vendored 上游仓库：pi 是 earendil-works/pi 的本地 clone（未做本地改动、无自带 .git），
+# 不入库以免污染本仓库历史；需要时用 `git clone https://github.com/earendil-works/pi pi` 还原。
+# 若将来要对 pi 做本地修改，删掉下面这行改为入库。
+pi/

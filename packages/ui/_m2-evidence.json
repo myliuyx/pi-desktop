@@ -1,0 +1,926 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-22T13:05:42.046Z",
+  "steps": [
+    {
+      "name": "G1_G2_G5_静态颜色检查",
+      "value": {
+        "扫描文件数": 57,
+        "hex命中文件": [
+          "styles/tokens.css"
+        ],
+        "hex在tokens之外": [],
+        "dark变体命中": [],
+        "内置调色板命中": [],
+        "G1_hex仅tokens": true,
+        "G2_无dark变体": true,
+        "G5_无内置调色板": true
+      }
+    },
+    {
+      "name": "2-1_消息按序渲染",
+      "value": {
+        "totalCount": 7,
+        "rendered": 7,
+        "ids": [
+          "m1",
+          "m2",
+          "m3",
+          "m4",
+          "m5",
+          "m6",
+          "m7"
+        ],
+        "roles": [
+          "user",
+          "assistant",
+          "assistant",
+          "assistant",
+          "assistant",
+          "user",
+          "assistant"
+        ],
+        "idx": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "indexAscending": true,
+        "rolePairsOk": true,
+        "hasMarkdownBodies": 5
+      }
+    },
+    {
+      "name": "2-3_Markdown 渲染",
+      "value": {
+        "found": true,
+        "hasBody": true,
+        "bodyCount": 2,
+        "h2": true,
+        "ul": true,
+        "ol": true,
+        "inlineCode": true,
+        "codeBlock": true,
+        "table": true,
+        "link": true,
+        "rawMarkdownLeak": false
+      }
+    },
+    {
+      "name": "2-4_代码高亮双主题",
+      "value": {
+        "appeared": "shiki",
+        "hasSpan": true,
+        "hasShikiClass": true,
+        "lightColor": "rgb(36, 41, 46)",
+        "darkColor": "rgb(225, 228, 232)",
+        "backToLight": "rgb(36, 41, 46)",
+        "colorChangedWithTheme": true,
+        "restored": true
+      }
+    },
+    {
+      "name": "2-6_执行计划四态",
+      "value": {
+        "found": true,
+        "stepCount": 4,
+        "statuses": [
+          "done",
+          "running",
+          "pending",
+          "failed"
+        ],
+        "coveredFour": true,
+        "unknownStatus": []
+      }
+    },
+    {
+      "name": "2-7_终端卡片（截断前）",
+      "value": {
+        "cardCount": 2,
+        "commandFontFamily": "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace",
+        "commandIsMono": true,
+        "outputFontFamily": "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace",
+        "outputIsMono": true,
+        "truncatedBefore": "true",
+        "lenBefore": 194,
+        "expandExists": true,
+        "expandText": "查看完整内容（还有 8 行）",
+        "errorCardTruncated": "false",
+        "outputOverflow": "auto"
+      }
+    },
+    {
+      "name": "2-7_终端卡片（展开后）",
+      "value": {
+        "truncated": "false",
+        "len": 293,
+        "stillHasExpand": false
+      }
+    },
+    {
+      "name": "2-8_授权卡片（初始）",
+      "value": {
+        "found": true,
+        "resolved": "false",
+        "optionCount": 2,
+        "allEnabled": true,
+        "labels": [
+          "允许",
+          "拒绝"
+        ]
+      }
+    },
+    {
+      "name": "2-8_授权卡片（已决）",
+      "value": {
+        "after": {
+          "resolved": "true",
+          "allDisabled": true,
+          "chosenPressed": "true",
+          "shownChoice": true
+        },
+        "afterSecondClickResolved": "true",
+        "clicked": true
+      }
+    },
+    {
+      "name": "2-9_2-10_发送按钮",
+      "value": {
+        "isDescendant": true,
+        "composerBorderWidth": "1px",
+        "composerHasVisibleBorder": true,
+        "composerRect": {
+          "left": 288,
+          "right": 920,
+          "top": 670,
+          "bottom": 741,
+          "width": 632,
+          "height": 71
+        },
+        "sendRect": {
+          "left": 883,
+          "right": 911,
+          "top": 704,
+          "bottom": 732,
+          "width": 28,
+          "height": 28
+        },
+        "fullyInside": true,
+        "inRightQuadrant": true,
+        "inBottomQuadrant": true,
+        "sendWidth": 28,
+        "sendHeight": 28,
+        "computedWidth": "28px",
+        "computedHeight": "28px",
+        "sendBorderRadius": "9999px",
+        "isCircle": true,
+        "sendBg": "rgb(238, 242, 254)",
+        "accentSoftProbe": "rgb(238, 242, 254)",
+        "accentProbe": "rgb(53, 99, 232)",
+        "arrowColor": "rgb(53, 99, 232)",
+        "disabledWhenEmpty": true,
+        "inputValue": ""
+      }
+    },
+    {
+      "name": "2-11_2-12_2-16_工具条",
+      "value": {
+        "order": [
+          "composer-chip-model",
+          "composer-chip-thinking",
+          "composer-chip-mcp",
+          "composer-toolbar-spacer",
+          "token-stats"
+        ],
+        "chips": [
+          {
+            "id": "composer-chip-model",
+            "exists": true,
+            "height": 32,
+            "text": "Claude Opus 4.7"
+          },
+          {
+            "id": "composer-chip-thinking",
+            "exists": true,
+            "height": 32,
+            "text": "思考 High"
+          },
+          {
+            "id": "composer-chip-mcp",
+            "exists": true,
+            "height": 32,
+            "text": "MCP 4"
+          }
+        ],
+        "chipHeights": [
+          32,
+          32,
+          32
+        ],
+        "allChips32": true,
+        "spacerFlexGrow": "1",
+        "statsRight": 920,
+        "toolbarRight": 920
+      }
+    },
+    {
+      "name": "2-13_2-14_2-15_TokenStats",
+      "value": {
+        "items": [
+          {
+            "key": "input",
+            "exists": true,
+            "text": "12.4k",
+            "color": "rgb(97, 101, 107)",
+            "value": "12.4k"
+          },
+          {
+            "key": "output",
+            "exists": true,
+            "text": "6.2k",
+            "color": "rgb(97, 101, 107)",
+            "value": "6.2k"
+          },
+          {
+            "key": "total",
+            "exists": true,
+            "text": "18.6k",
+            "color": "rgb(26, 29, 33)",
+            "value": "18.6k"
+          },
+          {
+            "key": "context",
+            "exists": true,
+            "text": "128k",
+            "color": "rgb(97, 101, 107)",
+            "value": "128k"
+          }
+        ],
+        "dividerCount": 3,
+        "rootBg": "rgb(245, 246, 248)",
+        "subtleProbe": "rgb(245, 246, 248)",
+        "primaryProbe": "rgb(26, 29, 33)",
+        "secondaryProbe": "rgb(97, 101, 107)",
+        "highlightMap": [
+          {
+            "key": "input",
+            "isPrimary": false,
+            "isSecondary": true
+          },
+          {
+            "key": "output",
+            "isPrimary": false,
+            "isSecondary": true
+          },
+          {
+            "key": "total",
+            "isPrimary": true,
+            "isSecondary": false
+          },
+          {
+            "key": "context",
+            "isPrimary": false,
+            "isSecondary": true
+          }
+        ],
+        "values": [
+          "12.4k",
+          "6.2k",
+          "18.6k",
+          "128k"
+        ]
+      }
+    },
+    {
+      "name": "2-17_输入框多行自适应",
+      "value": {
+        "单行": {
+          "composerHeight": 71,
+          "inputScrollHeight": 69,
+          "inputClientHeight": 69,
+          "valueLen": 9
+        },
+        "十行": {
+          "composerHeight": 202,
+          "inputScrollHeight": 259,
+          "inputClientHeight": 200,
+          "valueLen": 100
+        },
+        "四十行": {
+          "composerHeight": 202,
+          "inputScrollHeight": 893,
+          "inputClientHeight": 200,
+          "valueLen": 430
+        }
+      }
+    },
+    {
+      "name": "2-18_长文本不破版",
+      "value": {
+        "longMessageRendered": true,
+        "listScrollWidth": 670,
+        "listClientWidth": 670,
+        "docScrollWidth": 1424,
+        "docClientWidth": 1424,
+        "bodyScrollWidth": 1424,
+        "bodyClientWidth": 1424,
+        "longBodyScrollWidth": 592,
+        "longBodyClientWidth": 592,
+        "wrapMode": "anywhere / break-word"
+      }
+    },
+    {
+      "name": "2-5_初始状态",
+      "value": {
+        "dataAtBottom": "true",
+        "dist": 0,
+        "scrollable": true
+      }
+    },
+    {
+      "name": "2-5_上滚后",
+      "value": {
+        "dataAtBottom": "false",
+        "scrollTop": 0,
+        "hasScrollToBottom": true
+      }
+    },
+    {
+      "name": "2-5_上滚时收到新消息",
+      "value": {
+        "dataAtBottom": "false",
+        "scrollTop": 0,
+        "dist": 1382,
+        "totalCount": 9,
+        "hasScrollToBottom": true
+      }
+    },
+    {
+      "name": "2-5_点回到底部后",
+      "value": {
+        "dataAtBottom": "true",
+        "dist": 0,
+        "hasScrollToBottom": false
+      }
+    },
+    {
+      "name": "2-5_贴底时收到新消息",
+      "value": {
+        "dataAtBottom": "true",
+        "dist": 0,
+        "totalCount": 11
+      }
+    },
+    {
+      "name": "G7_可聚焦元素",
+      "value": {
+        "focusableCount": 27,
+        "noLabelCount": 0,
+        "noLabelSamples": [],
+        "inputLabelled": true
+      }
+    },
+    {
+      "name": "G7_Tab 轨迹",
+      "value": {
+        "trail": [
+          {
+            "testid": "titlebar-toggle-sidebar",
+            "tag": "button",
+            "outlineStyle": "solid",
+            "outlineWidth": "2px"
+          },
+          {
+            "testid": "titlebar-toggle-theme",
+            "tag": "button",
+            "outlineStyle": "solid",
+            "outlineWidth": "2px"
+          },
+          {
+            "testid": "titlebar-open-settings",
+            "tag": "button",
+            "outlineStyle": "solid",
+            "outlineWidth": "2px"
+          },
+          {
+            "testid": "titlebar-toggle-preview",
+            "tag": "button",
+            "outlineStyle": "solid",
+            "outlineWidth": "2px"
+          },
+          {
+            "testid": "sidebar-new-task",
+            "tag": "button",
+            "outlineStyle": "solid",
+            "outlineWidth": "2px"
+          },
+          {
+            "testid": "sidebar-search",
+            "tag": "button",
+            "outlineStyle": "solid",
+            "outlineWidth": "2px"
+          }
+        ],
+        "ringVisible": 6
+      }
+    },
+    {
+      "name": "G7_Enter与Space",
+      "value": {
+        "before": "true",
+        "afterEnter": "false",
+        "afterSpace": "true"
+      }
+    },
+    {
+      "name": "G4_G3_G6_深色模式",
+      "value": {
+        "theme": "dark",
+        "iconColors": [
+          "rgb(138, 145, 158)",
+          "rgb(138, 145, 158)",
+          "rgb(138, 145, 158)",
+          "rgb(138, 145, 158)",
+          "rgb(138, 145, 158)",
+          "rgb(138, 145, 158)",
+          "rgb(138, 145, 158)",
+          "rgb(138, 145, 158)"
+        ],
+        "iconsAllNeutral": true,
+        "contrast": [
+          {
+            "name": "markdown-body p",
+            "exists": true,
+            "ratio": 11.79
+          },
+          {
+            "name": "terminal-command",
+            "exists": true,
+            "ratio": 6.27
+          },
+          {
+            "name": "terminal-output",
+            "exists": true,
+            "ratio": 12.42
+          },
+          {
+            "name": "token-stats-total",
+            "exists": true,
+            "ratio": 12.42
+          },
+          {
+            "name": "plan-step",
+            "exists": true,
+            "ratio": 13.71
+          },
+          {
+            "name": "composer-input",
+            "exists": true,
+            "ratio": 13.71
+          }
+        ],
+        "minContrast": 6.27,
+        "panelBgs": [
+          {
+            "selector": "[data-testid=\"window-shell\"]",
+            "bg": "rgb(22, 24, 28)",
+            "luminance": 0.009
+          },
+          {
+            "selector": "[data-testid=\"sidebar\"]",
+            "bg": "rgb(28, 31, 36)",
+            "luminance": 0.014
+          },
+          {
+            "selector": "[data-testid=\"workspace-area\"]",
+            "bg": "rgb(22, 24, 28)",
+            "luminance": 0.009
+          },
+          {
+            "selector": "[data-testid=\"preview-pane\"]",
+            "bg": "rgb(28, 31, 36)",
+            "luminance": 0.014
+          },
+          {
+            "selector": "[data-testid=\"composer\"]",
+            "bg": "rgb(28, 31, 36)",
+            "luminance": 0.014
+          }
+        ],
+        "noLightPanels": true,
+        "docOk": true,
+        "bodyOk": true
+      }
+    },
+    {
+      "name": "2-2_虚拟滚动（stress=600）",
+      "value": {
+        "初始": {
+          "totalCount": 600,
+          "rendered": 15,
+          "innerHeight": 82119,
+          "listClientHeight": 634,
+          "maxScrollTop": 81533,
+          "beforeTop": 81533,
+          "targetTop": 41084,
+          "scrollable": true
+        },
+        "滚到中部后": {
+          "scrollTop": 40548,
+          "rendered": 21,
+          "indexRange": [
+            293,
+            294,
+            295,
+            296,
+            297,
+            298,
+            299,
+            300,
+            301,
+            302,
+            303,
+            304,
+            305,
+            306,
+            307,
+            308,
+            309,
+            310,
+            311,
+            312,
+            313
+          ],
+          "stillWrappedInList": true,
+          "noHorizontalOverflow": true
+        }
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "G1 颜色来源唯一（hex 仅 tokens.css）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "越界": true
+      }
+    },
+    {
+      "name": "G2 无 dark: 变体补丁",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "命中数": true
+      }
+    },
+    {
+      "name": "G5 不用 Tailwind 内置调色板",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "命中数": true
+      }
+    },
+    {
+      "name": "2-1 消息按序渲染（user/assistant 交替、index 升序、总数 7）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "总数是7": true,
+        "有渲染节点": true,
+        "index升序": true,
+        "角色合法": true,
+        "首条是user": true
+      }
+    },
+    {
+      "name": "2-3 Markdown 渲染正确（标题/列表/代码/表格/链接）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "找到m2消息": true,
+        "有markdown根节点": true,
+        "二级标题": true,
+        "无序列表": true,
+        "有序列表": true,
+        "行内代码": true,
+        "代码块": true,
+        "表格": true,
+        "链接": true,
+        "无markdown原文泄漏": true
+      }
+    },
+    {
+      "name": "2-4 代码高亮深浅双主题跟随切换（不需刷新）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "shiki已渲染": true,
+        "有tokenSpan": true,
+        "切深色后颜色变化": true,
+        "切回浅色还原": true,
+        "颜色确实不同": true
+      }
+    },
+    {
+      "name": "2-6 执行计划卡片四种状态齐全",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "找到卡片": true,
+        "有四步": true,
+        "覆盖四种状态": true,
+        "无非法状态": true
+      }
+    },
+    {
+      "name": "2-7 终端卡片：等宽字体 + 长输出截断 + 完整内容入口",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "命令等宽": true,
+        "输出等宽": true,
+        "截断态为true": true,
+        "有完整内容入口": true,
+        "入口文案含剩余行数": true,
+        "输出可滚动": true
+      }
+    },
+    {
+      "name": "2-7 点开完整内容后：不再截断且入口消失",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "点击生效": true,
+        "内容变长": true,
+        "入口消失": true
+      }
+    },
+    {
+      "name": "2-7 反例：error 终端的 data-truncated 必须为 false",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "反例成立": true
+      }
+    },
+    {
+      "name": "2-8a 授权卡片初始未决且可点",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "找到卡片": true,
+        "data_resolved为false": true,
+        "两个选项": true,
+        "初始可点": true,
+        "选项为允许拒绝": true
+      }
+    },
+    {
+      "name": "2-8b 点击后已决、两按钮置灰、且再点无效（反例）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "data_resolved变true": true,
+        "两按钮均disabled": true,
+        "选中项高亮": true,
+        "显示已选择": true,
+        "二次点击不改状态": true
+      }
+    },
+    {
+      "name": "2-9 发送按钮在输入框内部右下角（DOM 子孙 + 几何内切）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "DOM是子孙": true,
+        "完全落在输入框内": true,
+        "位于右侧区": true,
+        "位于下部区": true,
+        "输入框有可见边框": true,
+        "空内容时禁用": true
+      }
+    },
+    {
+      "name": "2-10 发送按钮规格：28×28 正圆 + accent-soft 底 + accent 箭头",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "宽28": true,
+        "高28": true,
+        "正圆": true,
+        "底色为accentSoft": true,
+        "箭头为accent色": true
+      }
+    },
+    {
+      "name": "2-11 工具条顺序：模型 → 思考强度 → MCP → 弹性占位 → TokenStats",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "顺序正确": true,
+        "三个芯片都在": true
+      }
+    },
+    {
+      "name": "2-12 工具条芯片高 32",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三个芯片均为32": true,
+        "实测高度": true
+      }
+    },
+    {
+      "name": "2-16 TokenStats 靠右（弹性占位撑开）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "占位flexGrow大于等于1": true,
+        "右侧贴合工具条右边": true
+      }
+    },
+    {
+      "name": "2-13 TokenStats 四段齐全 + 段间细分隔线",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "四段都存在": true,
+        "三段分隔线": true,
+        "段落顺序正确": true,
+        "容器底色为bgSubtle": true
+      }
+    },
+    {
+      "name": "2-14 数值格式化为 12.4k / 128k 形式",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "输入": true,
+        "输出": true,
+        "消耗": true,
+        "上下文": true,
+        "未出现128点0k": true
+      }
+    },
+    {
+      "name": "2-15 只有「消耗」段用 text-primary，其余为 text-secondary",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "消耗是primary": true,
+        "输入是secondary": true,
+        "输出是secondary": true,
+        "上下文是secondary": true,
+        "反例_消耗不是secondary": true
+      }
+    },
+    {
+      "name": "2-17 输入框高度随内容自适应且有最大高度上限",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "单行有值": true,
+        "十行比单行高": true,
+        "十行未超上限": true,
+        "四十行被上限截住": true,
+        "达到上限后内部可滚动": true
+      }
+    },
+    {
+      "name": "2-18 超长不可断字符串不撑破容器",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "长文本消息已渲染": true,
+        "消息流无横向溢出": true,
+        "长文本块无横向溢出": true,
+        "body无横向溢出": true,
+        "document无横向溢出": true
+      }
+    },
+    {
+      "name": "2-5a 初始贴底",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "data_at_bottom为true": true,
+        "距底在阈值内": true
+      }
+    },
+    {
+      "name": "2-5b 上滚后 data-at-bottom 变 false 且出现回到底部按钮",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "状态变false": true,
+        "已滚到顶部": true,
+        "回底按钮出现": true
+      }
+    },
+    {
+      "name": "2-5c 上滚状态下新消息到达不强制滚底（反例）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "消息数已增加": true,
+        "仍在顶部未被拽走": true,
+        "距底远超阈值": true,
+        "状态仍为false": true,
+        "回底按钮仍在": true
+      }
+    },
+    {
+      "name": "2-5d 点「回到底部」后回到底且按钮消失",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "回到底部": true,
+        "状态变true": true,
+        "按钮消失": true
+      }
+    },
+    {
+      "name": "2-5e 贴底状态下新消息自动滚底",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "自动滚到底": true,
+        "状态为true": true
+      }
+    },
+    {
+      "name": "G7 交互元素键盘可达",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "无缺标签元素": true,
+        "输入框有可读名称": true,
+        "焦点环可见": true,
+        "Enter能触发": true,
+        "Space能触发": true
+      }
+    },
+    {
+      "name": "G4 图标统一 --icon-neutral 且不随主题变化",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "浅色全为8A919E": true,
+        "深色全为8A919E": true,
+        "深浅一致": true
+      }
+    },
+    {
+      "name": "G3 深色模式主要文字对比度 ≥ 4.5:1",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已切到深色": true,
+        "最低对比度达标": true,
+        "逐项": true
+      }
+    },
+    {
+      "name": "G6 无横向滚动条（浅色/深色）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "浅色document无溢出": true,
+        "浅色body无溢出": true,
+        "深色document无溢出": true,
+        "深色body无溢出": true
+      }
+    },
+    {
+      "name": "2-2 虚拟滚动生效（600 条消息，实际渲染远小于总数）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "总数是600": true,
+        "初始渲染数远小于总数": true,
+        "滚动后渲染数仍远小于总数": true,
+        "滚动位置落在目标附近": true,
+        "确实换了一批节点": true,
+        "内容总高远大于视口": true,
+        "滚动后仍在容器内": true,
+        "无横向溢出": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 32,
+    "passed": 32,
+    "failed": 0,
+    "failedNames": []
+  }
+}

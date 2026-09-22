@@ -1,0 +1,390 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-22T07:59:10.322Z",
+  "steps": [
+    {
+      "name": "G1_G2_G5_静态颜色检查",
+      "value": {
+        "扫描文件数": 56,
+        "hex在tokens之外": [],
+        "dark变体命中": [],
+        "内置调色板命中": [],
+        "G1_hex仅tokens": true,
+        "G2_无dark变体": true,
+        "G5_无内置调色板": true
+      }
+    },
+    {
+      "name": "3-1a_默认态（应激活预览效果）",
+      "value": {
+        "paneExists": true,
+        "tabbarHeight": 44,
+        "tablistRole": "tablist",
+        "effExists": true,
+        "codeExists": true,
+        "effSelected": "true",
+        "codeSelected": "false",
+        "effActive": "true",
+        "codeActive": "false",
+        "iframeExists": true,
+        "sourceExists": false
+      }
+    },
+    {
+      "name": "3-3_效果态iframe",
+      "value": {
+        "exists": true,
+        "sandboxAttr": "",
+        "hasSandboxAttr": true,
+        "srcdocLen": 4072,
+        "frameWidth": 480,
+        "frameHeight": 725,
+        "paneWidth": 480,
+        "fillsPaneWidth": true,
+        "fillsPaneHeight": true
+      }
+    },
+    {
+      "name": "3-1b_切到源码Tab后",
+      "value": {
+        "codeSelected": "true",
+        "codeActive": "true",
+        "effSelected": "false",
+        "effActive": "false",
+        "sourceExists": true,
+        "iframeGone": true,
+        "copyExists": true
+      }
+    },
+    {
+      "name": "3-2_源码态三要素",
+      "value": {
+        "shikiReady": true,
+        "hasContainer": true,
+        "lineCount": 137,
+        "domLineCount": 137,
+        "maxDataLine": 137,
+        "lineAttrContiguous": true,
+        "beforeContent": "counter(preview-line)",
+        "beforeContentRendered": true,
+        "gutterWidth": 34.1875,
+        "gutterSticky": true,
+        "fontFamily": "\"JetBrains Mono\", \"SF Mono\", Consolas, monospace",
+        "isMono": true,
+        "distinctTokenColors": 5,
+        "sourceHeight": 725,
+        "sourceScrollableX": true
+      }
+    },
+    {
+      "name": "复制按钮（点击后/1.9s后）",
+      "value": {
+        "点击后": {
+          "label": "已复制",
+          "text": "已复制"
+        },
+        "回落后": {
+          "label": "复制源码",
+          "text": "复制"
+        }
+      }
+    },
+    {
+      "name": "3-7_源码高亮主题跟随",
+      "value": {
+        "hasToken": true,
+        "lightColor": "rgb(3, 47, 98)",
+        "darkColor": "rgb(158, 203, 255)",
+        "backColor": "rgb(3, 47, 98)",
+        "colorChanged": true,
+        "restored": true,
+        "lineCountBefore": 137,
+        "lineCountDark": 137,
+        "domUnchanged": true,
+        "shikiBgDark": "rgb(36, 41, 46)"
+      }
+    },
+    {
+      "name": "3-6_G3_G4_G6_深色走查",
+      "value": {
+        "浅色基线": {
+          "theme": "light",
+          "iconColors": [
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)"
+          ],
+          "docOk": true,
+          "bodyOk": true
+        },
+        "深色": {
+          "theme": "dark",
+          "iconColors": [
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)",
+            "rgb(138, 145, 158)"
+          ],
+          "iconsAllNeutral": true,
+          "panelBgs": [
+            {
+              "name": "window-shell",
+              "exists": true,
+              "bg": "rgb(22, 24, 28)",
+              "luminance": 0.009
+            },
+            {
+              "name": "sidebar",
+              "exists": true,
+              "bg": "rgb(28, 31, 36)",
+              "luminance": 0.014
+            },
+            {
+              "name": "workspace-area",
+              "exists": true,
+              "bg": "rgb(22, 24, 28)",
+              "luminance": 0.009
+            },
+            {
+              "name": "preview-pane",
+              "exists": true,
+              "bg": "rgb(28, 31, 36)",
+              "luminance": 0.014
+            },
+            {
+              "name": "preview-tabbar",
+              "exists": true,
+              "bg": "rgb(28, 31, 36)",
+              "luminance": 0.014
+            },
+            {
+              "name": "preview-source",
+              "exists": true,
+              "bg": "rgb(28, 31, 36)",
+              "luminance": 0.014
+            }
+          ],
+          "noLightPanels": true,
+          "contrast": [
+            {
+              "name": "激活Tab标签",
+              "exists": true,
+              "ratio": 12.42
+            },
+            {
+              "name": "未激活Tab标签",
+              "exists": true,
+              "ratio": 6.27
+            },
+            {
+              "name": "复制按钮",
+              "exists": true,
+              "ratio": 6.27
+            }
+          ],
+          "minContrast": 6.27,
+          "docOk": true,
+          "bodyOk": true
+        }
+      }
+    },
+    {
+      "name": "3-4a_重开页面后",
+      "value": {
+        "stored": "code",
+        "codeActive": "true",
+        "sourceExists": true
+      }
+    },
+    {
+      "name": "3-4b_带 ?preview=code 进入",
+      "value": {
+        "codeActive": "true",
+        "effActive": "false",
+        "sourceExists": true
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "G1 颜色来源唯一（hex 仅 tokens.css）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "越界数为0": true
+      }
+    },
+    {
+      "name": "G2 无 dark: 变体补丁（3-5 同口径）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "命中数为0": true
+      }
+    },
+    {
+      "name": "G5 不用 Tailwind 内置调色板",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "通过": true,
+        "命中数为0": true
+      }
+    },
+    {
+      "name": "3-1a 双 Tab 存在、默认激活「预览效果」且互斥",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "预览区存在": true,
+        "tablist语义存在": true,
+        "两个Tab都在": true,
+        "效果默认激活": true,
+        "源码默认未激活": true,
+        "效果态显示iframe": true,
+        "效果态无源码面板": true,
+        "Tab条高44": true
+      }
+    },
+    {
+      "name": "3-3 效果态用 iframe sandbox 隔离渲染且占满内容区",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "iframe存在": true,
+        "sandbox属性存在": true,
+        "srcdoc内容非空": true,
+        "宽度占满预览区": true,
+        "高度占满内容区": true
+      }
+    },
+    {
+      "name": "3-1b 点击后源码 Tab 激活、效果 Tab 退出、内容区互斥切换",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "源码已激活": true,
+        "效果已退出": true,
+        "显示源码面板": true,
+        "iframe已卸载": true,
+        "复制按钮随源码态出现": true
+      }
+    },
+    {
+      "name": "3-2 源码态：Shiki 高亮 + 行号 + 可复制，且行号与代码对齐",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "shiki已渲染": true,
+        "源码容器存在": true,
+        "行数过百": true,
+        "data_line_count与DOM一致": true,
+        "行号序号连续": true,
+        "行号伪元素渲染": true,
+        "行号列有宽度": true,
+        "行号横向滚动时固定": true,
+        "等宽字体": true,
+        "高亮配色多于一色": true,
+        "源码区有实际高度": true
+      }
+    },
+    {
+      "name": "复制按钮：点击进入已复制态，约 1.5s 后自动回落",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "点击后显示已复制": true,
+        "一点九秒后回落": true
+      }
+    },
+    {
+      "name": "3-7 深色下源码高亮用深色主题配色，切换无需重渲染",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "有token节点": true,
+        "切深色后配色变化": true,
+        "切回浅色还原": true,
+        "DOM未重渲染": true
+      }
+    },
+    {
+      "name": "3-6 深色无白底黑字残留（面板有效底色全部为深色，含预览区与源码区）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已切到深色": true,
+        "六个面板全部深色底": true,
+        "各面板底色亮度": true
+      }
+    },
+    {
+      "name": "G3 深色下预览区交互元素对比度 ≥ 4.5:1",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已切到深色": true,
+        "最低对比度达标": true,
+        "样本全存在": true
+      }
+    },
+    {
+      "name": "G4 图标统一 --icon-neutral 且深浅一致",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "浅色全为8A919E": true,
+        "深色全为8A919E": true,
+        "深浅一致": true
+      }
+    },
+    {
+      "name": "G6 无横向滚动条（浅色/深色）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "浅色document无溢出": true,
+        "浅色body无溢出": true,
+        "深色document无溢出": true,
+        "深色body无溢出": true
+      }
+    },
+    {
+      "name": "3-4a 预览 Tab 选择持久化：重开页面仍停在源码态",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "localStorage已记录": true,
+        "重开后仍激活源码": true,
+        "源码面板在场": true
+      }
+    },
+    {
+      "name": "3-4b 01b 屏入口：?preview=code 进入时默认激活源码 Tab",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "源码激活": true,
+        "效果未激活": true,
+        "源码面板在场": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 15,
+    "passed": 15,
+    "failed": 0,
+    "failedNames": []
+  }
+}

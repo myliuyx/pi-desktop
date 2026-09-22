@@ -1,0 +1,689 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-22T07:09:41.163Z",
+  "steps": [
+    {
+      "name": "5-1_并排模式原始观测",
+      "value": {
+        "screen存在": true,
+        "preview数量": 3,
+        "os集合": [
+          "mac",
+          "win",
+          "linux"
+        ],
+        "os去重后数量": 3,
+        "label数量": 3,
+        "label_os集合": [
+          "mac",
+          "win",
+          "linux"
+        ],
+        "probe数量": 3,
+        "每卡窗口壳实例数": [
+          1,
+          1,
+          1
+        ],
+        "mode": "grid",
+        "hScroll": {
+          "scrollWidth": 1424,
+          "clientWidth": 1424
+        }
+      }
+    },
+    {
+      "name": "5-2a_并排三端实际偏移量",
+      "value": [
+        {
+          "os": "mac",
+          "offsetLeft": 0,
+          "offsetTop": 36,
+          "offsetParent": "div"
+        },
+        {
+          "os": "win",
+          "offsetLeft": 0,
+          "offsetTop": 36,
+          "offsetParent": "div"
+        },
+        {
+          "os": "linux",
+          "offsetLeft": 0,
+          "offsetTop": 36,
+          "offsetParent": "div"
+        }
+      ]
+    },
+    {
+      "name": "5-2b_单壳逐端原始观测",
+      "value": [
+        {
+          "os": "mac",
+          "shell_single存在": true,
+          "single_os": "mac",
+          "probe存在": true,
+          "probe_os": "mac",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          },
+          "壳实例数": 1,
+          "shellFrame_os": "mac",
+          "mode": "single"
+        },
+        {
+          "os": "win",
+          "shell_single存在": true,
+          "single_os": "win",
+          "probe存在": true,
+          "probe_os": "win",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          },
+          "壳实例数": 1,
+          "shellFrame_os": "win",
+          "mode": "single"
+        },
+        {
+          "os": "linux",
+          "shell_single存在": true,
+          "single_os": "linux",
+          "probe存在": true,
+          "probe_os": "linux",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          },
+          "壳实例数": 1,
+          "shellFrame_os": "linux",
+          "mode": "single"
+        }
+      ]
+    },
+    {
+      "name": "5-2b_单壳三端实际偏移量",
+      "value": [
+        {
+          "os": "mac",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          }
+        },
+        {
+          "os": "win",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          }
+        },
+        {
+          "os": "linux",
+          "offset": {
+            "offsetLeft": 264,
+            "offsetTop": 163
+          }
+        }
+      ]
+    },
+    {
+      "name": "5-2c_并排三卡尺寸",
+      "value": [
+        {
+          "os": "mac",
+          "cardWidth": 1102,
+          "cardHeight": 408
+        },
+        {
+          "os": "win",
+          "cardWidth": 1102,
+          "cardHeight": 408
+        },
+        {
+          "os": "linux",
+          "cardWidth": 1102,
+          "cardHeight": 408
+        }
+      ]
+    },
+    {
+      "name": "5-3_06屏横向滚动量",
+      "value": {
+        "scrollWidth": 1424,
+        "clientWidth": 1424
+      }
+    },
+    {
+      "name": "5-4_06屏深浅模式原始观测",
+      "value": {
+        "lightProbe": {
+          "theme": "light",
+          "bodyBg": "rgb(255, 255, 255)",
+          "screenBg": "rgb(255, 255, 255)"
+        },
+        "darkProbe": {
+          "theme": "dark",
+          "bodyBg": "rgb(22, 24, 28)",
+          "screenBg": "rgb(22, 24, 28)",
+          "labelContrasts": [
+            [
+              {
+                "text": "macOS",
+                "contrast": 13.71
+              },
+              {
+                "text": "mac",
+                "contrast": 3.17
+              },
+              {
+                "text": "交通灯在左（三个彩色圆点",
+                "contrast": 3.5
+              }
+            ],
+            [
+              {
+                "text": "Windows",
+                "contrast": 13.71
+              },
+              {
+                "text": "win",
+                "contrast": 3.17
+              },
+              {
+                "text": "控件在右，关闭键染危险色",
+                "contrast": 3.5
+              }
+            ],
+            [
+              {
+                "text": "Linux",
+                "contrast": 13.71
+              },
+              {
+                "text": "linux",
+                "contrast": 3.17
+              },
+              {
+                "text": "控件在右，三键同色、无危",
+                "contrast": 3.5
+              }
+            ]
+          ],
+          "hints": [
+            3.77,
+            3.77,
+            3.77
+          ]
+        }
+      }
+    },
+    {
+      "name": "5-5_交互元素三态抽查",
+      "value": [
+        {
+          "testid": "titlebar-toggle-sidebar",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(26, 29, 33)",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "ariaLabel": "收起左侧"
+        },
+        {
+          "testid": "titlebar-toggle-theme",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(26, 29, 33)",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "ariaLabel": "切换到深色"
+        },
+        {
+          "testid": "titlebar-toggle-both",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(26, 29, 33)",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "ariaLabel": "收起两侧"
+        },
+        {
+          "testid": "sidebar-new-task",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(97, 101, 107)",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "ariaLabel": "新建任务"
+        },
+        {
+          "testid": "sidebar-history-item-1",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(97, 101, 107)",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "ariaLabel": "重构执行计划卡片"
+        },
+        {
+          "testid": "sidebar-change-directory",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(97, 101, 107)",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "ariaLabel": "打开文件夹"
+        },
+        {
+          "testid": "sidebar-search",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(97, 101, 107)",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "ariaLabel": "搜索"
+        },
+        {
+          "testid": "screen-back",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(97, 101, 107)",
+          "hasHover": true,
+          "hasActive": true,
+          "hasTransition": true,
+          "ariaLabel": "返回工作台"
+        }
+      ]
+    },
+    {
+      "name": "5-6_键盘Tab焦点环采样",
+      "value": [
+        {
+          "testid": "titlebar-toggle-sidebar",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "matchesFocusVisible": true,
+          "className": "inline-flex shrink-0 items-center justify-center rounded-md transition-colors du"
+        },
+        {
+          "testid": "titlebar-toggle-theme",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "matchesFocusVisible": true,
+          "className": "inline-flex shrink-0 items-center justify-center rounded-md transition-colors du"
+        },
+        {
+          "testid": "titlebar-open-settings",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "matchesFocusVisible": true,
+          "className": "inline-flex shrink-0 items-center justify-center rounded-md transition-colors du"
+        },
+        {
+          "testid": "titlebar-toggle-both",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(44, 77, 169)",
+          "matchesFocusVisible": true,
+          "className": "inline-flex shrink-0 items-center justify-center rounded-md transition-colors du"
+        },
+        {
+          "testid": "sidebar-new-task",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-search",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-history-item-0",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(45, 77, 169)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-history-item-1",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(73, 100, 174)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-history-item-2",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-history-item-3",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-history-item-4",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-history-item-5",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-history-item-6",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(73, 100, 174)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        },
+        {
+          "testid": "sidebar-history-item-7",
+          "outlineWidth": "2px",
+          "outlineStyle": "solid",
+          "outlineColor": "rgb(67, 100, 193)",
+          "matchesFocusVisible": true,
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+        }
+      ]
+    },
+    {
+      "name": "5-6b_Composer焦点环检查",
+      "value": {
+        "存在": true,
+        "className": "block w-full resize-none rounded-xl bg-transparent text-base leading-relaxed text-text-primary placeholder:text-text-tertiary overflow-x-hidden",
+        "hasOutlineNone": false
+      }
+    },
+    {
+      "name": "5-7_空状态原始观测",
+      "value": {
+        "emptyState存在": true,
+        "emptyHeight": 586,
+        "list存在": true,
+        "listTotalCount": "0",
+        "listHeight": 634,
+        "hScroll": {
+          "scrollWidth": 1424,
+          "clientWidth": 1424
+        }
+      }
+    },
+    {
+      "name": "5-8_长文本省略策略",
+      "value": {
+        "results": [
+          {
+            "name": "sidebar-history-title",
+            "scrollWidth": 123,
+            "clientWidth": 123,
+            "有省略": true,
+            "title": "接入 Pi 工具链的调研",
+            "hasTitle": true
+          },
+          {
+            "name": "sidebar-working-directory",
+            "scrollWidth": 157,
+            "clientWidth": 157,
+            "有省略": true,
+            "title": "~ / projects / atlas-agent",
+            "hasTitle": true
+          },
+          {
+            "name": "shell-preview-label-note",
+            "scrollWidth": 192,
+            "clientWidth": 192,
+            "有省略": true,
+            "title": "交通灯在左（三个彩色圆点，直径 10）",
+            "hasTitle": true
+          },
+          {
+            "name": "titlebar-session-title",
+            "scrollWidth": 48,
+            "clientWidth": 48,
+            "有省略": true,
+            "title": "新建会话",
+            "hasTitle": true
+          }
+        ],
+        "hScroll": {
+          "scrollWidth": 1424,
+          "clientWidth": 1424
+        }
+      }
+    },
+    {
+      "name": "静态扫描详情",
+      "value": {
+        "staticResult": {
+          "扫描文件数": 56,
+          "hex在tokens之外": [],
+          "dark变体命中": [],
+          "内置调色板命中": [],
+          "G1_hex仅tokens": true,
+          "G2_无dark变体": true,
+          "G5_无内置调色板": true
+        },
+        "sizeResult": {
+          "扫描文件": [
+            "components/screens/ShellPreview.tsx",
+            "screens/ShellsScreen.tsx",
+            "mock/shells.ts"
+          ],
+          "命中": [],
+          "M5新增文件无硬编码尺寸": true
+        }
+      }
+    },
+    {
+      "name": "8_1-10回归提示",
+      "value": {
+        "说明": "COLLAPSE_DURATION_REDUCED 已 90→120ms；本脚本不重复跑 accept:m1，请单独执行 npm run accept:m1",
+        "COLLAPSE_DURATION": 180,
+        "COLLAPSE_DURATION_REDUCED": 120
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "5-1 三端壳并存（并排三卡 data-os 互不相同）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "shells_screen存在": true,
+        "三个shell_preview": true,
+        "os集合为mac_win_linux": true,
+        "os三者互不相同": true,
+        "三张label齐全": true,
+        "三个探针": true,
+        "每卡恰一个窗口壳": true,
+        "mode为grid": true
+      }
+    },
+    {
+      "name": "5-2a 并排模式：三端探针 offset 完全一致",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三端齐全": true,
+        "offsetLeft三端一致": true,
+        "offsetTop三端一致": true,
+        "offsetTop等于标题栏高度36": true,
+        "offsetLeft全为0": true
+      }
+    },
+    {
+      "name": "5-2b 单壳全尺寸：三端探针 offset 完全一致（核心）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三次请求均得探针": true,
+        "每端shell_single与os匹配": true,
+        "每端探针os匹配": true,
+        "每端壳os匹配": true,
+        "模式均为single": true,
+        "offsetLeft三端一致": true,
+        "offsetTop三端一致": true
+      }
+    },
+    {
+      "name": "5-2c 并排三卡尺寸一致（缩放口径统一）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三卡宽度一致": true,
+        "三卡高度一致": true
+      }
+    },
+    {
+      "name": "5-3 06 屏缩放不产生横向滚动（G6）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "scrollWidth不超clientWidth加1": true
+      }
+    },
+    {
+      "name": "5-3b 单壳模式无横向滚动",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "scrollWidth不超clientWidth加1": true
+      }
+    },
+    {
+      "name": "5-4 06 屏深浅两模式（深色无大面积白底、对比度分层达标）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "浅色主题为light": true,
+        "深色主题为dark": true,
+        "浅色屏底为亮色": true,
+        "深色屏底非亮色": true,
+        "深色正文对比度达4_5": true,
+        "深色辅助文字对比度达3": true,
+        "深色提示条文字对比度达3": true
+      }
+    },
+    {
+      "name": "5-5 hover / active 三态齐全（抽查 ≥5 个可点击元素）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "抽查数量不少于5": true,
+        "全部有hover声明": true,
+        "全部有active声明": true,
+        "全部有过渡声明": true,
+        "全部有可读名称": true
+      }
+    },
+    {
+      "name": "5-6 焦点环可见（纯键盘 Tab，:focus-visible 下 outlineWidth 非 0）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "采样到可聚焦元素": true,
+        "命中focus_visible": true,
+        "全部命中项outlineWidth非0": true,
+        "全部命中项outlineStyle非none": true
+      }
+    },
+    {
+      "name": "5-6b Composer 输入框未被 outline-none 覆盖焦点环",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "输入框存在": true,
+        "类名不含outline_none": true
+      }
+    },
+    {
+      "name": "5-7 空状态不塌陷（?empty=1 占位存在且高度 > 0）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "empty_state存在": true,
+        "占位高度大于0": true,
+        "message_list存在": true,
+        "totalCount为0": true,
+        "列表未塌陷": true,
+        "无横向滚动": true
+      }
+    },
+    {
+      "name": "5-8 长文本有省略策略且不横向溢出",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "采样到不少于3处文本": true,
+        "全部无横向溢出": true,
+        "省略项均有title全称": true,
+        "屏无横向滚动": true
+      }
+    },
+    {
+      "name": "G1 颜色来源唯一（hex 仅 tokens.css）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "G1": true
+      }
+    },
+    {
+      "name": "G2 无 dark: 变体补丁",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "G2": true
+      }
+    },
+    {
+      "name": "G5 不使用 Tailwind 内置调色板",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "G5": true
+      }
+    },
+    {
+      "name": "尺寸唯一来源：M5 新增文件无硬编码尺寸",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "M5新增文件无硬编码尺寸": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 16,
+    "passed": 16,
+    "failed": 0,
+    "failedNames": []
+  }
+}

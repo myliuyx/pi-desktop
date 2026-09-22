@@ -1,0 +1,88 @@
+/*
+ * Shiki 双主题桥接 —— 颜色切换的唯一来源是 [data-theme="dark"]。
+ *
+ * ⚠️ 严禁写 Tailwind 的 `dark:` 变体（会触发 G2 验收失败）。
+ * [data-theme="dark"] 是令牌机制本身的选择器（见 tokens.css），不是 Tailwind 变体。
+ *
+ * Shiki 在 `defaultColor: false` 下只输出两组 CSS 变量：
+ *   --shiki-light / --shiki-light-bg（浅色）
+ *   --shiki-dark  / --shiki-dark-bg（深色）
+ * 这里只负责「浅色默认用 light 组、深色用 dark 组」，切换主题时配色实时跟随，
+ * 不需要重新高亮（验收 2-4）。
+ */
+
+.shiki {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  background-color: var(--shiki-light-bg);
+  color: var(--shiki-light);
+}
+
+.shiki span {
+  color: var(--shiki-light);
+  /* 行内 token 不设底色，避免盖住代码块整体背景 */
+  background-color: transparent;
+}
+
+[data-theme="dark"] .shiki {
+  background-color: var(--shiki-dark-bg);
+  color: var(--shiki-dark);
+}
+
+[data-theme="dark"] .shiki span {
+  color: var(--shiki-dark);
+}
+
+/* ---------------------------------------------------------------------------
+ * 预览源码态（M3）—— 行号 gutter
+ *
+ * 行号用 CSS counter 生成：.line 是 shiki 每行输出的 span，::before 挂在行首、
+ * 参与同一行内流 —— 行高与步进天然和代码一致，永远不会错位（规格书 3.2 明确
+ * 允许 counter 方案）。position: sticky 让横向滚动时长行滚走、行号列保持可见；
+ * 因此背景必须不透明，否则滚过的代码会从行号底下穿出来。
+ * 底色跟随 shiki 双主题变量（与 .shiki 自身同一套桥接），文字走 --text-tertiary
+ * 令牌 —— 全段无 hex；深色选择器是令牌机制本身的 [data-theme]，非 Tailwind 变体。
+ * ------------------------------------------------------------------------- */
+
+.preview-source .shiki {
+  /* 滚动统一收归外层 .preview-source 容器；pre 撑到最长行宽，才能把外层撑出横向滚动 */
+  margin: 0;
+  border-radius: 0;
+  overflow: visible;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.preview-source .shiki code {
+  counter-reset: preview-line;
+  display: block;
+}
+
+.preview-source .shiki .line {
+  display: block;
+  /* shiki 对空行输出空 span，block 化后没有内容高度，靠它撑住行高 */
+  min-height: 1.6em;
+}
+
+.preview-source .shiki .line::before {
+  counter-increment: preview-line;
+  content: counter(preview-line);
+  display: inline-block;
+  position: sticky;
+  left: 0;
+  width: 3em;
+  padding-right: 0.75em;
+  text-align: right;
+  user-select: none;
+  color: var(--text-tertiary);
+  background-color: var(--shiki-light-bg);
+}
+
+[data-theme="dark"] .preview-source .shiki .line::before {
+  background-color: var(--shiki-dark-bg);
+}

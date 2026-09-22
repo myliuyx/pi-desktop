@@ -1,0 +1,208 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-22T04:21:24.444Z",
+  "steps": [
+    {
+      "name": "2a_源码态观测值",
+      "value": {
+        "effActive": "false",
+        "codeActive": "true",
+        "sourceExists": true,
+        "lineCountAttr": "137",
+        "domLineCount": 137,
+        "dataLineCount": 137,
+        "lineBeforeContent": "counter(preview-line)",
+        "lineBeforeColor": "rgb(138, 145, 158)",
+        "lineBeforeBg": "rgb(255, 255, 255)",
+        "preBg": "rgb(255, 255, 255)",
+        "preStyleHasVars": true,
+        "tokenColor": "rgb(36, 41, 46)",
+        "iframeGone": true,
+        "copyBtn": true,
+        "monoFont": true
+      }
+    },
+    {
+      "name": "6a_高亮采样",
+      "value": {
+        "light": {
+          "theme": "light",
+          "tokenColor": "rgb(36, 41, 46)",
+          "preBg": "rgb(255, 255, 255)"
+        },
+        "dark": {
+          "theme": "dark",
+          "tokenColor": "rgb(225, 228, 232)",
+          "preBg": "rgb(36, 41, 46)"
+        },
+        "lightAgain": {
+          "tokenColor": "rgb(36, 41, 46)"
+        }
+      }
+    },
+    {
+      "name": "7a_深色抽查明细",
+      "value": [
+        {
+          "name": "preview-pane",
+          "bg": "rgb(28, 31, 36)",
+          "color": "rgb(232, 234, 237)"
+        },
+        {
+          "name": "preview-tabbar",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(232, 234, 237)"
+        },
+        {
+          "name": "preview-tab-code",
+          "bg": "rgb(36, 39, 45)",
+          "color": "rgb(232, 234, 237)"
+        },
+        {
+          "name": "preview-source",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(232, 234, 237)"
+        },
+        {
+          "name": "shiki-pre",
+          "bg": "rgb(36, 41, 46)",
+          "color": "rgb(225, 228, 232)"
+        },
+        {
+          "name": "line-number",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(225, 228, 232)"
+        },
+        {
+          "name": "copy-btn",
+          "bg": "rgba(0, 0, 0, 0)",
+          "color": "rgb(154, 160, 168)"
+        },
+        {
+          "name": "workspace-area",
+          "bg": "rgb(22, 24, 28)",
+          "color": "rgb(232, 234, 237)"
+        },
+        {
+          "name": "sidebar",
+          "bg": "rgb(28, 31, 36)",
+          "color": "rgb(232, 234, 237)"
+        }
+      ]
+    }
+  ],
+  "assertions": [
+    {
+      "name": "1_默认态_effect激活且iframe沙箱",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "双Tab节点存在": true,
+        "effect激活data-active=true": true,
+        "effect aria-selected=true": true,
+        "code未激活": true,
+        "rovingTabindex正确": true,
+        "iframe存在": true,
+        "sandbox属性存在且为空值": true,
+        "源码态未渲染(互斥)": true,
+        "Tab条高44": true
+      }
+    },
+    {
+      "name": "2_源码态三要素",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "Tab互斥切换(code激活)": true,
+        "preview-source存在": true,
+        "data-line-count为正数": true,
+        "data-line-count等于DOM行数": true,
+        "data-line序号齐全": true,
+        "行号伪元素有counter内容": true,
+        "行号有颜色": true,
+        "行号有背景(sticky遮底)": true,
+        "shiki高亮渲染且带双主题变量": true,
+        "效果态iframe已卸载(互斥)": true,
+        "复制按钮存在": true,
+        "源码态等宽字体": true
+      }
+    },
+    {
+      "name": "3_复制按钮已复制态与回落",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "初始文案含复制": true,
+        "点击后变已复制": true,
+        "约1.5s后回落": true
+      }
+    },
+    {
+      "name": "4_切回效果态iframe复现",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "effect重新激活": true,
+        "iframe重新渲染": true,
+        "sandbox仍在": true,
+        "源码态与复制按钮卸载": true
+      }
+    },
+    {
+      "name": "5_参数进入默认源码态(3-4)",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "codeTab激活": true,
+        "effectTab未激活": true,
+        "源码内容已渲染": true,
+        "选择已持久化": true
+      }
+    },
+    {
+      "name": "5a_清除持久化后默认effect",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "effect为默认": true
+      }
+    },
+    {
+      "name": "6_源码高亮深浅跟随(3-7机制)",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "浅色有token色": true,
+        "深色token色不同": true,
+        "深色pre背景不同": true,
+        "切回浅色还原": true,
+        "主题确实切换过": true
+      }
+    },
+    {
+      "name": "7_深色无白底残留(3-6抽查)",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "处于深色": true,
+        "无纯白背景": true,
+        "无近白背景": true
+      }
+    },
+    {
+      "name": "8_键盘左右切换Tab",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "ArrowRight切到源码": true,
+        "ArrowLeft切回效果": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 9,
+    "passed": 9,
+    "failed": 0,
+    "failedNames": []
+  }
+}
