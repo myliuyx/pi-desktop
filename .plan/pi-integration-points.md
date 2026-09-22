@@ -83,7 +83,66 @@
 4. **其余屏**按需逐个替换
 5. **验收策略显式决策**：accept:m1/m2 的 mock 依赖怎么处置（保留 mock 分支 or 验收退役归档）
 
-## 七、不动清单（接 Pi 时不许碰）
+## 七、模型配置：全继承 Pi，不自造一套
+
+Pi 把「有哪些模型 / 用什么凭据 / 当前选哪个」拆成三层，**默认都在 `~/.pi/agent/`**，
+而 SDK 的 `createAgentSession()` 默认就读这个目录 —— **用户已装的 Pi CLI 配置，我们的 app 打开即用**。
+
+| 文件 | 职责 | 我们的触点 |
+|---|---|---|
+| `models.json` | 有哪些模型、端点在哪（`baseUrl` + `api` 类型 + `models[]` + `compat`） | 工具条模型菜单的数据源 |
+| `auth.json` | API key / OAuth 凭据 | 由 Pi 自己写，我们不碰 |
+| `settings.json` | 当前选中的模型与思考档（`defaultProvider` / `defaultModel` / `defaultThinkingLevel` / `modelThinkingLevels`） | 05 设置屏的读写目标 |
+
+### 可用 API（grep 实证，非凭文档推测）
+
+| 用途 | 接口 | 出处 |
+|---|---|---|
+| 列模型 | `runtime.getAvailable(providerId?)` / `getModels(providerId?)` / `getProviders()` | `core/model-runtime.ts` L393/397/405 |
+| 凭据状态 | `runtime.listCredentials()` / `getProviderAuthStatus(providerId)` | `core/model-runtime.ts` L558/562 |
+| 存 key | `runtime.setRuntimeApiKey(providerId, key)` | `core/model-runtime.ts` L537 |
+| OAuth 登录 | `runtime.login(providerId, method, opts)` | `modes/interactive/interactive-mode.ts` L6091 |
+| 运行时换模型 | `session.setModel(model)` | `core/agent-session.ts` L1828 |
+| 运行时换档位 | `session.setThinkingLevel(level)` | `core/agent-session.ts` L1963 |
+| 持久化选择 | `settingsManager.setDefaultModelAndProvider(provider, modelId)` | `core/settings-manager.ts` L754 |
+
+⚠️ `pi-ai` 顶层 `getModel()` 已标记 deprecated，一律走 `ModelRuntime` 实例方法。
+
+### ★ 边界：内置自定义 provider 不能塞自己的 models.json
+
+`ModelRuntime.create()` 的 `modelsPath` **只有一个、不合并**（`core/model-runtime.ts` L175-176：
+给了就用给的，否则才用 `~/.pi/agent/models.json`）。
+→ 我们要内置火山方舟这类 provider，**不能靠打包一份 `models.json`**（会整体顶掉用户配置），
+正路是写 Pi extension 用 `pi.registerProvider(name, config)` 注册（`docs/extensions.md` L1777，
+官方示例 `examples/extensions/custom-provider-anthropic/`），它是**叠加**在内置 provider 与用户
+`models.json` 之上的，不冲突。
+
+### UI 改造点
+
+- `ComposerToolbar` 的 ChipMenu：`mock/composer.ts` 的 `COMPOSER_MODELS` / `COMPOSER_MODEL_GROUPS`
+  → 由 `getAvailable()` 派生、按 `getProviders()` 分组。**交互契约不变**（分组标题、勾在左、
+  说明副行、上拉方向）。选中动作 = `session.setModel()` + `settingsManager.setDefaultModelAndProvider()`。
+- `SettingsScreen` 模型组：`mock/settings.ts` → 读写同一份 `settings.json`。
+- 工具条与 05 屏共享同一真相（延续 ChipMenu 改上拉菜单时定下的口径）。
+
+## 八、思考档位：mock 三档 → Pi 七档
+
+| 来源 | 档位 |
+|---|---|
+| Pi（`settings.json` 的 `defaultThinkingLevel`） | `off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max` |
+| 我们 mock（`COMPOSER_THINKING_LEVELS` / `THINKING_LABEL`） | Low / High / Max（仅 3 档） |
+
+`modelThinkingLevels` 还能按 `"provider/modelId"` 分别记默认档 —— **切模型时档位可能跟着变**。
+
+### 接真数据时的四个影响（原型期未预留，需显式处理）
+
+1. **档位表整体替换**：`THINKING_LABEL` 要补四档文案，UI 不能假定只有三档。
+2. **菜单项从 3 增到 7**：面板在底部恒上拉，7 项 × 29.1px ≈ 204px + 分组标题 —— 需评估高度与滚动，
+   以及窄容器下的容器查询分层（沿用工具条溢出治理那套做法）。
+3. **切模型 → 档位联动**：切模型后档位可能被 `modelThinkingLevels` 改写，UI 要能反映"不是我改的"。
+4. **`off` 是合法值**：档位可以被关掉，UI 不能只渲染"开着的档"。
+
+## 九、不动清单（接 Pi 时不许碰）
 
 - UI 组件树与全部 data-testid 契约（`composer` / `send` / `input` / `message-item` / `message-list` /
   `titlebar-toggle-sidebar` / `titlebar-toggle-preview` / 各卡片 testid 等）

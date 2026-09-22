@@ -98,6 +98,32 @@ shiki + react-markdown + remark-gfm + @tanstack/react-virtual。**共 8 个依�
 - 已知例外：`--text-tertiary` 浅色 2.93:1（跨 8 屏一致，改令牌定稿值才可解，设计稿定稿值不在原型期改）
   —— **2026-09-22 用户裁决接受为已知例外**，后续对比度审计遇此直接放行，不再当失败上报
 
+## Pi 接入 POC（2026-09-22 通过，架构风险已销账）
+
+- **调研文档第七节的「唯一高风险项」已证伪**：Electron 44.4.3（内置 Node 24.21.0 / ABI 149）主进程里
+  `pi-coding-agent` 可 import（~887ms）、`@earendil-works/pi-tui` 与 `photon-node` 均可加载、
+  真实会话跑通（模型回 `pong`）。**Electron 壳 + Pi 内核方案不再有已知颠覆性风险。**
+- 完整记录：`.plan/poc-pi-2026-09-22.md`；回归资产：`pi/_poc/`（`models.json` / `smoke.ts` /
+  `electron-probe/`，密钥在 `pi/_poc/.env.local`，pi/ 整体 gitignore 未入库）。
+- **模型接入**：火山方舟 `https://ark.cn-beijing.volces.com/api/coding/v3` 是
+  **openai-completions** 端点（Anthropic Messages 端点才是不带 `/v3` 的 `/api/coding`）；
+  `models.json` 用 `"apiKey": "$ARK_API_KEY"` 插值，兼容端点要关
+  `compat.supportsDeveloperRole/supportsReasoningEffort`；SDK 走
+  `ModelRuntime.create({modelsPath})` → `setRuntimeApiKey()` → `getModel()`
+  （pi-ai 顶层 `getModel()` 已 deprecated）。
+- **接 Pi 时仍未验的两项**：① asar 打包（native `.node` 在 asar 内 dlopen 才是真风险，缓解 = asar unpack）；
+  ② 本次用源码 monorepo（workspace 软链），换 npm 发布包后需重跑探针。
+
+## 版本管理（2026-09-22 起）
+
+- 根目录**已 `git init`**，首提交 `175a208`（126 文件 / 29609 行），收官态原型全量入库。
+- `.gitignore` 忽略：`node_modules/` `dist/` `*.tsbuildinfo` `_chk*.txt` `.workbuddy/cache/` **`pi/`**。
+  `pi/` 是上游 `earendil-works/pi` 的本地 clone（无自带 .git、无本地改动），**刻意不入库**，
+  需还原用 `git clone https://github.com/earendil-works/pi pi`；将来要改 pi 源码时必须改这条规则。
+- 本地 git 身份是**占位值**（`myliu` / `myliu@localhost`，仅 local 级、未设 global）——
+  推送远端前需改成真实身份。
+- **无远端仓库**，目前只有本地提交。
+
 ## 环境踩坑（Windows / 本机）
 
 - **Bash 工具的 `rm` / `ls` / `dirname` / `tail` / `head` 经常 exit 127**（shim 缺失）→ 改用 node 脚本做文件操作
