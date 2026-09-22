@@ -59,7 +59,16 @@
   04 技能与工具 / 05 设置 / 06 窗口壳）全部可演示
 - **工时**：净工时 69.5h 用尽，**14h 缓冲未动用**
 - **Pi 侧**：依赖已装、构建已通、POC 四步全过（Electron 44.4.3 内真实会话跑通）
-- **下一步**：按 `pi-survey-plan.md` 梳理 Pi → 适配层（Pi 事件 → Block）
+- **适配层已落地**：`packages/ui/src/adapter/`（`pi-events` / `from-pi` / `reduce`），
+  带状态纯 reducer；`npm run check:adapter` = 24 项断言（真实会话 dump 回放）
+- **已完成的梳理**：S0 我方契约 / S1 事件映射 / S4 传输层选型（均见 `survey/`）；
+  剩 S2 会话持久化、S3 授权闭环、S5 自建能力、S6 汇总
+- **下一个建议做 S3**：授权应答是唯一需要在 transport 上开**反向通道**的能力，
+  而 S4 的接口草案尚未包含它，早做可避免 core 接口返工
+- **下一步（大方向）**：按 `pi-integration-points.md` 把 mock 换成真实数据链路；
+  `chat-store` 五方法签名冻结，只换内部实现
+- **开工前必读**：`survey/S0-our-contract.md` → `survey/S1-event-mapping.md` → `survey/S4-transport-decision.md`
+  （三份加起来就能动手，不必通读 `.plan/`）
 - **遗留（非阻断）**：06 屏缩略窗口文字不可读（有单壳全尺寸替代）、主包 520 kB、
   DEV 下 `window.__chatStore` 桩（接 Pi 时改回真实 UI 驱动）
 

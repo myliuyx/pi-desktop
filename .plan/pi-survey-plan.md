@@ -5,6 +5,24 @@
 > Pi 的事件模型——不能凭想象开工。
 > 配套：`.plan/pi-integration-points.md`（替换点清单）、`docs/pi-agent-core-调研.md`（选型调研）
 
+## 当前进度（2026-09-22 收尾时）
+
+| 阶段 | 状态 | 产物 |
+|---|---|---|
+| **S0** 冻结我方契约 | ✅ 完成 | `survey/S0-our-contract.md` |
+| **S1** 事件→Block 映射 | ✅ 完成 | `survey/S1-event-mapping.md` |
+| **S2** 会话与持久化 | ⏸ 未做 | — |
+| **S3** 工具与授权闭环 | ⏸ 未做（**建议下一个做**，理由见下） | — |
+| **S4** 传输层选型 | ✅ 完成 | `survey/S4-transport-decision.md` |
+| **S5** 自建能力 | ⏸ 未做 | — |
+| **S6** 汇总 | ⏸ 未做 | — |
+
+**适配层已提前落地**（不等 S6）：`packages/ui/src/adapter/`（`pi-events.ts` / `from-pi.ts` / `reduce.ts`），
+配套 `npm run check:adapter`（24 项断言，用真实会话 dump 回放）。
+
+**下一个建议做 S3**：授权（ApprovalBlock 的 `resolveApproval`）是**唯一需要在 transport 上开反向通道**
+的能力，而 S4 的接口草案还没包含它——早做能避免 core 接口返工。
+
 ---
 
 ## 零、v2 改了什么（为什么重写）

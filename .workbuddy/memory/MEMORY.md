@@ -40,6 +40,11 @@ shiki + react-markdown + remark-gfm + @tanstack/react-virtual。**共 8 个依�
 - **CDP 端口分配**：m1=9333 / m2=9337 / m3=9341 / m4=9342 / **m5=9343**
 - `check:cn`（scripts/cn-check.mjs，`--experimental-strip-types`）是 **cn() 工具回归**，与中文文案无关
   （20 项，含 flex/display/text-align 分组与真实 class 串）。
+- **`check:adapter`**（scripts/adapter-check.mjs，同样需 `--experimental-strip-types`）：适配层 **24 项**断言，
+  用 `scripts/fixtures/pi-events-{pong,tool}.jsonl`（**真实会话 dump**，已精简）回放 Pi 事件 → `Message[]`。
+  **期望值一律从 fixture 现读**（模型每次尝试路径数不固定，写死数字必误报）。
+- 跑测试脚本的通用姿势：`cd packages/ui && node.exe --experimental-strip-types scripts/xxx.mjs`
+  （本机 bash shim 缺 `npm`/`mkdir`/`head`/`tail`/`sleep`，但 `git` 与 node 二进制可用）。
 
 ## 验收流程铁律
 
@@ -100,7 +105,18 @@ shiki + react-markdown + remark-gfm + @tanstack/react-virtual。**共 8 个依�
   —— **2026-09-22 用户裁决接受为已知例外**，后续对比度审计遇此直接放行，不再当失败上报
 
 - 梳理产物：`.plan/survey/S0-our-contract.md`（我方契约）、**`S1-event-mapping.md`（事件→Block 映射，
-  含"一次 prompt 可产生多 turn / 多条 assistant 消息"这条与文档不同的实测结论）**
+  含"一次 prompt 可产生多 turn / 多条 assistant 消息"这条与文档不同的实测结论）**、
+  `S4-transport-decision.md`（传输层选型）
+- **进度：S0 / S1 / S4 已完成；剩 S2 会话持久化 / S3 授权闭环 / S5 自建能力 / S6 汇总。**
+  **下一个建议做 S3**——授权应答是唯一需要 transport 开**反向通道**的能力，S4 接口草案尚未包含它，
+  早做可避免 core 接口返工。
+- **适配层已提前落地**（不等 S6）：`packages/ui/src/adapter/`
+  - `pi-events.ts` —— **我们自己的 `AgentEvent` 协议**，不 import Pi 包
+  - `from-pi.ts` —— `toAgentEvent(raw)`：Pi 原生事件 → AgentEvent（core 侧用）
+  - `reduce.ts` —— `applyEvent(state, event)`：带状态纯 reducer，支持多 turn / 多 assistant 消息，
+    tool_execution_* 按 toolCallId 挂 TerminalBlock，**`agent_settled` 才收尾**
+- 待办（接真数据时）：把 Block 六型从 `packages/ui/src/mock/types.ts` 提升为共享契约（UI type-only 引用）；
+  core 侧 SSE 要批处理且终态信号不合并
 
 ## Pi 接入 POC（2026-09-22 通过，架构风险已销账）
 
