@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-23T05:24:49.807Z",
+  "startedAt": "2026-09-23T05:46:41.934Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
@@ -493,7 +493,7 @@
           "testid": "titlebar-toggle-sidebar",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(47, 85, 191)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
@@ -507,7 +507,7 @@
           "testid": "titlebar-open-settings",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(45, 77, 169)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
@@ -521,14 +521,14 @@
           "testid": "sidebar-new-task",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(73, 100, 174)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-search",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(62, 99, 206)",
           "focusVisible": true
         },
         {
@@ -577,7 +577,7 @@
           "testid": "sidebar-history-item-6",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         },
         {
