@@ -243,7 +243,17 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 				...m,
 				blocks: m.blocks.map((block) =>
 					block.type === "approval" && block.requestId === event.requestId
-						? { ...block, resolved: event.resolution }
+						? {
+								...block,
+								// 主控裁决（复核发现）：input 卡的乐观 resolved 是用户输入的原文，
+								// settled(accepted) 覆写会把它冲成 "accepted"（卡片丢失「已提交：文本」）——
+								// input 卡已有文本时不覆写。options 卡保持 C3 既有行为（settled 归一为
+								// accepted/cancelled，accept 用例依赖此口径），一行未动。
+								resolved:
+									block.method === "input" && (block.resolved ?? "") !== ""
+										? block.resolved
+										: event.resolution,
+							}
 						: block,
 				),
 			})),
