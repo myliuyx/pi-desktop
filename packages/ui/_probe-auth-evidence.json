@@ -1,0 +1,351 @@
+{
+  "origin": "http://127.0.0.1:5195",
+  "startedAt": "2026-09-23T10:35:41.998Z",
+  "steps": [
+    {
+      "name": "注入后 store 消息数（应 3）",
+      "value": 3
+    },
+    {
+      "name": "初始快照（input A / input B / legacy）",
+      "value": {
+        "a0": {
+          "resolved": "false",
+          "expired": "false",
+          "innerText": "口令卡A（点提交）\n提交",
+          "input": {
+            "value": "",
+            "disabled": false,
+            "placeholder": "请输入审批口令"
+          },
+          "submit": {
+            "text": "提交",
+            "disabled": true
+          },
+          "optionTestids": [],
+          "optionDisabled": []
+        },
+        "b0": {
+          "resolved": "false",
+          "expired": "false",
+          "innerText": "口令卡B（Enter）\n提交",
+          "input": {
+            "value": "",
+            "disabled": false,
+            "placeholder": "请输入审批口令"
+          },
+          "submit": {
+            "text": "提交",
+            "disabled": true
+          },
+          "optionTestids": [],
+          "optionDisabled": []
+        },
+        "legacy0": {
+          "resolved": "false",
+          "expired": "false",
+          "innerText": "旧式卡（method 缺省）\n允许\n拒绝",
+          "input": null,
+          "submit": null,
+          "optionTestids": [
+            "approval-option-0",
+            "approval-option-1"
+          ],
+          "optionDisabled": [
+            false,
+            false
+          ]
+        }
+      }
+    },
+    {
+      "name": "卡 A 输入后快照",
+      "value": {
+        "resolved": "false",
+        "expired": "false",
+        "innerText": "口令卡A（点提交）\n提交",
+        "input": {
+          "value": "口令OVERRIDE-777",
+          "disabled": false,
+          "placeholder": "请输入审批口令"
+        },
+        "submit": {
+          "text": "提交",
+          "disabled": false
+        },
+        "optionTestids": [],
+        "optionDisabled": []
+      }
+    },
+    {
+      "name": "卡 A 点击提交后快照 / store",
+      "value": {
+        "a2": {
+          "resolved": "true",
+          "expired": "false",
+          "innerText": "口令卡A（点提交）\n提交\n\n已提交：口令OVERRIDE-777",
+          "input": {
+            "value": "口令OVERRIDE-777",
+            "disabled": true,
+            "placeholder": "请输入审批口令"
+          },
+          "submit": {
+            "text": "提交",
+            "disabled": true
+          },
+          "optionTestids": [],
+          "optionDisabled": []
+        },
+        "store1": [
+          {
+            "requestId": "probe-input-a",
+            "method": "input",
+            "placeholder": "请输入审批口令",
+            "options": [],
+            "resolved": "口令OVERRIDE-777"
+          },
+          {
+            "requestId": "probe-input-b",
+            "method": "input",
+            "placeholder": "请输入审批口令",
+            "options": [],
+            "resolved": ""
+          },
+          {
+            "requestId": "probe-legacy",
+            "options": [
+              "允许",
+              "拒绝"
+            ],
+            "resolved": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "已决后再提交的 store 快照",
+      "value": [
+        {
+          "requestId": "probe-input-a",
+          "method": "input",
+          "placeholder": "请输入审批口令",
+          "options": [],
+          "resolved": "口令OVERRIDE-777"
+        },
+        {
+          "requestId": "probe-input-b",
+          "method": "input",
+          "placeholder": "请输入审批口令",
+          "options": [],
+          "resolved": ""
+        },
+        {
+          "requestId": "probe-legacy",
+          "options": [
+            "允许",
+            "拒绝"
+          ],
+          "resolved": ""
+        }
+      ]
+    },
+    {
+      "name": "卡 B 聚焦并输入",
+      "value": {
+        "active": true,
+        "value": "口令ENTER-42"
+      }
+    },
+    {
+      "name": "卡 B Enter 提交后快照 / store",
+      "value": {
+        "b1": {
+          "resolved": "true",
+          "expired": "false",
+          "innerText": "口令卡B（Enter）\n提交\n\n已提交：口令ENTER-42",
+          "input": {
+            "value": "口令ENTER-42",
+            "disabled": true,
+            "placeholder": "请输入审批口令"
+          },
+          "submit": {
+            "text": "提交",
+            "disabled": true
+          },
+          "optionTestids": [],
+          "optionDisabled": []
+        },
+        "store3": [
+          {
+            "requestId": "probe-input-a",
+            "method": "input",
+            "placeholder": "请输入审批口令",
+            "options": [],
+            "resolved": "口令OVERRIDE-777"
+          },
+          {
+            "requestId": "probe-input-b",
+            "method": "input",
+            "placeholder": "请输入审批口令",
+            "options": [],
+            "resolved": "口令ENTER-42"
+          },
+          {
+            "requestId": "probe-legacy",
+            "options": [
+              "允许",
+              "拒绝"
+            ],
+            "resolved": ""
+          }
+        ]
+      }
+    },
+    {
+      "name": "旧式卡点击后快照 / store",
+      "value": {
+        "legacy1": {
+          "resolved": "true",
+          "expired": "false",
+          "innerText": "旧式卡（method 缺省）\n允许\n拒绝\n\n已选择：允许\n\n已允许：本次调用获授权执行。",
+          "input": null,
+          "submit": null,
+          "optionTestids": [
+            "approval-option-0",
+            "approval-option-1"
+          ],
+          "optionDisabled": [
+            true,
+            true
+          ]
+        },
+        "store4": [
+          {
+            "requestId": "probe-input-a",
+            "method": "input",
+            "placeholder": "请输入审批口令",
+            "options": [],
+            "resolved": "口令OVERRIDE-777"
+          },
+          {
+            "requestId": "probe-input-b",
+            "method": "input",
+            "placeholder": "请输入审批口令",
+            "options": [],
+            "resolved": "口令ENTER-42"
+          },
+          {
+            "requestId": "probe-legacy",
+            "options": [
+              "允许",
+              "拒绝"
+            ],
+            "resolved": "允许"
+          }
+        ]
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "AUTH[input] 卡片存在且与 options 按钮互斥（不出 approval-option-*）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "input卡渲染出输入框": true,
+        "input卡不渲染options按钮A": true,
+        "input卡不渲染options按钮B": true,
+        "提交按钮存在且文案为提交": true
+      }
+    },
+    {
+      "name": "AUTH[input] placeholder 正确下发",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "卡A占位符": true,
+        "卡B占位符": true
+      }
+    },
+    {
+      "name": "AUTH[input] 空文本时提交按钮 disabled（未决初始态）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "卡A提交禁用": true,
+        "卡B提交禁用": true,
+        "卡A输入框可用": true,
+        "卡A未决": true
+      }
+    },
+    {
+      "name": "AUTH[input] 输入文本后提交按钮可用（输入框可聚焦可输入）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "输入值生效": true,
+        "提交按钮解禁": true
+      }
+    },
+    {
+      "name": "AUTH[input] 点击提交后 resolved 写回 + 已提交文本 + 已决禁用",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "dataResolved为true": true,
+        "卡片显示已提交与原文": true,
+        "输入框已禁用": true,
+        "提交按钮已禁用": true,
+        "store乐观写入": true
+      }
+    },
+    {
+      "name": "AUTH[input] 已决后再次提交不覆盖 resolved",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "卡Aresolved保持原值": true,
+        "无其它卡被串写": true
+      }
+    },
+    {
+      "name": "AUTH[input] Enter 键提交路径可用",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "dataResolved为true": true,
+        "卡片显示已提交与原文": true,
+        "输入框已禁用": true,
+        "store乐观写入": true
+      }
+    },
+    {
+      "name": "AUTH[回归] method 缺省卡走旧渲染（options 按钮、无输入框）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "两个options按钮": true,
+        "无输入框": true,
+        "无提交按钮": true,
+        "按钮初始可点": true
+      }
+    },
+    {
+      "name": "AUTH[回归] approval-option-0 可点且 resolved 乐观写入",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "dataResolved为true": true,
+        "显示已选择允许": true,
+        "按钮全部置灰": true,
+        "store乐观写入": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 9,
+    "passed": 9,
+    "failed": 0,
+    "failedNames": []
+  }
+}
