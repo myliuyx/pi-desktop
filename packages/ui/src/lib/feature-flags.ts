@@ -63,12 +63,22 @@ export function isLiveEnabled(): boolean {
   return new URLSearchParams(window.location.search).get(LIVE_QUERY_PARAM) === "1";
 }
 
-/** 读取 live 模式配置（core 基址 + Bearer token）。core 同源托管 UI 时 baseUrl 为 ""。 */
+/**
+ * 读取 live 模式配置（core 基址 + Bearer token）。
+ *
+ * token 来源优先级：
+ * 1. `?token=` URL 参数（跨源 dev 场景：vite 5173 → core 5190 时手动带）；
+ * 2. `window.__CORE_TOKEN__` —— **core 同源托管时由 server 注入到 index.html**（2026-09-23 起），
+ *    ⇒ 用户只需打开 `http://127.0.0.1:<port>/?live=1`，token 不再进 URL / 收藏夹 / 历史记录。
+ *
+ * baseUrl：`?core=` 覆盖；core 同源托管时缺省相对路径 ""。
+ */
 export function getLiveConfig(): { baseUrl: string; token: string } {
   if (typeof window === "undefined") return { baseUrl: "", token: "" };
   const params = new URLSearchParams(window.location.search);
   const core = params.get("core");
-  const token = params.get("token") ?? "";
+  const token =
+    params.get("token") ?? (window as { __CORE_TOKEN__?: string }).__CORE_TOKEN__ ?? "";
   return { baseUrl: core ?? "", token };
 }
 

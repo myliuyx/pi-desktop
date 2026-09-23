@@ -167,13 +167,27 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 					res.end("not found");
 					return;
 				}
+				let body = buf;
+				if (isHtml) {
+					/*
+					 * 把同源 bootstrap token 注入 HTML：页面（feature-flags.getLiveConfig）优先读
+					 * `window.__CORE_TOKEN__`，其次才读 `?token=`（供跨源 dev 场景覆盖）。
+					 * ⇒ 用户只需要打开 `http://127.0.0.1:<port>/?live=1`，token 不再进 URL/收藏夹。
+					 * 安全口径不变：Host 白名单 + Bearer 校验照旧；静态资源本就免鉴权，
+					 * 注入不引入新攻击面（本机进程本就能读 run/core.json）。
+					 */
+					const inject = `<script>window.__CORE_TOKEN__=${JSON.stringify(token)};</script>`;
+					body = Buffer.from(buf.toString("utf8").replace("</head>", `${inject}</head>`));
+				}
 				res.writeHead(200, { "Content-Type": isHtml ? "text/html; charset=utf-8" : contentTypeOf(file) });
-				res.end(buf);
+				res.end(body);
 			});
 		};
 		fs.stat(filePath, (err, st) => {
 			if (!err && st.isFile()) {
-				sendFile(filePath, false);
+				// HTML 判定按扩展名：index.html 真实存在时也必须注入 token（首跑实踩：
+				// 只在 SPA 回退分支传 isHtml=true，导致 GET / 拿到的页面没有注入）
+				sendFile(filePath, filePath.endsWith(".html"));
 				return;
 			}
 			// SPA 回退：其余 GET 一律回 index.html（应用用 hash 路由，单页即可）
