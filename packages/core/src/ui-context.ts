@@ -67,9 +67,13 @@ export function createUiBridge(opts: { emit: (event: AgentEvent) => void }): UiB
 	/**
 	 * 结算一笔未决请求。**顺序有意为之**：
 	 * ① 先 delete（防协议层重复，与 Pi 的 first-write-wins 一致）
-	 * ② 先下发 `approval_settled` 再 resolve —— resolve 会让扩展立刻恢复执行，
-	 *    先发事件可保证 UI 收到的顺序是「收到卡片 → 卡片被收掉 → 工具事件」，
-	 *    而不是「工具已经跑起来了，卡片还挂着」。
+	 * ② 先下发 `approval_settled` 再 resolve —— resolve 会让扩展立刻恢复执行。
+	 *
+	 * 实测到的整体顺序（C3 取证，见 `run/c3-evidence.json`）：
+	 * `tool_execution_start → approval_request → approval_settled → tool_execution_end`
+	 * —— `tool_execution_start` **先于**提问（`tool_call` hook 在执行包装内部被调用），
+	 * 所以「先发 settled 再 resolve」保证的是「结算帧先于**结果帧**（_end）」，
+	 * 而不是「先于整个工具事件流」。
 	 */
 	const settle = (requestId: string, resolution: "accepted" | "cancelled", value: string | undefined): boolean => {
 		const entry = pending.get(requestId);
