@@ -1,0 +1,153 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-23T05:48:44.426Z",
+  "steps": [
+    {
+      "name": "注入三张授权卡后 store 消息数",
+      "value": 3
+    },
+    {
+      "name": "初始快照",
+      "value": [
+        {
+          "title": "到期卡（2500ms 后应失效）",
+          "resolved": "false",
+          "expired": "false",
+          "optionCount": 2,
+          "allDisabled": false,
+          "anyEnabled": true,
+          "hasCountdown": true,
+          "countdownText": "剩余 3 秒",
+          "reasonText": null,
+          "innerText": "到期卡（2500ms 后应失效）\n允许\n拒绝\n\n剩余 3 秒"
+        },
+        {
+          "title": "无倒计时卡（点拒绝）",
+          "resolved": "false",
+          "expired": "false",
+          "optionCount": 2,
+          "allDisabled": false,
+          "anyEnabled": true,
+          "hasCountdown": false,
+          "countdownText": null,
+          "reasonText": null,
+          "innerText": "无倒计时卡（点拒绝）\n允许\n拒绝"
+        },
+        {
+          "title": "未到期即点卡",
+          "resolved": "false",
+          "expired": "false",
+          "optionCount": 2,
+          "allDisabled": false,
+          "anyEnabled": true,
+          "hasCountdown": true,
+          "countdownText": "剩余 8 秒",
+          "reasonText": null,
+          "innerText": "未到期即点卡\n允许\n拒绝\n\n剩余 8 秒"
+        }
+      ]
+    },
+    {
+      "name": "点击后快照（未到期即点 / 拒绝）",
+      "value": {
+        "clicked": true,
+        "clickedCard": {
+          "title": "未到期即点卡",
+          "resolved": "true",
+          "expired": "false",
+          "optionCount": 2,
+          "allDisabled": true,
+          "anyEnabled": false,
+          "hasCountdown": false,
+          "countdownText": null,
+          "reasonText": "已允许：本次调用获授权执行。",
+          "innerText": "未到期即点卡\n允许\n拒绝\n\n已选择：允许\n\n已允许：本次调用获授权执行。"
+        },
+        "rejectCard": {
+          "title": "无倒计时卡（点拒绝）",
+          "resolved": "true",
+          "expired": "false",
+          "optionCount": 2,
+          "allDisabled": true,
+          "anyEnabled": false,
+          "hasCountdown": false,
+          "countdownText": null,
+          "reasonText": "已拒绝：本次调用不会执行；扩展会把拒绝原因回传给模型（B2：拒绝理由明示）。",
+          "innerText": "无倒计时卡（点拒绝）\n允许\n拒绝\n\n已选择：拒绝\n\n已拒绝：本次调用不会执行；扩展会把拒绝原因回传给模型（B2：拒绝理由明示）。"
+        }
+      }
+    },
+    {
+      "name": "到期后快照",
+      "value": {
+        "title": "到期卡（2500ms 后应失效）",
+        "resolved": "false",
+        "expired": "true",
+        "optionCount": 2,
+        "allDisabled": true,
+        "anyEnabled": false,
+        "hasCountdown": true,
+        "countdownText": "已超时",
+        "reasonText": "已超时：core 已按「取消」自动结算，此处不可再应答（再点会被静默丢弃）。",
+        "innerText": "到期卡（2500ms 后应失效）\n允许\n拒绝\n\n已超时\n\n已超时：core 已按「取消」自动结算，此处不可再应答（再点会被静默丢弃）。"
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "C3[倒计时]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三张卡都渲染": true,
+        "到期卡有倒计时元素": true,
+        "倒计时文案含剩余秒": true,
+        "到期卡初始未失效": true,
+        "无timeout卡不渲染倒计时": true,
+        "无timeout卡未失效且可点": true,
+        "无timeout卡保留已选择行结构": true
+      }
+    },
+    {
+      "name": "C3[未到期即点]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已结算": true,
+        "两按钮置灰": true,
+        "倒计时停表": true,
+        "理由明示已允许": true,
+        "保留已选择行": true
+      }
+    },
+    {
+      "name": "C3[拒绝理由明示]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已结算": true,
+        "两按钮置灰": true,
+        "理由明示已拒绝": true,
+        "保留已选择行": true
+      }
+    },
+    {
+      "name": "C3[超时失效态]",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已失效": true,
+        "两按钮置灰不可点": true,
+        "倒计时文案为已超时": true,
+        "理由明示已超时": true,
+        "数据未决状态仍为false": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 4,
+    "passed": 4,
+    "failed": 0,
+    "failedNames": []
+  }
+}
