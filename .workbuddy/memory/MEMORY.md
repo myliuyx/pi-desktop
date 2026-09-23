@@ -93,7 +93,11 @@ git 身份是占位 `myliu@localhost`（local 级），推远端前需改真实�
   `node --env-file=../../pi/_poc/.env.local node_modules/tsx/dist/cli.mjs src/main.ts` →
   浏览器开 `http://127.0.0.1:5190/?live=1&token=<run/core.json 的 token>`。
   带 `agentdir-ext` 夹具可演示授权卡；`/health` 会回 `extensions` 与 `trust` 状态。
-- **待批**：C6 收尾（汇总 + 全链路复核与文档收口）。
+- **待批**：C6 收尾（汇总 + 全链路复核与文档收口）。**C6 首个修复项（2026-09-23 用户实测反馈）**：
+  `?live=1` 打开时**首屏仍是 7 条 mock 会话**，导致「看着和纯 UI 没区别」——
+  应改为 live 模式启动即 `listSessions` 并加载最近一条真实会话（空则显示空态，别拿 mock 顶）。
+  **最快的自检口径**：看侧边栏「历史会话」——mock 形态是 8 条假会话，live 形态是你真实的
+  `~/.pi/agent/sessions` 记录。
 
 ## Windows 踩坑
 
