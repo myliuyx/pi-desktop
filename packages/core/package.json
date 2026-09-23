@@ -11,6 +11,8 @@
     "security-check": "node scripts/core-security-check.mjs",
     "smoke:check": "node scripts/core-smoke.mjs",
     "check:c3": "node scripts/c3-approval-check.mjs",
+    "check:c4": "node scripts/c4-sessions-check.mjs",
+    "check:c5": "node scripts/c5-resources-models-check.mjs",
     "smoke": "node --env-file=../../pi/_poc/.env.local node_modules/tsx/dist/cli.mjs src/main.ts"
   },
   "dependencies": {

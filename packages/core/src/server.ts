@@ -36,7 +36,23 @@ interface StartOptions {
   uiDist?: string;
 }
 
-const API_ROUTES = new Set(["/health", "/events", "/prompt", "/abort", "/approve", "/cancel-approval"]);
+const API_ROUTES = new Set([
+	"/health",
+	"/events",
+	"/prompt",
+	"/abort",
+	"/approve",
+	"/cancel-approval",
+	// C4 · 会话列表与加载
+	"/sessions",
+	"/sessions/load",
+	"/sessions/continue-recent",
+	// C5 · 04/05 屏数据源
+	"/resources",
+	"/models",
+	"/models/select",
+	"/thinking",
+]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object";
@@ -254,6 +270,93 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			const body = (await readBody(req)) as { requestId?: string };
 			const r = runtime.cancelApproval(String(body.requestId ?? ""));
 			return json(200, { ok: true, accepted: r.accepted });
+		}
+
+		/* -----------------------------------------------------------------
+		 * C4 · 会话列表与加载（S2：历史加载 ≠ 事件重放，映射在 sessions.ts）
+		 * ----------------------------------------------------------------- */
+
+		// 清单：默认当前工作目录；`?all=1` 跨项目目录（listAll）
+		if (req.method === "GET" && urlPath === "/sessions") {
+			const all = url.searchParams.get("all") === "1";
+			try {
+				const sessions = await runtime.listSessions({ all });
+				return json(200, { ok: true, cwd: runtime.getCwd(), sessions });
+			} catch (e) {
+				return json(500, { ok: false, error: String(e), sessions: [] });
+			}
+		}
+
+		// 加载：返回 `{ id, title, updatedAt, messages, tokenUsage, stats }`
+		// —— `messages` 即规格书的 `Message[]`（外层带上标题/用量，省掉 UI 的二次请求）
+		if (req.method === "POST" && urlPath === "/sessions/load") {
+			const body = (await readBody(req)) as { id?: string };
+			const id = String(body.id ?? "");
+			if (!id) return json(400, { ok: false, error: "缺少 id" });
+			try {
+				const result = await runtime.loadSession(id);
+				if (!result) return json(404, { ok: false, error: `会话不存在：${id}` });
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				return json(500, { ok: false, error: String(e) });
+			}
+		}
+
+		// 续接最近：只读（不重建活动会话，见 sessions.ts 的语义边界说明）
+		if (req.method === "POST" && urlPath === "/sessions/continue-recent") {
+			try {
+				const result = await runtime.continueRecentSession();
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				return json(500, { ok: false, error: String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * C5 · 04/05 屏数据源
+		 * ----------------------------------------------------------------- */
+
+		if (req.method === "GET" && urlPath === "/resources") {
+			try {
+				const resources = await runtime.getResources();
+				return json(200, { ok: true, ...resources });
+			} catch (e) {
+				return json(500, { ok: false, error: String(e) });
+			}
+		}
+
+		if (req.method === "GET" && urlPath === "/models") {
+			try {
+				const payload = await runtime.getModels();
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(500, { ok: false, error: String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/models/select") {
+			const body = (await readBody(req)) as { provider?: string; modelId?: string };
+			const provider = String(body.provider ?? "");
+			const modelId = String(body.modelId ?? "");
+			if (!provider || !modelId) return json(400, { ok: false, error: "缺少 provider / modelId" });
+			try {
+				const payload = await runtime.selectModel(provider, modelId);
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(400, { ok: false, error: String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/thinking") {
+			const body = (await readBody(req)) as { level?: string };
+			const level = String(body.level ?? "");
+			if (!level) return json(400, { ok: false, error: "缺少 level" });
+			try {
+				const payload = await runtime.setThinkingLevel(level);
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(400, { ok: false, error: String(e) });
+			}
 		}
 
 		// 静态资源（SPA）：仅处理 GET，其余返回 404

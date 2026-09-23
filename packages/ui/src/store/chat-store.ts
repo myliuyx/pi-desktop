@@ -1,10 +1,10 @@
 import { create } from "zustand";
-import type { Message, Session, TextBlock, TokenUsage } from "@/mock/types";
+import type { Message, Session, SessionSummary, TextBlock, TokenUsage } from "@/mock/types";
 import { INITIAL_SESSION, INITIAL_SESSION_TITLE, INITIAL_TOKEN_USAGE } from "@/mock/sessions";
 import { simulateStream, type StreamHandle } from "@/mock/stream";
 import { STREAM_TICK_MS } from "@/lib/layout";
-import { isLiveEnabled, getLiveConfig } from "@/lib/feature-flags";
-import { HttpAgentTransport, type AgentTransport } from "@/services/agent-transport";
+import { isLiveEnabled } from "@/lib/feature-flags";
+import { getLiveTransport } from "@/services/live-transport";
 import { applyEvent, createDraft, type DraftState } from "@/adapter/reduce";
 import type { AgentEvent } from "@/adapter/pi-events";
 
@@ -14,6 +14,14 @@ import type { AgentEvent } from "@/adapter/pi-events";
  * `ChatState` 的字段与方法名是 M2 的**冻结契约**（Agent B 只读 tokenUsage / streaming，
  * 调用 sendMessage / abortStream）。本文件由 Agent A 实现完整版。
  * 允许新增字段，但必须有默认值、且不得改名或删除既有项。
+ *
+ * ## C4 新增（全部是「新增」，既有字段与方法签名一行未改）
+ *
+ * - `sessionSummaries` / `liveSessionId`：live 形态下 Sidebar 的真实清单与当前会话；
+ * - `refreshSessions()` / `loadSessionById(id)`：**新增方法**（未动 `loadSession` 的签名，
+ *   按教训 #3「给既有公共 API 加可选参不是向后兼容」）。
+ * - `loadSession(session)` 在 live 形态下**内部改走 transport**（签名仍是 `(session: Session) => void`：
+ *   只取 `id`/`title`，消息体由 core 回填）。
  */
 
 export interface ChatState {
@@ -29,10 +37,20 @@ export interface ChatState {
   abortStream: () => void;
   /** 解决授权卡片；对已决的 requestId 再次调用应无效 */
   resolveApproval: (requestId: string, choice: string) => void;
-  /** 载入会话（`?stress=N` 与演示重置用） */
+  /** 载入会话（`?stress=N` 与演示重置用）；live 形态下经 core 按 `session.id` 拉真实消息 */
   loadSession: (session: Session) => void;
   /** 回到初始会话 */
   reset: () => void;
+
+  /* ------------------------------------------------------------------ C4 新增 */
+  /** live 形态下的真实会话清单（Sidebar 数据源）；mock 形态恒为空数组 */
+  sessionSummaries: SessionSummary[];
+  /** live 形态下当前打开的会话 id（Sidebar 高亮用）；mock 形态恒为 null */
+  liveSessionId: string | null;
+  /** 重新拉取会话清单（live 形态；mock 形态是空操作） */
+  refreshSessions: () => void;
+  /** 按 id 打开历史会话（live 形态；mock 形态是空操作） */
+  loadSessionById: (id: string, title?: string) => void;
 }
 
 /* ---------------------------------------------------------------------------
@@ -45,18 +63,20 @@ let streamMsgId: string | null = null;
 /* ---------------------------------------------------------------------------
  * live 模式（?live=1）真实链路句柄 —— 模块级闭包，不进可序列化状态。
  * 与 mock 的 activeStream 互斥：live 走 core + 真实模型，mock 走 simulateStream。
+ * 实例由 `services/live-transport.ts` 统一持有（04/05 屏也要用同一条 SSE）。
  * ------------------------------------------------------------------------- */
-let liveTransport: AgentTransport | null = null;
 let liveDraft: DraftState = createDraft();
 
 function ensureLive(): void {
-  if (liveTransport) return;
-  if (typeof window === "undefined" || !isLiveEnabled()) return;
-  liveTransport = new HttpAgentTransport(getLiveConfig());
+  const transport = getLiveTransport();
+  if (!transport) return;
   // 订阅生命周期与应用一致：只要还有监听器就保持 SSE 连接（见 transport 内部引用计数）
-  liveTransport.subscribe((event: AgentEvent) => {
+  transport.subscribe((event: AgentEvent) => {
     liveDraft = applyEvent(liveDraft, event);
     useChatStore.setState({ messages: liveDraft.messages, streaming: liveDraft.streaming });
+    // C4：一轮对话结束后刷新会话清单 —— Pi 是在首条 entry 追加时才落盘会话文件，
+    // 所以新会话只有跑完一轮才会出现在 Sidebar（不刷新则列表永远是启动那一刻的快照）。
+    if (event.type === "agent_settled") useChatStore.getState().refreshSessions();
   });
 }
 
@@ -120,7 +140,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (!trimmed) return;
 
     // ★ live 分支：经 core 连真实模型（reducer 由 applyEvent 在订阅里驱动，不在此预建 assistant 占位）
-    if (liveTransport) {
+    const transport = getLiveTransport();
+    if (transport) {
       const now = Date.now();
       const userMsg: Message = {
         id: `u-${now}`,
@@ -131,7 +152,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({ messages: [...state.messages, userMsg], streaming: true }));
       // liveDraft 以「当前消息 + 新 user 消息」为基线，后续 assistant 消息由 reducer 追加
       liveDraft = createDraft([...get().messages]);
-      void liveTransport.sendMessage(trimmed).catch((e) => {
+      void transport.sendMessage(trimmed).catch((e) => {
         console.error("[live] sendMessage 失败:", e);
         useChatStore.setState({ streaming: false });
       });
@@ -185,9 +206,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   abortStream: () => {
-    if (liveTransport) {
+    const transport = getLiveTransport();
+    if (transport) {
       // 真实链路：中止当前会话（已产出内容定格），streaming 立即解除
-      void liveTransport.abort().catch(() => {});
+      void transport.abort().catch(() => {});
       set({ streaming: false });
       return;
     }
@@ -213,9 +235,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   resolveApproval: (requestId, choice) => {
-    if (liveTransport) {
+    const transport = getLiveTransport();
+    if (transport) {
       // 回传授权选择给 core（core 再 resolve Pi 的 pending）；UI 乐观收卡见下
-      void liveTransport.resolveApproval(requestId, choice).catch(() => {});
+      void transport.resolveApproval(requestId, choice).catch(() => {});
     }
     set((state) => ({
       // 已决的 requestId 再次调用不会改变（resolved 非空时不再覆盖）
@@ -237,9 +260,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       activeStream = null;
       streamMsgId = null;
     }
-    if (liveTransport) {
-      void liveTransport.abort().catch(() => {});
-      liveDraft = createDraft(session.messages);
+    const transport = getLiveTransport();
+    if (transport) {
+      /*
+       * ★ live 形态：**签名不变**（`(session: Session) => void`），内部改走 transport。
+       * 这里只用到 `id`/`title` —— 真实消息体由 core 的
+       * `POST /sessions/load` 回填（`SessionEntry[] → Message[]` 的独立映射在 core 侧）。
+       * 找不到会话时（例如 `?stress=` 造的假 id）保留传入的 session 内容，不把界面清空。
+       */
+      void transport.abort().catch(() => {});
+      get().loadSessionById(session.id, session.title);
+      return;
     }
     set({
       messages: session.messages,
@@ -249,14 +280,61 @@ export const useChatStore = create<ChatState>((set, get) => ({
     });
   },
 
+  /* -------------------------------------------------------------- C4 新增 */
+
+  sessionSummaries: [],
+  liveSessionId: null,
+
+  refreshSessions: () => {
+    const transport = getLiveTransport();
+    if (!transport) return;
+    void transport
+      .listSessions()
+      .then((sessions) => {
+        useChatStore.setState({ sessionSummaries: sessions });
+      })
+      .catch((e) => {
+        console.error("[live] listSessions 失败:", e);
+      });
+  },
+
+  loadSessionById: (id, title) => {
+    const transport = getLiveTransport();
+    if (!transport) return;
+    if (activeStream) {
+      activeStream.abort();
+      activeStream = null;
+      streamMsgId = null;
+    }
+    void transport.abort().catch(() => {});
+    // 乐观先切标题与「当前会话」（消息体等 core 回来再填），避免点击后长时间无反馈
+    set((state) => ({ streaming: false, liveSessionId: id, sessionTitle: title ?? state.sessionTitle }));
+    void transport
+      .loadSession(id)
+      .then((loaded) => {
+        liveDraft = createDraft(loaded.messages);
+        useChatStore.setState({
+          messages: loaded.messages,
+          sessionTitle: loaded.title || title || "会话",
+          tokenUsage: loaded.tokenUsage,
+          streaming: false,
+          liveSessionId: loaded.id,
+        });
+      })
+      .catch((e) => {
+        console.error(`[live] loadSession(${id}) 失败:`, e);
+      });
+  },
+
   reset: () => {
     if (activeStream) {
       activeStream.abort();
       activeStream = null;
       streamMsgId = null;
     }
-    if (liveTransport) {
-      void liveTransport.abort().catch(() => {});
+    const transport = getLiveTransport();
+    if (transport) {
+      void transport.abort().catch(() => {});
       liveDraft = createDraft(INITIAL_SESSION.messages);
     }
     set({
@@ -264,6 +342,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streaming: false,
       sessionTitle: INITIAL_SESSION_TITLE,
       tokenUsage: INITIAL_TOKEN_USAGE,
+      liveSessionId: null,
     });
   },
 }));
@@ -278,7 +357,8 @@ if (typeof window !== "undefined") {
   const dev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true;
   if (dev || isLiveEnabled()) {
     (window as unknown as { __chatStore?: typeof useChatStore }).__chatStore = useChatStore;
-    // live 模式：建立真实链路订阅（SSE → reducer → store）
+    // live 模式：建立真实链路订阅（SSE → reducer → store），并拉一次会话清单给 Sidebar
     ensureLive();
+    if (isLiveEnabled()) useChatStore.getState().refreshSessions();
   }
 }

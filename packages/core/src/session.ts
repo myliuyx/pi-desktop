@@ -28,7 +28,16 @@ import {
 	type AgentSession,
 	type LoadExtensionsResult,
 } from "@earendil-works/pi-coding-agent";
-import type { AgentEvent } from "./contract.ts";
+import type {
+	AgentEvent,
+	ModelsPayload,
+	ResourcesPayload,
+	SessionLoadResult,
+	SessionSummary,
+} from "./contract.ts";
+import { createModelsController, type ModelsController } from "./models.ts";
+import { collectResources } from "./resources.ts";
+import { continueRecentSession, listSessions, loadSessionById, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
 
@@ -51,6 +60,31 @@ export interface CoreRuntime {
 	getTrust(): TrustDecision | null;
 	/** 实际加载到的扩展数；ready 之前为 null（信任门三态的直接证据） */
 	getExtensionCount(): number | null;
+	/** 会话工作目录（`/sessions` 响应里带上，便于复核「列的是哪个目录的会话」） */
+	getCwd(): string;
+
+	/* -------------------------------------------------------------------------
+	 * C4 · 会话持久化（`sessions.ts` 的转发；均先等 ready，与 `prompt` 同口径）
+	 * ----------------------------------------------------------------------- */
+	/** 当前工作目录的会话清单（`all=true` 走 `listAll`，跨项目目录） */
+	listSessions(options?: { all?: boolean }): Promise<SessionSummary[]>;
+	/** 按 id 加载单个会话的 `Message[]`（找不到返回 null → 端点回 404） */
+	loadSession(id: string): Promise<SessionLoadResult | null>;
+	/** 续接最近一次会话（只读，不重建活动 AgentSession，见 `sessions.ts` 的语义边界） */
+	continueRecentSession(): Promise<SessionLoadResult>;
+
+	/* -------------------------------------------------------------------------
+	 * C5 · 04/05 屏数据源（`resources.ts` / `models.ts` 的转发）
+	 * ----------------------------------------------------------------------- */
+	/** `resourceLoader` 三类清单（已按信任门过滤项目本地资源） */
+	getResources(): Promise<ResourcesPayload>;
+	/** 模型清单 + 当前模型 + 思考档位（读 `settings.json` 既有字段现值） */
+	getModels(): Promise<ModelsPayload>;
+	/** 切换模型并写回 `settings.json`（`defaultProvider` / `defaultModel`） */
+	selectModel(provider: string, modelId: string): Promise<ModelsPayload>;
+	/** 设置思考档位并写回 `settings.json`（`defaultThinkingLevel`） */
+	setThinkingLevel(level: string): Promise<ModelsPayload>;
+
 	dispose(): void;
 }
 
@@ -117,9 +151,28 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	const bridge: UiBridge = createUiBridge({ emit: emitAgent });
 
 	let session: AgentSession | null = null;
+	let resourceLoader: DefaultResourceLoader | null = null;
+	let modelRuntime: ModelRuntime | null = null;
+	let settingsManager: SettingsManager | null = null;
 	let trust: TrustDecision | null = null;
 	let extensionCount: number | null = null;
 	let disposed = false;
+
+	/*
+	 * C4：会话目录必须与 Pi 实际落盘目录一致（`<agentDir>/sessions/<encoded-cwd>/`）。
+	 * `getDefaultSessionDir` **未从包顶层导出**（`index.d.ts` 无此符号），
+	 * 所以不自己复刻路径算法（会随上游漂移），而是从活动会话的 SessionManager 上取真值。
+	 */
+	const sessionRef = (): SessionRef => ({ cwd, sessionDir: session?.sessionManager.getSessionDir() });
+
+	/** 当前模型的上下文窗口（`TokenUsage.contextWindow` 的唯一来源；取不到记 0） */
+	const contextWindow = (): number => session?.model?.contextWindow ?? 0;
+
+	const models: ModelsController = createModelsController({
+		getSession: () => session,
+		getRuntime: () => modelRuntime,
+		getSettings: () => settingsManager,
+	});
 
 	const ready = (async (): Promise<void> => {
 		const modelsPath = resolveModelsPath(agentDir, opts.modelsPath);
@@ -133,18 +186,20 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			opts.modelId ?? process.env.PI_MODEL ?? "deepseek-v4-flash",
 		);
 		if (!model) throw new Error("模型未解析到（检查 models.json 与 provider/model id）");
+		modelRuntime = runtime;
 
 		if (process.platform === "win32" && opts.shellPath) mergeShellPath(agentDir, opts.shellPath);
 
 		// ★ 信任门 A3：SDK 的默认 reload 不传 resolveProjectTrust（= 无门），
 		//   所以这里自建 loader 并显式走 Pi 的两段式（resource-loader.ts:263-273）。
-		const settingsManager = SettingsManager.create(cwd, agentDir);
-		const resourceLoader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
-		await resourceLoader.reload({
+		const settingsManagerCreated = SettingsManager.create(cwd, agentDir);
+		settingsManager = settingsManagerCreated;
+		const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager: settingsManagerCreated });
+		await loader.reload({
 			resolveProjectTrust: async ({ extensionsResult }: { extensionsResult: LoadExtensionsResult }) => {
 				trust = await resolveProjectTrust({
 					cwd,
-					settingsManager,
+					settingsManager: settingsManagerCreated,
 					// 与扩展提问共用同一条通道（SSE 下发 approval_request → POST /approve 回收）
 					ask: (title, options, timeoutMs) => bridge.ask(title, options, timeoutMs),
 					timeoutMs: opts.trustTimeoutMs ?? DEFAULT_TRUST_TIMEOUT_MS,
@@ -157,14 +212,15 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 				return trust.trusted;
 			},
 		});
+		resourceLoader = loader;
 
 		const created = await createAgentSession({
 			model,
 			modelRuntime: runtime,
 			agentDir,
 			cwd,
-			settingsManager,
-			resourceLoader,
+			settingsManager: settingsManagerCreated,
+			resourceLoader: loader,
 		});
 		session = created.session;
 		extensionCount = created.extensionsResult.extensions?.length ?? 0;
@@ -208,6 +264,44 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		getPendingApprovals: () => bridge.listPending(),
 		getTrust: () => trust,
 		getExtensionCount: () => extensionCount,
+		getCwd: () => cwd,
+
+		/* ------------------------------------------------------------ C4 */
+		listSessions: async (options = {}) => {
+			await ready;
+			return listSessions(sessionRef(), options);
+		},
+		loadSession: async (id) => {
+			await ready;
+			return loadSessionById(sessionRef(), id, { contextWindow: contextWindow() })?.result ?? null;
+		},
+		continueRecentSession: async () => {
+			await ready;
+			return continueRecentSession(sessionRef(), { contextWindow: contextWindow() }).result;
+		},
+
+		/* ------------------------------------------------------------ C5 */
+		getResources: async () => {
+			await ready;
+			if (!resourceLoader) throw new Error("resourceLoader 未就绪");
+			// 信任结论随清单一起下发（未信任 ⇒ 项目本地资源不列，见 resources.ts 的过滤口径）
+			return collectResources(resourceLoader, trust ? { trusted: trust.trusted, reason: trust.reason } : null, {
+				cwd,
+			});
+		},
+		getModels: async () => {
+			await ready;
+			return models.list();
+		},
+		selectModel: async (provider, modelId) => {
+			await ready;
+			return models.select(provider, modelId);
+		},
+		setThinkingLevel: async (level) => {
+			await ready;
+			return models.setThinking(level);
+		},
+
 		dispose: () => {
 			disposed = true;
 			bridge.dispose();

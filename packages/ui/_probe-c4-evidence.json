@@ -1,0 +1,148 @@
+{
+  "origin": "http://127.0.0.1:5194",
+  "startedAt": "2026-09-23T06:22:51.056Z",
+  "steps": [
+    {
+      "name": "store 已挂载 / 等待到的清单条数",
+      "value": {
+        "storeReady": true,
+        "waited": 1
+      }
+    },
+    {
+      "name": "Sidebar 历史项 / store 清单",
+      "value": {
+        "sidebar": [
+          {
+            "id": "sidebar-history-item-0",
+            "title": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。",
+            "text": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。\n刚刚 3 条消息"
+          }
+        ],
+        "storeSummaries": [
+          {
+            "id": "01a0ccee-5d2f-74da-baf6-ff8cfb8f30eb",
+            "title": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。",
+            "messageCount": 3,
+            "updatedAtType": "number"
+          }
+        ]
+      }
+    },
+    {
+      "name": "加载后的 store / DOM 快照",
+      "value": {
+        "storeCount": 2,
+        "liveSessionId": "01a0ccee-5d2f-74da-baf6-ff8cfb8f30eb",
+        "streaming": false,
+        "tokenUsage": {
+          "input": 1677,
+          "output": 28,
+          "total": 1705,
+          "contextWindow": 128000
+        },
+        "sessionTitle": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。",
+        "roles": [
+          "user",
+          "assistant"
+        ],
+        "storeTexts": [
+          "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。",
+          "收到"
+        ],
+        "domItems": [
+          {
+            "id": "m-c453029f",
+            "role": "user",
+            "text": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。"
+          },
+          {
+            "id": "m-3fd0bc6a",
+            "role": "assistant",
+            "text": "思考过程\n\nThe user says this is a C4-UI probe: only reply with t"
+          }
+        ],
+        "listTotal": "2"
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "C4[列表] live Sidebar 用真实清单（≥1 条，标题含探针标记）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "条数至少1": true,
+        "首项标题含标记": true,
+        "store清单非空": true,
+        "store与DOM条数一致": true,
+        "updatedAt是数字": true
+      }
+    },
+    {
+      "name": "C4[列表] mock 的演示会话未混入真实清单（只能来自 core）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "无mock标题": true,
+        "无mock条数7": true,
+        "id来自core": true
+      }
+    },
+    {
+      "name": "C4[加载] 侧边栏历史项可点击",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已点击": true
+      }
+    },
+    {
+      "name": "C4[加载] store 换成 core 的会话（id 命中 / 消息 ≥1 / 非流式）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "等待到消息": true,
+        "liveSessionId命中": true,
+        "消息数至少1": true,
+        "streaming已解除": true
+      }
+    },
+    {
+      "name": "C4[加载] 消息内容来自会话文件（能读回探针 prompt 原文）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "store含探针原文": true,
+        "含user消息": true,
+        "含assistant消息": true
+      }
+    },
+    {
+      "name": "C4[加载] tokenUsage 来自 core（contextWindow > 0）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "contextWindow为正": true,
+        "total非负": true
+      }
+    },
+    {
+      "name": "C4[加载] **DOM 真渲染出消息**（≥1 条 message-item，且 user 气泡含探针原文）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "DOM条目至少1": true,
+        "DOM与store条数一致": true,
+        "存在user气泡": true,
+        "DOM含探针原文": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 7,
+    "passed": 7,
+    "failed": 0,
+    "failedNames": []
+  }
+}

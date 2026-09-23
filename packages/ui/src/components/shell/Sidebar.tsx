@@ -12,7 +12,9 @@ import {
 import { formatRelativeTime } from "@/lib/format";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { Icon, type LucideIcon } from "@/components/common/icons";
+import { isLiveEnabled } from "@/lib/feature-flags";
 import { useUiStore } from "@/store/ui-store";
+import { useChatStore } from "@/store/chat-store";
 import { SESSION_LIST_NOW, SESSION_SUMMARIES } from "@/mock/sessions";
 
 interface MenuItemProps {
@@ -65,13 +67,14 @@ function MenuItem({ icon, label, active = false, onClick, testId }: MenuItemProp
  *   历史教训：cn() 曾缺 text-align 组导致 text-left 被颜色类吞掉、按钮回落 UA center，
  *   现已补组并加 cn-check 用例——这里的 text-left 是显式生效，不是 UA 兜底。
  */
-function HistoryItem({ title, meta, active = false, testId }: { title: string; meta: string; active?: boolean; testId?: string }) {
+function HistoryItem({ title, meta, active = false, testId, onSelect }: { title: string; meta: string; active?: boolean; testId?: string; onSelect?: () => void }) {
   return (
     <button
       type="button"
       data-testid={testId}
       aria-pressed={active}
       title={title}
+      onClick={onSelect}
       className={cn(
         "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-left",
         "transition-colors duration-150 ease-out",
@@ -117,6 +120,19 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
 ) {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const prefersReducedMotion = usePrefersReducedMotion();
+
+  /*
+   * ★ C4：历史会话的数据源按形态二选一（**默认 mock 一行不变**）：
+   * - mock（默认）：`SESSION_SUMMARIES` + 冻结的相对时间锚点 `SESSION_LIST_NOW`（验收 m1/m5 依赖）；
+   * - live（`?live=1`）：chat-store 里的真实清单 + 真实时钟锚点（`S2 §三` 已记：接真数据后换 `Date.now()`）。
+   * 条目 testid（`sidebar-history-item-<index>`）与两行结构完全不变 —— 只换数据。
+   */
+  const live = isLiveEnabled();
+  const liveSummaries = useChatStore((state) => state.sessionSummaries);
+  const liveSessionId = useChatStore((state) => state.liveSessionId);
+  const summaries = live ? liveSummaries : SESSION_SUMMARIES;
+  const relativeAnchor = live ? Date.now() : SESSION_LIST_NOW;
+  const selectSession = useChatStore((state) => state.loadSessionById);
 
   return (
     <aside
@@ -165,13 +181,19 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
         {/* 历史会话：直接平铺列表，**无「今天 / 昨天」分组标题**（设计稿第 4 轮去掉，验收 1-7） */}
         <SectionLabel icon={History} label="历史会话" />
         <nav className="flex flex-col gap-0.5" data-testid="sidebar-history" aria-label="历史会话">
-          {SESSION_SUMMARIES.map((session, index) => (
+          {summaries.map((session, index) => (
             <HistoryItem
               key={session.id}
               title={session.title}
-              meta={`${formatRelativeTime(session.updatedAt, SESSION_LIST_NOW)} ${session.messageCount} 条消息`}
-              active={activeSessionId === session.id}
+              meta={`${formatRelativeTime(session.updatedAt, relativeAnchor)} ${session.messageCount} 条消息`}
+              /*
+               * 激活项判定：live 用真实当前会话 id，mock 仍用调用方传入的 `activeSessionId`
+               * （默认 "session-0" —— 不动清单里的既有行为）。
+               */
+              active={live ? liveSessionId === session.id : activeSessionId === session.id}
               testId={`sidebar-history-item-${index}`}
+              /* live 形态下点击即按 id 打开历史会话；mock 形态不绑点击（行为零变化） */
+              onSelect={live ? () => selectSession(session.id, session.title) : undefined}
             />
           ))}
         </nav>

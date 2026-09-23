@@ -20,6 +20,8 @@
     "accept:m4": "node scripts/m4-acceptance.mjs",
     "accept:m5": "node scripts/m5-acceptance.mjs",
     "live:smoke": "node scripts/live-smoke.mjs",
+    "probe:c4": "node scripts/probe-c4-session-load.mjs",
+    "probe:c5": "node scripts/probe-c5-live-screens.mjs",
     "shots:m1": "node scripts/m1-shots.mjs"
   },
   "dependencies": {

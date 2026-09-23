@@ -10,8 +10,21 @@
  */
 
 import type { AgentEvent } from "@/adapter/pi-events";
+import type {
+  ModelsPayload,
+  ResourcesPayload,
+  SessionLoadResult,
+  SessionSummary,
+  ThinkingLevelName,
+} from "@/mock/types";
 
-/** 浏览器侧唯一依赖的传输契约（S6 §三草案，C2 落地子集）。 */
+/**
+ * 浏览器侧唯一依赖的传输契约（S6 §三草案，C2 落地子集 + C4/C5 补全会话与 04/05 屏）。
+ *
+ * ⚠️ C4 对 `loadSession` 返回值的口径：S6 §三写的是 `Promise<Session>`，
+ * 这里返回 `SessionLoadResult`（= `Session` 的超集：多带 `tokenUsage` 与映射统计）。
+ * 结构上可直接当 `Session` 用，且省掉 UI 为拿 token 用量再查一次清单。
+ */
 export interface AgentTransport {
   /** 发送一条用户消息 */
   sendMessage(text: string): Promise<void>;
@@ -23,6 +36,24 @@ export interface AgentTransport {
   cancelApproval(requestId: string): Promise<void>;
   /** 订阅 core 下发的 AgentEvent 流；返回取消订阅函数 */
   subscribe(listener: (event: AgentEvent) => void): () => void;
+
+  /* ---------------------------------------------------------------- C4 · 会话 */
+  /** 当前工作目录的历史会话清单（Sidebar 在 live 形态下的数据源） */
+  listSessions(): Promise<SessionSummary[]>;
+  /** 按 id 加载历史会话（返回 `Message[]` + 标题/时间/token 用量） */
+  loadSession(id: string): Promise<SessionLoadResult>;
+  /** 续接最近一次会话（只读） */
+  continueRecentSession(): Promise<SessionLoadResult>;
+
+  /* ------------------------------------------------- C5 · 04/05 屏数据源 */
+  /** 04 屏：扩展 / 提示词 / 技能三类（已按信任门过滤项目本地资源） */
+  listResources(): Promise<ResourcesPayload>;
+  /** 05 屏：可选模型 + 当前模型 + 思考档位 + `settings.json` 现值 */
+  listModels(): Promise<ModelsPayload>;
+  /** 05 屏：切换模型（core 侧写回 `settings.json`） */
+  setModel(provider: string, modelId: string): Promise<ModelsPayload>;
+  /** 05 屏：切换思考档位（core 侧写回 `settings.json`） */
+  setThinkingLevel(level: ThinkingLevelName): Promise<ModelsPayload>;
 }
 
 export interface LiveConfig {
@@ -104,7 +135,13 @@ export class HttpAgentTransport implements AgentTransport {
     this.esAbort = null;
   }
 
-  private async post(path: string, body: unknown): Promise<unknown> {
+  private async get<T>(path: string): Promise<T> {
+    const res = await fetch(`${this.cfg.baseUrl}${path}`, { headers: this.authHeader() });
+    if (!res.ok) throw new Error(`core ${path} -> ${res.status}`);
+    return (await res.json()) as T;
+  }
+
+  private async post<T>(path: string, body: unknown): Promise<T> {
     const res = await fetch(`${this.cfg.baseUrl}${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...this.authHeader() },
@@ -112,9 +149,9 @@ export class HttpAgentTransport implements AgentTransport {
     });
     if (!res.ok) throw new Error(`core ${path} -> ${res.status}`);
     try {
-      return await res.json();
+      return (await res.json()) as T;
     } catch {
-      return null;
+      return null as T;
     }
   }
 
@@ -134,5 +171,39 @@ export class HttpAgentTransport implements AgentTransport {
     // C3：独立端点（不再借用 /approve 的保留值）—— core 侧分辨「取消」与「拒绝」两种语义：
     // 取消会让扩展读到「用户取消」（select → undefined / confirm → false），与选某个选项不同。
     return this.post("/cancel-approval", { requestId }) as Promise<void>;
+  }
+
+  /* ------------------------------------------------------------------ C4 */
+
+  async listSessions(): Promise<SessionSummary[]> {
+    // core 的响应是 `{ ok, cwd, sessions }`；清单为空时也必须返回数组（UI 侧无需再判 null）
+    const body = await this.get<{ sessions?: SessionSummary[] }>("/sessions");
+    return Array.isArray(body?.sessions) ? body.sessions : [];
+  }
+
+  loadSession(id: string): Promise<SessionLoadResult> {
+    return this.post<SessionLoadResult>("/sessions/load", { id });
+  }
+
+  continueRecentSession(): Promise<SessionLoadResult> {
+    return this.post<SessionLoadResult>("/sessions/continue-recent", {});
+  }
+
+  /* ------------------------------------------------------------------ C5 */
+
+  listResources(): Promise<ResourcesPayload> {
+    return this.get<ResourcesPayload>("/resources");
+  }
+
+  listModels(): Promise<ModelsPayload> {
+    return this.get<ModelsPayload>("/models");
+  }
+
+  setModel(provider: string, modelId: string): Promise<ModelsPayload> {
+    return this.post<ModelsPayload>("/models/select", { provider, modelId });
+  }
+
+  setThinkingLevel(level: ThinkingLevelName): Promise<ModelsPayload> {
+    return this.post<ModelsPayload>("/thinking", { level });
   }
 }

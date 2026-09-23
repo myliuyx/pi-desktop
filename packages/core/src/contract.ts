@@ -142,6 +142,41 @@ export interface SessionSummary {
   messageCount: number;
 }
 
+/**
+ * C4 · 加载单个会话的响应体（`POST /sessions/load`）。
+ *
+ * 规格书 §2.1 要求「返回 `Message[]`」—— `messages` 就是这个 `Message[]`，
+ * 外层多包一层是为了**顺带带上标题/更新时间/token 用量**（`UsageEntry → TokenUsage` 的产物），
+ * 否则 UI 侧拿到消息后还得再查一次清单才能显示标题。**不含任何 pi 类型**。
+ */
+export interface SessionLoadResult {
+  /** 会话 id（`SessionInfo.id`） */
+  id: string;
+  /** `name ?? firstMessage`（与 `SessionSummary.title` 同一口径） */
+  title: string;
+  /** epoch ms */
+  updatedAt: number;
+  messages: Message[];
+  /** 由会话里的 usage 条目/助手消息 usage 汇总（无数据时四项为 0） */
+  tokenUsage: TokenUsage;
+  /** 映射期统计（复核用：跳过了哪些非消息 entry、是否命中主干） */
+  stats: SessionLoadStats;
+}
+
+/** `SessionEntry[]` → `Message[]` 的映射统计（`S2 §四` 要求显式标注未覆盖项） */
+export interface SessionLoadStats {
+  /** 参与映射的 entry 数（主干上） */
+  entryCount: number;
+  /** 产出的消息数 */
+  messageCount: number;
+  /** 被跳过的 entry 类型 → 条数（`model_change` / `label` / `session_info` …） */
+  skipped: Record<string, number>;
+  /** tokenUsage 的来源：`assistant-usage` | `usage-entries` | `none` */
+  usageSource: "assistant-usage" | "usage-entries" | "none";
+  /** 是否从树结构上取了主干（当前恒为 true；分支 UI 记为后期，`S6 §四·4`） */
+  mainBranchOnly: boolean;
+}
+
 /* ---------------------------------------------------------------------------
  * Token 统计
  * ------------------------------------------------------------------------- */
@@ -229,3 +264,89 @@ export type AgentEvent =
       requestId: string;
       resolution: "accepted" | "cancelled";
     };
+
+/* ---------------------------------------------------------------------------
+ * C5 · 04 屏数据源（`GET /resources`）
+ * ------------------------------------------------------------------------- */
+
+/** 04 屏单条清单项 —— 扩展 / 提示词 / 技能三类共用一份形状（分组由字段名承担） */
+export interface ResourceEntry {
+  id: string;
+  /** 展示名（扩展=文件名、提示词=`/name`、技能=skill name） */
+  name: string;
+  description: string;
+  /** 来源标记：`用户目录` / `项目内` / `临时`（对应 Pi 的 `SourceInfo.scope`） */
+  source?: string;
+}
+
+export interface ResourcesPayload {
+  /** 与 Pi 的 `getExtensions()` 对应（已过滤 hidden 与未信任的项目本地） */
+  extensions: ResourceEntry[];
+  /** 与 Pi 的 `getPrompts().prompts` 对应 */
+  prompts: ResourceEntry[];
+  /** 与 Pi 的 `getSkills().skills` 对应 */
+  skills: ResourceEntry[];
+  /** 本次会话的信任结论（`null` = 会话尚未就绪） */
+  trust: { trusted: boolean; reason: string } | null;
+  /**
+   * 该目录**本来**就有「需要信任」的项目本地资源（Pi 的
+   * `hasTrustRequiringProjectResources(cwd)` 判定，纯谓词、无副作用）。
+   *
+   * ⚠️ 实测：未信任时 Pi **根本不会加载**项目本地资源，所以它们在
+   * `getExtensions()/getSkills()/getPrompts()` 里就已经不存在了 ——
+   * 「有没有东西被按信任门拦下」只能靠这个谓词 + `trust` 组合判断，
+   * 不能靠「过滤前后条数差」（那个差值恒为 0）。
+   */
+  projectResourcesExist: boolean;
+  /** 项目本地资源是否因「未信任」被拦下（= `projectResourcesExist && !trust.trusted`） */
+  projectTrustBlocked: boolean;
+  /**
+   * 我们从 loader 返回的清单里**主动剔除**的条目数（`scope === "project"` 且未信任）。
+   * 实测通常为 0（Pi 已先一步不加载），保留它是为了覆盖「Pi 返回了项目本地条目但我们不放行」的情况。
+   */
+  filteredProjectCount: number;
+}
+
+/* ---------------------------------------------------------------------------
+ * C5 · 05 屏数据源（`GET /models` / `POST /models/select` / `POST /thinking`）
+ *
+ * 注意（实测）：`ModelRuntime.getModels()` 返回全部内置目录（本机 1496 条，绝大多数无凭证），
+ * 故只列 `getAvailableSnapshot()`（已配置凭证的）—— 与 Pi 的 `/model` 选择器口径一致。
+ * ------------------------------------------------------------------------- */
+
+/** 与 UI 的 `ModelOption`（`mock/types.ts`）字段一一对应，避免 UI 侧再转一次 */
+export interface ModelInfo {
+  id: string;
+  label: string;
+  provider: string;
+  /** 模型是否支持思考（Pi 的 `Model.reasoning`）—— 05 屏「支持 Max」标记的 live 口径 */
+  supportsXhigh?: boolean;
+}
+
+/** 思考档位（字面量集合与 UI `mock/types.ts` 的 `ThinkingLevel` 一致；core 侧独立声明，避免跨包运行时依赖） */
+export type ThinkingLevelName = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
+export interface ModelsPayload {
+  /** 可选模型（`getAvailableSnapshot()`；空数组时 UI 回落 mock 清单） */
+  models: ModelInfo[];
+  /** 当前生效模型 */
+  current: { provider: string; modelId: string } | null;
+  /**
+   * **当前生效**的思考档位（Pi 会按模型能力夹取 —— 本机模型 `reasoning:false`，恒为 `off`）。
+   * 05 屏的激活态优先用 `settings.thinkingLevel`（用户所选），见下。
+   */
+  thinkingLevel: ThinkingLevelName;
+  /** 当前模型支持的档位（`session.getAvailableThinkingLevels()`） */
+  availableThinkingLevels: ThinkingLevelName[];
+  /**
+   * `settings.json` 里**既有字段**的现值（切换后可直接在此观察到写回结果）：
+   * `defaultProvider` / `defaultModel` / `defaultThinkingLevel`。
+   */
+  settings: {
+    provider: string | null;
+    modelId: string | null;
+    thinkingLevel: ThinkingLevelName | null;
+  };
+  /** 本机是否检测到会话（未就绪时为 false，UI 据此回落 mock） */
+  ready: boolean;
+}
