@@ -86,6 +86,13 @@ git 身份是占位 `myliu@localhost`（local 级），推远端前需改真实�
   （`check:c5` 26/26；UI 探针 7/7 + 8/8）；期间修掉 C2 遗留的 `core-smoke` 红灯。
 - **命令口径（M6 新增）**：core `npm run check:c3|c4|c5`、`security-check`、`smoke:check`；
   ui `npm run probe:c4|c5`、`live:smoke`。**shim 无 `head`/`tail`，别用管道**。
+- **★ 一页式体验（core 同源托管）**：core 默认 serve `packages/ui/dist`（`CORE_UI_DIST` 可覆盖）
+  且静态资源免鉴权 ⇒ **一条 URL 看全部**：
+  `cd packages/core` → `export CORE_PORT=5190 CORE_AGENT_DIR=<测试夹具 agentdir-ext>
+  CORE_MODELS_PATH=<pi/_poc/models.json> CORE_SHELL_PATH=<PortableGit bash>` →
+  `node --env-file=../../pi/_poc/.env.local node_modules/tsx/dist/cli.mjs src/main.ts` →
+  浏览器开 `http://127.0.0.1:5190/?live=1&token=<run/core.json 的 token>`。
+  带 `agentdir-ext` 夹具可演示授权卡；`/health` 会回 `extensions` 与 `trust` 状态。
 - **待批**：C6 收尾（汇总 + 全链路复核与文档收口）。
 
 ## Windows 踩坑
