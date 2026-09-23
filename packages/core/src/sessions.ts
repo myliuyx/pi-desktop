@@ -423,11 +423,11 @@ export function loadSessionById(
 }
 
 /**
- * 续接最近一次会话（`continueRecent`）。
+ * 续接最近一次会话（`continueRecent`）—— 本函数**只负责读出**最近会话的内容。
  *
- * ⚠️ **语义边界（写清楚，防误读）**：这里只做「**读出**最近会话的内容」，
- * **不重建 core 的活动 `AgentSession`** —— 真正的 switchSession/navigateTree 需要重建
- * 会话与扩展绑定（`S6 §四` 未要求），记为遗留。所以本端点不会把后续 prompt 写进那条旧会话。
+ * 「把 core 的活动 `AgentSession` 切过去」由 `session.ts` 的 `rebuildSession` 完成
+ * （C6 §1.2：`createAgentSession({ sessionManager: SessionManager.open(file) })`
+ * 公开路径，续写落同一 session 文件）；返回值里的 `path` 就是重建用的文件路径。
  */
 export function continueRecentSession(
   ref: SessionRef,

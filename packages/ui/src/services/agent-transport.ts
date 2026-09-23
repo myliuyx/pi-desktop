@@ -16,6 +16,7 @@ import type {
   SessionLoadResult,
   SessionSummary,
   ThinkingLevelName,
+  ToolsPayload,
 } from "@/mock/types";
 
 /**
@@ -54,6 +55,12 @@ export interface AgentTransport {
   setModel(provider: string, modelId: string): Promise<ModelsPayload>;
   /** 05 屏：切换思考档位（core 侧写回 `settings.json`） */
   setThinkingLevel(level: ThinkingLevelName): Promise<ModelsPayload>;
+
+  /* ------------------------------------------------- C6 · 04 屏工具开关 */
+  /** 04 屏：当前启用的工具名与可启用全集（live 形态下开关初始态的数据源） */
+  listActiveTools(): Promise<ToolsPayload>;
+  /** 04 屏：设置启用工具集（core 转发 Pi 的 `setActiveToolsByName`，下一 agent 轮次生效） */
+  setActiveTools(names: string[]): Promise<ToolsPayload>;
 }
 
 export interface LiveConfig {
@@ -205,5 +212,15 @@ export class HttpAgentTransport implements AgentTransport {
 
   setThinkingLevel(level: ThinkingLevelName): Promise<ModelsPayload> {
     return this.post<ModelsPayload>("/thinking", { level });
+  }
+
+  /* ------------------------------------------------------------------ C6 */
+
+  listActiveTools(): Promise<ToolsPayload> {
+    return this.get<ToolsPayload>("/tools/active");
+  }
+
+  setActiveTools(names: string[]): Promise<ToolsPayload> {
+    return this.post<ToolsPayload>("/tools/active", { names });
   }
 }

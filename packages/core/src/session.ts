@@ -23,6 +23,7 @@ import path from "node:path";
 import {
 	DefaultResourceLoader,
 	ModelRuntime,
+	SessionManager,
 	SettingsManager,
 	createAgentSession,
 	type AgentSession,
@@ -34,12 +35,14 @@ import type {
 	ResourcesPayload,
 	SessionLoadResult,
 	SessionSummary,
+	ToolsPayload,
 } from "./contract.ts";
 import { createModelsController, type ModelsController } from "./models.ts";
 import { collectResources } from "./resources.ts";
 import { continueRecentSession, listSessions, loadSessionById, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
+import { getToolsState, setToolsState } from "./tools.ts";
 
 export interface CoreRuntime {
 	/** 发送一条用户消息（驱动模型）。会等会话就绪（信任门裁决在此期间完成）。 */
@@ -70,7 +73,12 @@ export interface CoreRuntime {
 	listSessions(options?: { all?: boolean }): Promise<SessionSummary[]>;
 	/** 按 id 加载单个会话的 `Message[]`（找不到返回 null → 端点回 404） */
 	loadSession(id: string): Promise<SessionLoadResult | null>;
-	/** 续接最近一次会话（只读，不重建活动 AgentSession，见 `sessions.ts` 的语义边界） */
+	/**
+	 * 续接最近一次会话。C6 起**会重建活动 AgentSession**（§1.2）：
+	 * `createAgentSession({ sessionManager: SessionManager.open(file) })` 是公开路径
+	 * （sdk.d.ts `sessionManager` 选项 + `sdk.js:230` 把历史消息灌进 agent state），
+	 * 重建后续写 prompt 落在同一 session 文件。无历史会话时只返回空壳、不重建。
+	 */
 	continueRecentSession(): Promise<SessionLoadResult>;
 
 	/* -------------------------------------------------------------------------
@@ -84,6 +92,14 @@ export interface CoreRuntime {
 	selectModel(provider: string, modelId: string): Promise<ModelsPayload>;
 	/** 设置思考档位并写回 `settings.json`（`defaultThinkingLevel`） */
 	setThinkingLevel(level: string): Promise<ModelsPayload>;
+
+	/* -------------------------------------------------------------------------
+	 * C6 · 04 屏工具开关（`tools.ts` 的转发）
+	 * ----------------------------------------------------------------------- */
+	/** 当前启用的工具名与可启用全集（`GET /tools/active`） */
+	getTools(): Promise<ToolsPayload>;
+	/** 设置启用工具集（`POST /tools/active {names}`；未注册名抛错 → 400） */
+	setTools(names: string[]): Promise<ToolsPayload>;
 
 	dispose(): void;
 }
@@ -151,6 +167,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	const bridge: UiBridge = createUiBridge({ emit: emitAgent });
 
 	let session: AgentSession | null = null;
+	/** 启动时解析到的模型（§1.2 重建活动会话时原样传入，避免模型被会话头里的旧值意外替换） */
+	let activeModel: AgentSession["model"] | null = null;
 	let resourceLoader: DefaultResourceLoader | null = null;
 	let modelRuntime: ModelRuntime | null = null;
 	let settingsManager: SettingsManager | null = null;
@@ -187,6 +205,7 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		);
 		if (!model) throw new Error("模型未解析到（检查 models.json 与 provider/model id）");
 		modelRuntime = runtime;
+		activeModel = model;
 
 		if (process.platform === "win32" && opts.shellPath) mergeShellPath(agentDir, opts.shellPath);
 
@@ -241,6 +260,42 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	// ready 的 rejection 由 main.ts 显式处理；这里吞掉一份，避免「无人 await 时 unhandledRejection」
 	ready.catch(() => {});
 
+	/*
+	 * C6 §1.2：重建活动会话（`continue-recent` 的落地路径，限时评估结论 = **有公开低险路径，做**）。
+	 *
+	 * API 依据（@earendil-works/pi-coding-agent@0.87.1 实查）：
+	 * - `createAgentSession` 公开选项 `sessionManager`（`core/sdk.d.ts` CreateAgentSessionOptions）；
+	 * - 传 `SessionManager.open(文件)` 时，`core/sdk.js:230` 会把会话历史灌进 agent state
+	 *   （`messages: existingSession.messages`，同函数还有模型/思考档位恢复逻辑）；
+	 * - `SessionManager.open(path, sessionDir?, cwdOverride?)`（session-manager.d.ts:369）；
+	 * - 这正是 Pi CLI `--continue` 的同一条路（`main.d.ts` createSessionManager → open/continueRecent）。
+	 * 扩展绑定（bindExtensions）与事件订阅在新实例上按启动路径同一套手法重做；
+	 * 切换成功后才 dispose 旧实例。**不引入任何私有 API。**
+	 * 判据（规格书 §1.2）：续写消息落在同一 session 文件 → `check:c6` 里以
+	 * `GET /sessions` 的 messageCount 增长验证。
+	 */
+	const rebuildSession = async (sessionFile: string): Promise<void> => {
+		if (!modelRuntime || !settingsManager || !resourceLoader) throw new Error("会话组件未就绪，无法重建");
+		const manager = SessionManager.open(sessionFile, sessionRef().sessionDir, cwd);
+		const created = await createAgentSession({
+			model: activeModel ?? undefined,
+			modelRuntime,
+			agentDir,
+			cwd,
+			settingsManager,
+			resourceLoader,
+			sessionManager: manager,
+		});
+		const previous = session;
+		session = created.session;
+		extensionCount = created.extensionsResult.extensions?.length ?? extensionCount;
+		// 与启动路径同口径：先换实例、绑扩展、订事件，最后才 dispose 旧实例
+		await session.bindExtensions({ uiContext: bridge.uiContext, mode: "rpc" });
+		session.subscribe((event: unknown) => emitRaw(event));
+		previous?.dispose();
+		console.log(`[core] 已切换活动会话：${sessionFile}`);
+	};
+
 	const runtime: CoreRuntime = {
 		prompt: async (text: string) => {
 			await ready;
@@ -277,7 +332,17 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		},
 		continueRecentSession: async () => {
 			await ready;
-			return continueRecentSession(sessionRef(), { contextWindow: contextWindow() }).result;
+			const loaded = continueRecentSession(sessionRef(), { contextWindow: contextWindow() });
+			/*
+			 * C6 §1.2：把活动会话切到「最近一次会话」（重建 AgentSession，见 rebuildSession 注释）。
+			 * 两条护栏：① 没有历史会话（空壳、无 path）或最近会话没有任何消息 → 不重建（切过去无意义）；
+			 * ② 最近会话就是当前活动会话 → 不重建（同文件，重建纯属浪费）。
+			 */
+			const currentFile = session?.sessionManager.getSessionFile();
+			if (loaded.path && loaded.result.messages.length > 0 && loaded.path !== currentFile) {
+				await rebuildSession(loaded.path);
+			}
+			return loaded.result;
 		},
 
 		/* ------------------------------------------------------------ C5 */
@@ -300,6 +365,18 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		setThinkingLevel: async (level) => {
 			await ready;
 			return models.setThinking(level);
+		},
+
+		/* ------------------------------------------------------------ C6 */
+		getTools: async () => {
+			await ready;
+			if (!session) throw new Error("会话未就绪");
+			return getToolsState(session);
+		},
+		setTools: async (names) => {
+			await ready;
+			if (!session) throw new Error("会话未就绪");
+			return setToolsState(session, names);
 		},
 
 		dispose: () => {

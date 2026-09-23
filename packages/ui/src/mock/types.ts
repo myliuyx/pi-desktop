@@ -33,6 +33,8 @@ export type {
   ModelInfo,
   ModelsPayload,
   ThinkingLevelName,
+  /* C6 新增：04 屏工具开关载荷 */
+  ToolsPayload,
 } from "../../../core/src/contract.ts";
 
 import type { Block, BlockType } from "../../../core/src/contract.ts";

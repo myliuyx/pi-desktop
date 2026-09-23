@@ -266,6 +266,24 @@ export type AgentEvent =
     };
 
 /* ---------------------------------------------------------------------------
+ * C6 · 04 屏工具开关（`GET /tools/active` / `POST /tools/active {names}`）
+ *
+ * API 依据（@earendil-works/pi-coding-agent@0.87.1，`core/agent-session.d.ts`）：
+ * - 读取：`getActiveToolNames(): string[]`（d.ts:337，当前启用清单的 getter）；
+ * - 写入：`setActiveToolsByName(toolNames: string[]): void`（d.ts:349，0.86→0.87 未改名；
+ *   "Changes take effect on the next agent turn" —— 下一个 agent 轮次生效）；
+ * - 可启用全集：`getAllTools(): ToolInfo[]`（d.ts:341，`ToolInfo` 含 `name`，
+ *   types.d.ts:1279 —— 注册表里未知名字会被 setter 静默忽略，故 core 侧先自行校验、未知名回 400）。
+ * ------------------------------------------------------------------------- */
+
+export interface ToolsPayload {
+  /** 当前启用的工具名（`getActiveToolNames()`） */
+  active: string[];
+  /** 注册表里可启用的全部工具名（`getAllTools()`，含内置四个与扩展注册的工具） */
+  available: string[];
+}
+
+/* ---------------------------------------------------------------------------
  * C5 · 04 屏数据源（`GET /resources`）
  * ------------------------------------------------------------------------- */
 

@@ -97,7 +97,60 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
 
   const groups: SkillGroup[] = liveResources ? groupsFromResources(liveResources) : SKILL_GROUPS;
 
-  const enabledCount = TOOL_ENTRIES.filter((t) => enabledTools[t.name]).length;
+  /*
+   * ★ C6（§1.1）：live 形态下「工具开关」读写 core 的真实状态（GET/POST /tools/active）。
+   *
+   * API 依据：core 转发 Pi 的 `getActiveToolNames()` / `setActiveToolsByName()`
+   * （0.87.1 `agent-session.d.ts:337/349`；写入下一 agent 轮次生效）。
+   *
+   * 关键取舍：**只替换 live 形态下的开关状态来源** —— mock 形态仍走 `ui-store` 的
+   * localStorage 持久化（`enabledTools` / `toggleTool`，验收 4-3 期望值一行不改），
+   * 且 live 形态**绝不写** localStorage（真实状态在 core / Pi 侧，UI 本地持久化属于误导）。
+   * 点击走乐观更新，POST 成功后以 core 回读值为准，失败回滚 —— 避免「点了没反应」或「假成功」。
+   */
+  const [liveTools, setLiveTools] = useState<Record<ToolName, boolean> | null>(null);
+  useEffect(() => {
+    if (!live) return;
+    const transport = getLiveTransport();
+    if (!transport) return;
+    let alive = true;
+    void transport
+      .listActiveTools()
+      .then((payload) => {
+        if (!alive) return;
+        const next = {} as Record<ToolName, boolean>;
+        for (const t of TOOL_ENTRIES) next[t.name] = payload.active.includes(t.name);
+        setLiveTools(next);
+      })
+      .catch((e) => console.error("[live] /tools/active 失败:", e));
+    return () => {
+      alive = false;
+    };
+  }, [live]);
+
+  const toggleToolLive = (name: ToolName) => {
+    const transport = getLiveTransport();
+    if (!transport || !liveTools) return;
+    const next = { ...liveTools, [name]: !liveTools[name] };
+    setLiveTools(next); // 乐观更新
+    const names = TOOL_ENTRIES.filter((t) => next[t.name]).map((t) => t.name);
+    void transport
+      .setActiveTools(names)
+      .then((payload) => {
+        const confirmed = {} as Record<ToolName, boolean>;
+        for (const t of TOOL_ENTRIES) confirmed[t.name] = payload.active.includes(t.name);
+        setLiveTools(confirmed); // 以 core 回读值为准
+      })
+      .catch((e) => {
+        console.error("[live] POST /tools/active 失败:", e);
+        setLiveTools(liveTools); // 失败回滚
+      });
+  };
+
+  const effectiveTools = live && liveTools ? liveTools : enabledTools;
+  const toggleFor = (name: ToolName) => (live ? toggleToolLive(name) : toggleTool(name));
+
+  const enabledCount = TOOL_ENTRIES.filter((t) => effectiveTools[t.name]).length;
   const skillTotal = groups.reduce((n, g) => n + g.entries.length, 0);
   /** MCP 区块开关（默认关；`?mcp=1` 打开，供验收回归）—— 见 @/lib/feature-flags。**不因 live 而开启** */
   const mcpEnabled = isMcpEnabled();
@@ -178,12 +231,12 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
                     </span>
                   </span>
                   <Switch
-                    checked={enabledTools[tool.name]}
+                    checked={effectiveTools[tool.name]}
                     label={tool.hint}
-                    onToggle={() => toggleTool(tool.name)}
+                    onToggle={() => toggleFor(tool.name)}
                     data-testid="tool-toggle"
                     data-tool-name={tool.name}
-                    data-enabled={enabledTools[tool.name]}
+                    data-enabled={effectiveTools[tool.name]}
                   />
                 </li>
               ))}

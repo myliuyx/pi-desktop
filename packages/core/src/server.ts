@@ -52,6 +52,8 @@ const API_ROUTES = new Set([
 	"/models",
 	"/models/select",
 	"/thinking",
+	// C6 · 04 屏工具开关接 Pi
+	"/tools/active",
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -316,7 +318,7 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			}
 		}
 
-		// 续接最近：只读（不重建活动会话，见 sessions.ts 的语义边界说明）
+		// 续接最近：读出内容并把活动会话切过去（C6 §1.2，重建路径见 session.ts 的 rebuildSession）
 		if (req.method === "POST" && urlPath === "/sessions/continue-recent") {
 			try {
 				const result = await runtime.continueRecentSession();
@@ -369,6 +371,32 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				const payload = await runtime.setThinkingLevel(level);
 				return json(200, { ok: true, ...payload });
 			} catch (e) {
+				return json(400, { ok: false, error: String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * C6 · 04 屏工具开关（`tools.ts`；安全三件套经 API_ROUTES 同样生效）
+		 * ----------------------------------------------------------------- */
+
+		if (req.method === "GET" && urlPath === "/tools/active") {
+			try {
+				const payload = await runtime.getTools();
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(500, { ok: false, error: String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/tools/active") {
+			const body = (await readBody(req)) as { names?: unknown };
+			if (!Array.isArray(body.names)) return json(400, { ok: false, error: "缺少 names 数组" });
+			const names = body.names.map((n) => String(n));
+			try {
+				const payload = await runtime.setTools(names);
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				// 未注册的工具名 → 400（core 侧显式校验，不依赖上游的静默忽略）
 				return json(400, { ok: false, error: String(e) });
 			}
 		}
