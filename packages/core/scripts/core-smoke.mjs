@@ -1,7 +1,13 @@
 /**
  * core 真实模型冒烟 —— node 直跑。起服务 → POST /prompt（真实模型，要求「不用工具」）→
- * 经 SSE 收集事件，断言 message_start ≥1、message_update 若干、agent_end 与 agent_settled 各 ≥1，
+ * 经 SSE 收集事件，断言 message_start ≥1、message_update 若干、agent_settled ≥1，
+ * 且 agent_settled 之后不再有 message_update（终态顺序正确）。
  * 并把事件统计写入 packages/core/run/smoke-report.json（真实冒烟证据）。
+ *
+ * ⚠️ 口径变更（2026-09-23 主控修正）：C2 起 SSE 下发的是**我们自己的 `AgentEvent`**
+ * （`src/contract.ts`），而非 Pi 原始事件 —— `agent_end` **不在契约里**（终态由 `agent_settled`
+ * 承担，见 `S6 §三·3` 与 `adapter/reduce.ts` 的收尾语义）。故本脚本不再断言 `agent_end`，
+ * 仅把它计入 report 作原始层诊断。（C1 时期的该断言属契约之前的写法。）
  *
  * key 仅经 env 注入（--env-file=pi/_poc/.env.local）。模型走 ark-coding/deepseek-v4-flash。
  */
@@ -136,8 +142,14 @@ async function main() {
   };
   check("message_start ≥ 1", report.message_start >= 1);
   check("message_update 若干（≥1）", report.message_update >= 1);
-  check("agent_end 各 1（≥1）", report.agent_end >= 1);
-  check("agent_settled 各 1（≥1）", report.agent_settled >= 1);
+  check("agent_settled ≥ 1（我们契约的终态）", report.agent_settled >= 1);
+  // 终态顺序（C2 批处理口径）：agent_settled 之后不得再冒 message_update，
+  // 否则 UI 会永远停在 streaming（S4 §六·4 的设计点）。
+  const settledIdx = events.findIndex((e) => e.type === "agent_settled");
+  const updateAfterSettled =
+    settledIdx < 0 ? -1 : events.slice(settledIdx + 1).filter((e) => e.type === "message_update").length;
+  report.agent_settled之后message_update数 = updateAfterSettled;
+  check("agent_settled 之后无 message_update（终态不参与合并）", updateAfterSettled === 0);
 
   fs.writeFileSync(path.join(runDir, "smoke-report.json"), JSON.stringify(report, null, 2));
   console.log("\n[smoke] 事件统计:", JSON.stringify(report));

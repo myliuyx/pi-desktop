@@ -148,6 +148,25 @@
 
 ## 五、主控复核栏（主控填写）
 
-> C3：______
-> C4：______
-> C5：______
+> **C3 复核（2026-09-23）：通过 ✅**（全部判据独立复跑，不采信执行方回报）
+>
+> | 命令 | 结果 |
+> |---|---|
+> | `check:c3`（core） | **36/36** —— ① 真实授权往返（拒绝路径事件序列完整、不挂死：`approval_request → settled → tool_execution_end`，被拒工具 `isError=true`）② 幂等四例（二次/未知 approve、未知/活跃 cancel）③ **信任门五态全对**：never→0、always→1、ask+拒绝→0、ask+信任→1、ask+超时→0、ask+cancel→0，提问标题均明示「将加载并执行项目本地扩展」 |
+> | `probe-c3-countdown`（UI，CDP） | **4/4** —— 超时卡两按钮置灰不可点、倒计时文案「已超时」、理由明示 |
+> | `accept:m1` / `m2` / `m3` / `m4` / `m5` | 全通过（无 `: false`）/ 32/32 / 15/15 / 16/16 / 21/21 |
+> | `check:cn` / `check:adapter` | 20/20 / **35 项**（32 + C3 新增 3） |
+> | core / ui `tsc --noEmit -p` | EXIT=0 / EXIT=0 |
+> | `core-security-check` | 5/5（安全三件套未被新端点破坏） |
+> | `vite build` + dist 隔离 | 10.53s；无指向 pi/core 的 import（唯一命中仍是 mock 消息里的示例代码字符串，非真实引用） |
+>
+> ⚠️ **主控本轮修掉一处遗留红灯（重要）**：`core-smoke` 自 C2 起一直 **EXIT=1** ——
+> 它断言 Pi 原始事件 `agent_end`，而 C2 起 SSE 下发的是**我们自己的 `AgentEvent`**
+> （`agent_end` 不在契约里，终态由 `agent_settled` 承担）。已由**主控（非实现方）**修正：
+> 改为断言 `agent_settled ≥ 1` + **新增「`agent_settled` 之后无 `message_update`」**（终态顺序），
+> 修正后 4/4 通过、EXIT=0。**教训**：C2 复核时只复跑了 live-smoke，漏跑上一阶段已建的
+> `core-smoke` → 复核清单必须覆盖**全部既有脚本**，不能只跑本阶段新增的。
+>
+> 备注：实现方上报的「`tool_execution_start` 早于 `approval_request`」实序已按实测定稿注释；
+> 信任门实现路径 = 自建 `DefaultResourceLoader` + 显式 `reload({resolveProjectTrust})` 两段式后
+> 交 `createAgentSession({resourceLoader})`（依据 `sdk.js` 内部 reload 不传该回调 ＝ 无门）。
