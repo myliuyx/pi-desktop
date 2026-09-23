@@ -9,6 +9,13 @@
  * ⚠️ 04 屏的 MCP 区块是**自建能力的展示位** —— Pi 不内置 MCP。
  * 数据直接复用 `mock/composer.ts` 的 `COMPOSER_MCP_SERVERS`，不再另造一份，
  * 避免屏幕之间出现两份"连接到不同服务器"的假象（见 task-M4.md 第一节第 6 点）。
+ *
+ * ⏸ **2026-09-23 用户裁决：MCP 整体暂缓** ——「暂时不管，后期再说」。
+ * 依据：Pi 无 MCP 概念（`docs/usage.md:310`：intentionally does not include built-in MCP），
+ * 装了第三方 MCP 扩展之后那份清单**归那个扩展管**，Pi 不保证是否/如何暴露给宿主
+ * ⇒ 在没有来源的情况下继续展示 mock 数据属于误导。
+ * 牵连面（含会打破 `accept:m2` 2-11 与 `accept:m4` 4-4）与三个处置方案
+ * 见 `.plan/pi-survey-plan.md` S5「MCP 暂缓处置」。**在用户拍板处置方案前，本文件保持原状。**
  */
 
 import type { McpServer, ThinkingLevel } from "./types";

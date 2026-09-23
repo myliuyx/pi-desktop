@@ -123,9 +123,16 @@ await withBrowser(
     ctx.assert("G2 无 dark: 变体补丁", { 通过: stat.G2_无dark变体, 命中数: stat.dark变体命中.length === 0 });
     ctx.assert("G5 不用 Tailwind 内置调色板", { 通过: stat.G5_无内置调色板, 命中数: stat.内置调色板命中.length === 0 });
 
-    await ctx.open("/");
+    /*
+     * ⚠️ `?mcp=1`（2026-09-23 新增）：MCP 已裁决「暂缓」，**默认不渲染**
+     * （见 packages/ui/src/lib/feature-flags.ts）。但本脚本 2-11 / 2-12 的断言
+     * 写死了三个芯片（含 `composer-chip-mcp`）与高度 `[32,32,32]` ——
+     * 那正是本脚本设计时的基线。带 `?mcp=1` 即**精确还原该基线，断言一行都不用改**。
+     * 依据：`.plan/pi-survey-plan.md` §五 + S5「MCP 暂缓处置」的「保留 mock 分支供回归」。
+     */
+    await ctx.open("/?mcp=1");
     await cdp.eval("localStorage.removeItem('sidebar-collapsed'); localStorage.removeItem('preview-collapse'); localStorage.removeItem('preview-collapsed'); true");
-    await ctx.open("/");
+    await ctx.open("/?mcp=1");
     await cdp.eval(HELPERS);
     await sleep(600);
 

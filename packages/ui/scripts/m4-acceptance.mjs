@@ -302,7 +302,15 @@ await withBrowser(
     }
 
     /* ================================================================ 4-2 04 屏技能分类 */
-    await ctx.open("/#/skills");
+    /*
+     * ⚠️ `?mcp=1`（2026-09-23 新增）：MCP 已裁决「暂缓」，**默认不渲染**
+     * （见 packages/ui/src/lib/feature-flags.ts）。但 4-2~4-4 的断言（尤其 4-4 的
+     * `mcp-server` 数量 > 0）建立在 MCP 区块存在之上 —— 那正是本脚本的基线。
+     * 带 `?mcp=1` 精确还原基线，**断言一行都不用改**。
+     * 依据：`.plan/pi-survey-plan.md` §五 + S5「MCP 暂缓处置」。
+     * 注意：4-7 的横向溢出检查**故意不带**该参数 —— 它该测的是真正发布的默认形态。
+     */
+    await ctx.open("/?mcp=1#/skills");
     await cdp.eval(HELPERS);
     await sleep(700);
     {

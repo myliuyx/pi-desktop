@@ -1,6 +1,7 @@
 import { forwardRef, type HTMLAttributes } from "react";
 import { Bot, Blocks, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { isMcpEnabled } from "@/lib/feature-flags";
 import { Chip } from "@/components/primitives/Chip";
 import { ChipMenu } from "@/components/primitives/ChipMenu";
 import { TOOLBAR_CONTROL_HEIGHT } from "@/lib/layout";
@@ -21,6 +22,13 @@ import {
  * 模型 / 思考强度是「点开上拉菜单选」（ChipMenu，2026-09-22 用户裁决：循环切换
  * 看不到全部选项），MCP 暂为纯展示芯片（数量展示，无交互）。
  *
+ * ⏸ **MCP 芯片默认不渲染（2026-09-23 用户裁决「MCP 暂缓」）**：
+ * Pi 无 MCP 概念（`usage.md:310`），数量无真实来源 → 默认关。但验收 2-11 的顺序断言
+ * 含 `composer-chip-mcp`，故按 §五纪律选「保留 mock 分支供回归」：**芯片代码与 testid 保留，
+ * 用 `?mcp=1` 门控**。见 `@/lib/feature-flags` 与 `.plan/pi-survey-plan.md` S5。
+ * 注意：`?mcp=1` 关闭时顺序退化为「模型 → 思考强度 → 弹性占位 → TokenStats」，
+ * 这是有意的 —— 验收 2-11 带参数跑，断言仍是原样。
+ *
  * 状态来源是 **ui-store 的 `modelId` / `thinkingLevel`**（M4 为 05 设置屏建立的字段），
  * 不是组件内 useState —— 工具条与 05 屏是同一个真相的两处展示，改哪边都同步。
  * store 这两个字段不持久化，与 05 屏现状一致。
@@ -37,6 +45,9 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
     const setThinkingLevel = useUiStore((state) => state.setThinkingLevel);
 
     const model = COMPOSER_MODELS.find((m) => m.id === modelId) ?? COMPOSER_MODELS[0];
+
+    /** MCP 芯片开关（默认关；`?mcp=1` 打开，供验收 2-11 回归）—— 见 @/lib/feature-flags */
+    const mcpEnabled = isMcpEnabled();
 
     return (
       <div
@@ -88,13 +99,15 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
           onChange={setThinkingLevel}
         />
 
-        <Chip
-          data-testid="composer-chip-mcp"
-          icon={Blocks}
-          title="已连接的 MCP 服务器数"
-        >
-          {`MCP ${MCP_CONNECTED_COUNT}`}
-        </Chip>
+        {mcpEnabled ? (
+          <Chip
+            data-testid="composer-chip-mcp"
+            icon={Blocks}
+            title="已连接的 MCP 服务器数"
+          >
+            {`MCP ${MCP_CONNECTED_COUNT}`}
+          </Chip>
+        ) : null}
 
         {/*
          * 弹性占位：占满剩余空间，把 TokenStats 推到最右（2-16）。

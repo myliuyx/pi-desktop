@@ -1,0 +1,83 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-23T02:25:04.527Z",
+  "steps": [
+    {
+      "name": "① 默认态 04 屏",
+      "value": {
+        "servers": 0,
+        "note": false,
+        "list": false,
+        "count": false,
+        "skillGroups": 3,
+        "toolToggles": 4,
+        "scopeHasMcp": false
+      }
+    },
+    {
+      "name": "① 默认态 工具条",
+      "value": {
+        "mcpChip": false,
+        "order": [
+          "composer-chip-model",
+          "composer-chip-thinking",
+          "composer-toolbar-spacer",
+          "token-stats"
+        ]
+      }
+    },
+    {
+      "name": "② 带 ?mcp=1 的 04 屏",
+      "value": {
+        "servers": 4,
+        "note": true,
+        "list": true,
+        "count": true,
+        "skillGroups": 3,
+        "toolToggles": 4,
+        "scopeHasMcp": true
+      }
+    },
+    {
+      "name": "② 带 ?mcp=1 的工具条",
+      "value": {
+        "mcpChip": true,
+        "order": [
+          "composer-chip-model",
+          "composer-chip-thinking",
+          "composer-chip-mcp",
+          "composer-toolbar-spacer",
+          "token-stats"
+        ]
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "MCP 门控：默认关闭不渲染，带 ?mcp=1 恢复；且不误伤技能/工具区",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "默认_零个MCP服务器": true,
+        "默认_无mcp_note": true,
+        "默认_无mcp_list": true,
+        "默认_无mcp_count": true,
+        "默认_正文不含MCP字样": true,
+        "默认_技能三组仍在": true,
+        "默认_工具开关仍四个": true,
+        "默认_工具条无MCP芯片": true,
+        "带参数_四个MCP服务器": true,
+        "带参数_有mcp_note": true,
+        "带参数_正文含MCP": true,
+        "带参数_芯片回来了": true,
+        "带参数_顺序还原": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 1,
+    "passed": 1,
+    "failed": 0,
+    "failedNames": []
+  }
+}

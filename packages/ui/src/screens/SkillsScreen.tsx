@@ -1,5 +1,6 @@
 import { Blocks, Database, FileText, MessageSquare, Package, Pencil, Sparkles, Terminal } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { isMcpEnabled } from "@/lib/feature-flags";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { SidebarFooter } from "@/components/shell/SidebarFooter";
 import { WindowShell } from "@/components/shell/WindowShell";
@@ -28,6 +29,12 @@ import { useUiStore } from "@/store/ui-store";
  *
  * ★ MCP 区块是**自建能力的展示位** —— Pi 不内置 MCP。这句说明必须留在页面上，
  *   它是给后来接 Pi 的人看的（见 task-M4.md 4.2 ③）。
+ *
+ * ⏸ **MCP 区块默认不渲染（2026-09-23 用户裁决「MCP 暂缓」）**：
+ *   Pi 无 MCP 概念（`usage.md:310`），该清单在 Pi 侧没有任何数据源，继续展示 mock 数据属误导。
+ *   但 `accept:m2` 的 2-11 与 `accept:m4` 的 4-4 依赖该区块存在 → 按 §五纪律选
+ *   「保留 mock 分支供回归」：**组件代码 / testid / mock 数据全部保留，仅用 `?mcp=1` 门控**。
+ *   见 `@/lib/feature-flags` 与 `.plan/pi-survey-plan.md` S5。
  */
 
 /** 技能分类 → 标题图标（列表里给的是 categories，图标是纯展示，不进 mock 数据） */
@@ -57,6 +64,8 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
 
   const enabledCount = TOOL_ENTRIES.filter((t) => enabledTools[t.name]).length;
   const skillTotal = SKILL_GROUPS.reduce((n, g) => n + g.entries.length, 0);
+  /** MCP 区块开关（默认关；`?mcp=1` 打开，供验收回归）—— 见 @/lib/feature-flags */
+  const mcpEnabled = isMcpEnabled();
 
   return (
     <WindowShell os={os} title="技能与工具" onOpenSettings={onOpenSettings}>
@@ -67,8 +76,9 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
           title="技能与工具"
           subtitle={
             <span>
-              技能 {skillTotal} 条 · 工具 {enabledCount}/{TOOL_ENTRIES.length} 开启 · MCP{" "}
-              {COMPOSER_MCP_SERVERS.length} 个服务器
+              技能 {skillTotal} 条 · 工具 {enabledCount}/{TOOL_ENTRIES.length} 开启
+              {/* MCP 摘要随区块一起门控，避免关闭时出现「MCP 4 个服务器」却看不到列表的自相矛盾 */}
+              {mcpEnabled ? ` · MCP ${COMPOSER_MCP_SERVERS.length} 个服务器` : null}
             </span>
           }
           onBackToWorkbench={onBackToWorkbench}
@@ -127,57 +137,59 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
             </ul>
           </ScreenSection>
 
-          {/* ③ MCP 服务器列表（自建能力展示位） */}
-          <ScreenSection
-            title="MCP 服务器"
-            icon={Database}
-            badge={
-              <span data-testid="mcp-count" className="text-xs text-text-tertiary">
-                {COMPOSER_MCP_SERVERS.length} 个
-              </span>
-            }
-          >
-            {/*
-             * ★ 这句必须是可见文本（不是 title / aria-label）：它是给读代码的人看的说明，
-             *   验收 4-4 要求「区块内含"自建能力"文案」。
-             */}
-            <p
-              data-testid="mcp-note"
-              className="mb-3 rounded-md border border-warning bg-warning-soft px-3 py-2 text-xs text-warning"
+          {/* ③ MCP 服务器列表（自建能力展示位）—— ⏸ 默认不渲染，`?mcp=1` 打开，见 @/lib/feature-flags */}
+          {mcpEnabled ? (
+            <ScreenSection
+              title="MCP 服务器"
+              icon={Database}
+              badge={
+                <span data-testid="mcp-count" className="text-xs text-text-tertiary">
+                  {COMPOSER_MCP_SERVERS.length} 个
+                </span>
+              }
             >
-              {MCP_NOTE}
-            </p>
+              {/*
+               * ★ 这句必须是可见文本（不是 title / aria-label）：它是给读代码的人看的说明，
+               *   验收 4-4 要求「区块内含"自建能力"文案」。
+               */}
+              <p
+                data-testid="mcp-note"
+                className="mb-3 rounded-md border border-warning bg-warning-soft px-3 py-2 text-xs text-warning"
+              >
+                {MCP_NOTE}
+              </p>
 
-            <ul data-testid="mcp-list" className="min-w-0 overflow-hidden rounded-lg border border-border-subtle bg-bg-surface">
-              {COMPOSER_MCP_SERVERS.map((server) => {
-                const connected = server.status === "connected";
-                return (
-                  <li
-                    key={server.id}
-                    data-testid="mcp-server"
-                    data-mcp-name={server.name}
-                    data-mcp-status={server.status}
-                    className="flex min-w-0 items-center gap-3 border-t border-border-subtle px-3 py-2.5 first:border-t-0"
-                  >
-                    <Icon icon={Database} />
-                    <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{server.name}</span>
-                    <span
-                      className={cn(
-                        "shrink-0 text-xs",
-                        // 状态色只用令牌：connected→success、disconnected→text-tertiary
-                        connected ? "text-success" : "text-text-tertiary",
-                      )}
+              <ul data-testid="mcp-list" className="min-w-0 overflow-hidden rounded-lg border border-border-subtle bg-bg-surface">
+                {COMPOSER_MCP_SERVERS.map((server) => {
+                  const connected = server.status === "connected";
+                  return (
+                    <li
+                      key={server.id}
+                      data-testid="mcp-server"
+                      data-mcp-name={server.name}
+                      data-mcp-status={server.status}
+                      className="flex min-w-0 items-center gap-3 border-t border-border-subtle px-3 py-2.5 first:border-t-0"
                     >
-                      {connected ? "已连接" : "未连接"}
-                    </span>
-                    <span className="w-16 shrink-0 text-right font-mono text-xs tabular-nums text-text-secondary">
-                      {server.toolCount} 个工具
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </ScreenSection>
+                      <Icon icon={Database} />
+                      <span className="min-w-0 flex-1 truncate text-sm text-text-primary">{server.name}</span>
+                      <span
+                        className={cn(
+                          "shrink-0 text-xs",
+                          // 状态色只用令牌：connected→success、disconnected→text-tertiary
+                          connected ? "text-success" : "text-text-tertiary",
+                        )}
+                      >
+                        {connected ? "已连接" : "未连接"}
+                      </span>
+                      <span className="w-16 shrink-0 text-right font-mono text-xs tabular-nums text-text-secondary">
+                        {server.toolCount} 个工具
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </ScreenSection>
+          ) : null}
         </ScreenBody>
       </ScreenArea>
     </WindowShell>

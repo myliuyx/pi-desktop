@@ -1,11 +1,11 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-22T07:59:50.015Z",
+  "startedAt": "2026-09-23T02:22:04.903Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 56,
+        "扫描文件数": 61,
         "hex在tokens之外": [],
         "dark变体命中": [],
         "内置调色板命中": [],
@@ -286,7 +286,7 @@
           "route": "/#/run-detail",
           "theme": "dark",
           "bigBrightBlocks": 0,
-          "measuredTextNodes": 65,
+          "measuredTextNodes": 73,
           "minTextContrast": 3.5,
           "bodyMinContrast": 5.68,
           "bodyMinSample": {
@@ -296,7 +296,7 @@
             "color": "rgb(154, 160, 168)",
             "cls": "truncate font-mono text-xs text-text-secondary"
           },
-          "auxCount": 24,
+          "auxCount": 32,
           "auxMinContrast": 3.5,
           "worst3": [
             {
@@ -307,18 +307,18 @@
               "cls": "text-xs font-medium text-text-tertiary"
             },
             {
-              "text": "工作目录",
+              "text": "3小时前 7 条消息",
               "contrast": 3.5,
               "tag": "span",
               "color": "rgb(110, 116, 124)",
-              "cls": "text-xs font-medium text-text-tertiary"
+              "cls": "truncate text-xs text-text-tertiary"
             },
             {
-              "text": "01",
+              "text": "8小时前 292 条消息",
               "contrast": 3.5,
               "tag": "span",
               "color": "rgb(110, 116, 124)",
-              "cls": "shrink-0 font-mono text-xs text-text-tertiary"
+              "cls": "truncate text-xs text-text-tertiary"
             }
           ],
           "worst3Body": [
@@ -354,7 +354,7 @@
           "route": "/#/skills",
           "theme": "dark",
           "bigBrightBlocks": 0,
-          "measuredTextNodes": 92,
+          "measuredTextNodes": 85,
           "minTextContrast": 3.17,
           "bodyMinContrast": 5.68,
           "bodyMinSample": {
@@ -364,7 +364,7 @@
             "color": "rgb(154, 160, 168)",
             "cls": "truncate font-mono text-xs text-text-secondary"
           },
-          "auxCount": 26,
+          "auxCount": 33,
           "auxMinContrast": 3.17,
           "worst3": [
             {
@@ -422,7 +422,7 @@
           "route": "/#/settings",
           "theme": "dark",
           "bigBrightBlocks": 0,
-          "measuredTextNodes": 61,
+          "measuredTextNodes": 69,
           "minTextContrast": 3.5,
           "bodyMinContrast": 4.9,
           "bodyMinSample": {
@@ -432,7 +432,7 @@
             "color": "rgb(107, 147, 255)",
             "cls": "shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent"
           },
-          "auxCount": 21,
+          "auxCount": 29,
           "auxMinContrast": 3.5,
           "worst3": [
             {
@@ -443,18 +443,18 @@
               "cls": "text-xs font-medium text-text-tertiary"
             },
             {
-              "text": "工作目录",
+              "text": "3小时前 7 条消息",
               "contrast": 3.5,
               "tag": "span",
               "color": "rgb(110, 116, 124)",
-              "cls": "text-xs font-medium text-text-tertiary"
+              "cls": "truncate text-xs text-text-tertiary"
             },
             {
-              "text": "Anthropic · claude-opus-",
+              "text": "8小时前 292 条消息",
               "contrast": 3.5,
               "tag": "span",
               "color": "rgb(110, 116, 124)",
-              "cls": "mt-0.5 block truncate font-mono text-xs text-text-tertiary"
+              "cls": "truncate text-xs text-text-tertiary"
             }
           ],
           "worst3Body": [
@@ -709,9 +709,9 @@
           }
         ],
         "各屏辅助文字最低对比度": [
-          "/#/run-detail: 3.5 (24 处)",
-          "/#/skills: 3.17 (26 处)",
-          "/#/settings: 3.5 (21 处)"
+          "/#/run-detail: 3.5 (32 处)",
+          "/#/skills: 3.17 (33 处)",
+          "/#/settings: 3.5 (29 处)"
         ]
       }
     }
