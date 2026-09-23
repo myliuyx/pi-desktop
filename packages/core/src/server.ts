@@ -1,5 +1,5 @@
 /**
- * core HTTP + SSE 服务 —— 绑定 127.0.0.1，安全三件套（S6 §七）：
+ * core HTTP + SSE 服务 —— 默认绑定 127.0.0.1（CORE_HOST 可放开），安全三件套（S6 §七）：
  * ① 随机 token（Bearer）；② 校验 Host 头防 DNS rebinding；③ 拒绝跨来源（无 CORS）。
  *
  * 事件管道：
@@ -30,7 +30,9 @@ export interface ServerHandle {
 interface StartOptions {
   port?: number;
   token?: string;
-  /** 允许的主机名（用于 Host 头校验），默认 127.0.0.1 与 localhost */
+  /** 绑定地址；默认 127.0.0.1。设 0.0.0.0 可对内网开放（需同步放宽 allowedHosts） */
+  host?: string;
+  /** 允许的主机名（Host 头校验，**不含端口**），默认 127.0.0.1 与 localhost */
   allowedHosts?: string[];
   /** 前端静态资源目录（vite build 产物）；存在则同源托管 UI */
   uiDist?: string;
@@ -62,6 +64,17 @@ const API_ROUTES = new Set([
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object";
+}
+
+/** 从 Host 头取主机名：`1.2.3.4:5190` → `1.2.3.4`；`[::1]:5190` → `::1`；`localhost` → `localhost` */
+function hostnameOf(hostHeader: string): string {
+	const h = hostHeader.trim();
+	if (h.startsWith("[")) {
+		const end = h.indexOf("]");
+		return end >= 0 ? h.slice(1, end) : h;
+	}
+	const colon = h.indexOf(":");
+	return colon >= 0 ? h.slice(0, colon) : h;
 }
 
 function contentTypeOf(p: string): string {
@@ -204,11 +217,13 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 	const server = createServer(async (req, res) => {
 		const url = new URL(req.url ?? "/", `http://127.0.0.1:${actualPort}`);
 		const urlPath = url.pathname;
-		const allowed = opts.allowedHosts ?? [`127.0.0.1:${actualPort}`, `localhost:${actualPort}`];
+		// 白名单按「主机名」比对（与端口解耦）：默认仅本机。CORE_HOST=0.0.0.0 时
+		// 需由 CORE_ALLOWED_HOSTS 显式追加内网 IP/域名（见 main.ts），否则内网请求 403。
+		const allowed = opts.allowedHosts ?? ["127.0.0.1", "localhost"];
 
 		// ② 防 DNS rebinding：校验 Host 头（对所有请求生效，含静态资源）
 		const host = req.headers["host"];
-		if (!host || !allowed.includes(host)) {
+		if (!host || !allowed.includes(hostnameOf(host))) {
 			res.writeHead(403, { "Content-Type": "application/json" });
 			res.end(JSON.stringify({ error: "forbidden host" }));
 			return;
@@ -468,7 +483,7 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 	});
 
 	return new Promise((resolve) => {
-		server.listen(opts.port ?? 0, "127.0.0.1", () => {
+		server.listen(opts.port ?? 0, opts.host ?? "127.0.0.1", () => {
 			const addr = server.address();
 			actualPort = typeof addr === "object" && addr ? addr.port : opts.port ?? 0;
 			resolve({

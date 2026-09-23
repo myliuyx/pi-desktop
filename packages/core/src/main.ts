@@ -28,6 +28,14 @@ const uiDist = process.env.CORE_UI_DIST
 
 const token = process.env.CORE_TOKEN ?? randomUUID();
 const port = process.env.CORE_PORT ? Number(process.env.CORE_PORT) : 0;
+// 绑定地址与 Host 白名单：默认仅本机；内网访问设 CORE_HOST=0.0.0.0，
+// 并用 CORE_ALLOWED_HOSTS 追加允许的主机名（逗号分隔，不含端口），如 192.168.3.37
+const host = process.env.CORE_HOST ?? "127.0.0.1";
+const extraHosts = (process.env.CORE_ALLOWED_HOSTS ?? "")
+	.split(",")
+	.map((s) => s.trim())
+	.filter(Boolean);
+const allowedHosts = ["127.0.0.1", "localhost", ...extraHosts];
 
 /*
  * C3：**先起服务、再等会话就绪**。
@@ -44,7 +52,7 @@ const boot = createCoreRuntime({
   trustTimeoutMs: process.env.CORE_TRUST_TIMEOUT_MS ? Number(process.env.CORE_TRUST_TIMEOUT_MS) : undefined,
 });
 
-const handle = await startServer(boot.runtime, { port, token, uiDist });
+const handle = await startServer(boot.runtime, { port, token, uiDist, host, allowedHosts });
 
 // 写 run/core.json（含 token，绝不提交）
 fs.writeFileSync(path.join(runDir, "core.json"), JSON.stringify({ port: handle.port, token }, null, 2));
@@ -56,7 +64,10 @@ boot.runtime.onEvent((e) => {
   fs.appendFileSync(dumpPath, `${JSON.stringify(e)}\n`);
 });
 
-console.log(`[core] 监听 http://127.0.0.1:${handle.port}  (SSE: /events, 健康: /health)`);
+console.log(`[core] 监听 http://${host}:${handle.port}  (SSE: /events, 健康: /health)`);
+if (host === "0.0.0.0" || host === "::") {
+	console.log(`[core] 已对内网开放，允许的 Host: ${allowedHosts.join(", ")}`);
+}
 console.log(`[core] 同源托管 UI: ${uiDist}${fs.existsSync(uiDist) ? "" : "（不存在，浏览器请用 ?core= 指向本服务）"}`);
 
 try {
