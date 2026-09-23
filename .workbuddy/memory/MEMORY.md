@@ -68,6 +68,19 @@ G6 无横向滚动 ｜ G7 键盘可达 ｜ G8 折叠必须有过渡。
 
 git init、首提交 `175a208`（126 文件 / 29609 行）、**无远端**；`.gitignore` 含 `pi/`；
 git 身份是占位 `myliu@localhost`（local 级），推远端前需改真实身份。
+**M6 开发在 `dev-m6` 分支**（master 停在梳理期收尾）；提交消息走临时文件 + `git commit -F`
+（bash shim 无 `cat`，heredoc 会静默失败）；**每次 shell 调用必须显式 cd**（cwd 不延续）。
+
+## M6 进度（2026-09-23）
+
+- **C0–C2 完成并通过主控复核**（规格书 `.plan/task-M6-C0-C2.md`）：
+  `packages/core`（依赖 npm 发布包 `@earendil-works/pi-coding-agent@0.87.1`，本地 pi/ 不再是依赖）
+  = HTTP+SSE + 安全三件套（Bearer 401 / Host 白名单 403 / 无 CORS）+ 持有 Pi 会话 + SSE 批处理（~0.78）；
+  契约在 `packages/core/src/contract.ts`（UI 相对路径 `import type`）；
+  UI 侧 `?live=1&core=<url>&token=<bearer>` 走真实链路，默认仍 mock（同 MCP 门控范式）。
+- 复核证据（主控独立复跑）：live-smoke 12/12、accept:m1~m5 全绿（32/15/16/21）、
+  check:cn 20/20、adapter 32/32、两包 tsc EXIT=0、build 10.6s 且 dist 零真实 pi/core 引用。
+- **待批**：C3–C5（授权卡真实往返 + 信任门 A3 / 会话列表 / 04·05 屏）→ C6 收尾。
 
 ## Windows 踩坑
 

@@ -98,10 +98,16 @@
   ⇒ core 必须显式传回调：`ask`（默认）→ 经 UI 提问、`never` → 忽略、`always` → 直接加载；
   ② **拒绝后重试循环：暂不做**。Pi 有公开 `abort()`（`agent-session.ts:1786`），
   「拒绝并停止」后期扩展零障碍；B2 拒绝理由明示随 core 顺手带上
-- **下一步：按 [`survey/S6-integration-design.md`](./survey/S6-integration-design.md) 动 `packages/core`**
-  —— 梳理期 S0–S4、S6 全部完成（S5 已降级为产品决策）；开工顺序 C0→C6、预算 ~24h
-  建议**立项 M6（Pi 对接）**，**预算需用户拍板**；开工前置已清零（`shellPath` 与「工具成功执行」dump
-  均于 2026-09-23 spike-tools 销账：事件无 `exitCode`/`truncated`，TerminalBlock 按 `isError` 表达成败）
+- **★ M6 第一阶段（C0–C2）已完成并通过主控复核（2026-09-23，分支 `dev-m6`）**：
+  `packages/core` 从无到有（HTTP+SSE + 安全三件套 + 持有 Pi 会话），
+  **浏览器 `?live=1` 可与真实模型对话**（live-smoke 12/12，真实回复落 DOM、streaming 正确收尾，
+  批处理合并率 ~0.78–0.81）；全量回归 m1~m5 + check:cn/adapter 全绿，dist 零 pi/core 真实引用。
+  规格书与复核记录：[`task-M6-C0-C2.md`](./task-M6-C0-C2.md)。
+  **试用**：`packages/core` 起 `npm run smoke`（写 `run/core.json` 的 port/token）→
+  `packages/ui` 起 dev（`npm run dev -- --port 5180 --strictPort`）→ 浏览器开
+  `http://127.0.0.1:5180/?live=1&core=http://127.0.0.1:<core端口>&token=<token>`
+- **下一步（待用户批预算）**：M6 第二阶段 C3–C5（授权卡接真实往返 + 信任门 A3 / 会话列表接真数据 /
+  04·05 屏接真数据）→ C6 收尾验收。live 页初始会话仍为 mock（真实历史属 C4）
 - **下一步（大方向）**：按 `pi-integration-points.md` 把 mock 换成真实数据链路；
   `chat-store` 五方法签名冻结，只换内部实现
 - **开工前必读**：`survey/S0-our-contract.md` → `survey/S1-event-mapping.md` →
