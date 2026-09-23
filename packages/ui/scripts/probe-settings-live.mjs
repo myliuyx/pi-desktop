@@ -175,6 +175,30 @@ async function waitClosed(cdp, timeout = 12_000) {
 	}
 }
 
+/**
+ * 等底部状态条落到指定 tone。
+ * 2026-09-23 用户裁决后**保存不再关闭弹窗**，所以「保存是否成功」只能看状态条，
+ * 不能再拿 waitClosed 当判据（它会一直等到超时，且掩盖真实的失败原因）。
+ */
+async function waitStatus(cdp, tones, timeout = 12_000) {
+	const t0 = Date.now();
+	for (;;) {
+		const tone = await cdp.eval(
+			`window.__L.q('[data-testid="settings-status"]')?.dataset.tone ?? null`,
+		);
+		if (tones.includes(tone)) return tone;
+		if (Date.now() - t0 > timeout) return tone ?? "timeout";
+		await sleepMs(200);
+	}
+}
+
+async function closeDialog(cdp) {
+	await cdp.eval(
+		`(() => { const b = window.__L.q('[data-testid="settings-dialog-close"]'); if (b) b.click(); return true; })()`,
+	);
+	await sleepMs(600);
+}
+
 let failures = 0;
 const consoleErrors = [];
 
@@ -258,19 +282,22 @@ try {
 		await sleepMs(300);
 		const draftValue = await cdp.eval(`window.__L.q('[data-testid="provider-name"]').value`);
 		await cdp.eval(`(() => { window.__L.q('[data-testid="settings-save"]').click(); return true; })()`);
-		const closed = await waitClosed(cdp);
+		const toneAfterSave = await waitStatus(cdp, ["success", "warning"]);
+		const stillOpen = await cdp.eval(OPEN_CHECK);
 		const apiAfterSave = await api("/providers");
 		const fileAfterSave = readModelsFile();
 
 		ctx.record("L2_保存写回", {
 			输入框现值: draftValue,
-			弹窗已关闭: closed,
+			状态条: toneAfterSave,
+			保存后弹窗仍打开: stillOpen,
 			api: apiAfterSave.json,
 			文件: fileAfterSave,
 		});
 		failures += ctx.assert("L2 改名保存后 core 侧确认：API 复读一致 + models.json 已落盘", {
 			输入框改到了新名字: draftValue === "ark-coding-renamed",
-			保存后弹窗关闭: closed === true,
+			状态条为成功或警告: ["success", "warning"].includes(toneAfterSave),
+			保存后弹窗保持打开: stillOpen === true,
 			响应ok: apiAfterSave.json?.ok === true,
 			API复读一致:
 				apiAfterSave.json?.providers?.find((p) => p.id === "ark-coding")?.name === "ark-coding-renamed",
@@ -280,6 +307,9 @@ try {
 		})
 			? 0
 			: 1;
+
+		// 保存不再关闭弹窗 ⇒ 下一用例前先关掉
+		await closeDialog(cdp);
 
 		/* ============================== L3 删除 Provider → models.json 物理消失 */
 		await openDialog(cdp);
@@ -293,7 +323,8 @@ try {
 		await cdp.eval(`(() => { window.__L.q('[data-testid="provider-delete-confirm"]').click(); return true; })()`);
 		await sleepMs(300);
 		await cdp.eval(`(() => { window.__L.q('[data-testid="settings-save"]').click(); return true; })()`);
-		const closed3 = await waitClosed(cdp);
+		const toneAfterDelete = await waitStatus(cdp, ["success", "warning"]);
+		const closed3 = await cdp.eval(`${OPEN_CHECK} === false`);
 		const fileAfterDelete = readModelsFile();
 		const apiAfterDelete = await api("/providers");
 		const sidecarAfterDelete = await (async () => {
@@ -306,17 +337,65 @@ try {
 
 		ctx.record("L3_删除落盘", {
 			保存前列表: beforeIds,
+			状态条: toneAfterDelete,
 			弹窗已关闭: closed3,
 			文件: fileAfterDelete,
 			api: apiAfterDelete.json?.providers?.map((p) => p.id),
 			sidecar: sidecarAfterDelete,
 		});
 		failures += ctx.assert("L3 删除保存后 models.json 里物理消失（且没进 sidecar 变软标记）", {
-			保存后弹窗关闭: closed3 === true,
+			状态条为成功或警告: ["success", "warning"].includes(toneAfterDelete),
+			保存后弹窗保持打开: closed3 === false,
 			models_json里已消失: fileAfterDelete?.providers?.["probe-spare"] === undefined,
 			sidecar里也没有: (sidecarAfterDelete?.providers?.["probe-spare"] ?? undefined) === undefined,
 			API不再列出: !(apiAfterDelete.json?.providers ?? []).some((p) => p.id === "probe-spare"),
 			剩下的那个还在: fileAfterDelete?.providers?.["ark-coding"] !== undefined,
+		})
+			? 0
+			: 1;
+
+		/* ================ L6 模型连通性测试：真实最小请求 + 结果显示在按钮组右侧 */
+		// 保存不再关弹窗 ⇒ 直接接着操作：选中 ark-coding 下的真实模型行 → 点「测试」
+		await cdp.eval(
+			`(() => { const row = window.__L.q('[data-testid="model-row"][data-model-id="deepseek-v4-flash"]'); if (row) row.click(); return !!row; })()`,
+		);
+		await sleepMs(400);
+		await cdp.eval(`(() => { window.__L.q('[data-testid="model-test"]').click(); return true; })()`);
+		const appeared = await cdp.eval(
+			`new Promise((r) => {
+			   const t0 = Date.now();
+			   const iv = setInterval(() => {
+			     if (window.__L.q('[data-testid="model-test-result"]') || window.__L.q('[data-testid="model-test-error"]')) {
+			       clearInterval(iv); r(true);
+			     } else if (Date.now() - t0 > 25000) { clearInterval(iv); r(false); }
+			   }, 150);
+			 })`,
+			true,
+		);
+		const testInfo = await cdp.eval(`(() => {
+			const okEl = window.__L.q('[data-testid="model-test-result"]');
+			const errEl = window.__L.q('[data-testid="model-test-error"]');
+			const el = okEl || errEl;
+			const remove = window.__L.q('[data-testid="model-remove"]');
+			const r = el ? el.getBoundingClientRect() : null;
+			const rr = remove ? remove.getBoundingClientRect() : null;
+			return {
+				text: (el?.textContent ?? '').trim(),
+				ok: !!okEl,
+				resultLeft: r ? +r.left.toFixed(2) : null,
+				removeRight: rr ? +rr.right.toFixed(2) : null,
+			};
+		})()`);
+		ctx.record("L6_模型测试", { 结果已出现: appeared, ...testInfo });
+		failures += ctx.assert("L6 「测试」发真实最小请求，且反馈显示在按钮组**右侧**（不在按钮中间）", {
+			有反馈出现: appeared === true,
+			真实连通成功: testInfo.ok === true,
+			文案含连接成功: (testInfo.text ?? "").includes("连接成功"),
+			带延迟ms: /\d+ms/.test(testInfo.text ?? ""),
+			结果在移除按钮右侧:
+				testInfo.resultLeft !== null &&
+				testInfo.removeRight !== null &&
+				testInfo.resultLeft >= testInfo.removeRight,
 		})
 			? 0
 			: 1;
