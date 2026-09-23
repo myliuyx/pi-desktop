@@ -80,7 +80,13 @@ git 身份是占位 `myliu@localhost`（local 级），推远端前需改真实�
   UI 侧 `?live=1&core=<url>&token=<bearer>` 走真实链路，默认仍 mock（同 MCP 门控范式）。
 - 复核证据（主控独立复跑）：live-smoke 12/12、accept:m1~m5 全绿（32/15/16/21）、
   check:cn 20/20、adapter 32/32、两包 tsc EXIT=0、build 10.6s 且 dist 零真实 pi/core 引用。
-- **待批**：C3–C5（授权卡真实往返 + 信任门 A3 / 会话列表 / 04·05 屏）→ C6 收尾。
+- **C3–C5 完成并通过复核（同日）**：C3 授权闭环 + 信任门 A3（`check:c3` 36/36：真实往返 / 幂等 /
+  信任门 never·always·ask+拒绝·信任·超时·cancel 五态；UI 超时失效态探针 4/4）；C4 会话
+  （`check:c4` 25/25，`SessionEntry[]→Message[]` 独立映射、主干取 `getBranch()`）；C5 04/05 屏真数据
+  （`check:c5` 26/26；UI 探针 7/7 + 8/8）；期间修掉 C2 遗留的 `core-smoke` 红灯。
+- **命令口径（M6 新增）**：core `npm run check:c3|c4|c5`、`security-check`、`smoke:check`；
+  ui `npm run probe:c4|c5`、`live:smoke`。**shim 无 `head`/`tail`，别用管道**。
+- **待批**：C6 收尾（汇总 + 全链路复核与文档收口）。
 
 ## Windows 踩坑
 

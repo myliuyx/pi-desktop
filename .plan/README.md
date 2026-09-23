@@ -107,8 +107,16 @@
   **试用**：`packages/core` 起 `npm run smoke`（写 `run/core.json` 的 port/token）→
   `packages/ui` 起 dev（`npm run dev -- --port 5180 --strictPort`）→ 浏览器开
   `http://127.0.0.1:5180/?live=1&core=http://127.0.0.1:<core端口>&token=<token>`
-- **下一步（待用户批预算）**：M6 第二阶段 C3–C5（授权卡接真实往返 + 信任门 A3 / 会话列表接真数据 /
-  04·05 屏接真数据）→ C6 收尾验收。live 页初始会话仍为 mock（真实历史属 C4）
+- **★ M6 第二阶段（C3–C5）已完成并通过主控复核（2026-09-23，分支 `dev-m6`）**：
+  C3 授权闭环 + **信任门 A3**（`check:c3` 36/36：真实授权往返、幂等、信任门五态；
+  UI 超时失效态探针 4/4）；C4 会话列表与加载（`check:c4` 25/25，`SessionEntry[]→Message[]`
+  独立映射）；C5 04/05 屏真数据（`check:c5` 26/26，UI 探针 7/7 + 8/8）。
+  规格书与复核记录：[`task-M6-C3-C5.md`](./task-M6-C3-C5.md)。
+  ⚠️ 本轮修掉一处遗留红灯：`core-smoke` 自 C2 起因断言 `agent_end`（不在我们事件契约里）
+  而 EXIT=1，已由主控改为 `agent_settled` + 终态顺序断言并转绿。
+- **下一步（待用户批预算）**：**C6 收尾**（汇总 + 全链路复核与文档收口）。C6 之前可先体验：
+  `packages/core` 起 `npm run smoke` → `packages/ui` 起 dev（`--port 5180 --strictPort`）→
+  浏览器 `http://127.0.0.1:5180/?live=1&core=http://127.0.0.1:<core端口>&token=<token>`
 - **下一步（大方向）**：按 `pi-integration-points.md` 把 mock 换成真实数据链路；
   `chat-store` 五方法签名冻结，只换内部实现
 - **开工前必读**：`survey/S0-our-contract.md` → `survey/S1-event-mapping.md` →
