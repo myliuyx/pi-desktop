@@ -142,3 +142,18 @@
 > 备注：① 执行方保留 `output:string` 字段属合理偏差（守住既有 check:adapter 断言）；② 端口口径备注——
 > vite.config.ts 现写 5173，台账口径 5180 需显式 `--port 5180 --strictPort` 启动（本次按台账执行）；
 > ③ 冒烟一prompt 3 条 message_start 与 S1「一 prompt 多 assistant 消息」实测一致。
+>
+> ### C2 复核（2026-09-23，**通过 ✅**）
+>
+> | 命令 | 结果 |
+> |---|---|
+> | `live:smoke`（CDP 真跑，未降级） | **12/12**（8 CDP + 4 传输层）；真实模型回复落到 DOM，`streaming` 出现并解除；本次合并率 **75→14（0.813）**，末帧 `agent_settled` |
+> | `accept:m1` | 全通过（日志无任何 `: false`） |
+> | `accept:m2` / `m3` / `m4` / `m5` | **32/32 / 15/15 / 16/16 / 21/21** |
+> | `check:cn` / `check:adapter` | **20/20 / 32/32** |
+> | ui / core `tsc --noEmit -p` | EXIT=0 / EXIT=0 |
+> | `vite build` | 10.6s；dist 隔离性专项检查：**无任何指向 pi/core 的 import/require 语句**（唯一"命中"是 mock 消息里的示例代码字符串 `from "@pi-coding-agent/sdk"`，非真实引用） |
+> | 残留进程检查 | 5180/5188/5194/5199 全部已关（无孤儿 core） |
+>
+> C2 复核通过，规格书三节全部收口。**遗留**：live 页初始会话仍是 mock（真实历史属 C4）；`window.__chatStore`
+> 在 live 模式下已挂真实 store（符合 M6 规格要求）。

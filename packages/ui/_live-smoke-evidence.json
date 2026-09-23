@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5188",
-  "startedAt": "2026-09-23T05:13:58.857Z",
+  "startedAt": "2026-09-23T05:20:58.343Z",
   "steps": [
     {
       "name": "live_store_已挂载",
@@ -26,7 +26,7 @@
         "新增assistant条目": [
           "a-8"
         ],
-        "新增assistant文本": "思考过程\n\nPi 是一个运行在终端里的 AI 编码代理（coding agent）工作台，提供 SDK、扩展、主题、Skills 等能力，用来帮助开发者读取、编辑代码并执行命令完成编程任务。",
+        "新增assistant文本": "思考过程\n\nPi 是一个基于 Rust 的终端 AI 编码代理（coding agent），提供 TUI 交互界面，支持通过扩展、主题、技能、提示模板和 SDK 自定义工作流。",
         "列表data-total-count": "9"
       }
     },
@@ -43,7 +43,7 @@
           "m7",
           "a-8"
         ],
-        "assistantText": "Pi 是一个运行在终端里的 AI 编码代理（coding agent）工作台，提供 SDK、扩展、主题、Skills 等能力，用来帮助开发者读取、编辑代码并执行命令完成编程任务。",
+        "assistantText": "Pi 是一个基于 Rust 的终端 AI 编码代理（coding agent），提供 TUI 交互界面，支持通过扩展、主题、技能、提示模板和 SDK 自定义工作流。",
         "streamingSeen": true,
         "streamingResolved": true,
         "newAssistantCount": 1
@@ -149,14 +149,14 @@
       "turn_start": 1,
       "message_start": 3,
       "message_end": 3,
-      "message_update": 34,
+      "message_update": 14,
       "turn_end": 1,
       "agent_settled": 1
     },
-    "sse观测_总帧数": 44,
-    "原始dump_message_update": 137,
-    "sse_message_update": 34,
-    "合并率": 0.752,
+    "sse观测_总帧数": 24,
+    "原始dump_message_update": 75,
+    "sse_message_update": 14,
+    "合并率": 0.813,
     "末帧类型": "agent_settled",
     "agent_settled之后仍有message_update": 0
   }
