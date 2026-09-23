@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/primitives";
 import { Icon } from "@/components/common/icons";
 import type { ModelConfig } from "@/mock/model-config";
+import type { ModelTestResult } from "@/mock/provider-contract";
 import { Field, INPUT_CLASS, HeadersEditor, Collapsible } from "./form-fields";
 
 /**
@@ -32,19 +33,48 @@ function parseNumber(value: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function ModelForm({ model, providerName, onChange, onRemove }: ModelFormProps) {
+export function ModelForm({ model, providerName, onChange, onRemove, onTest }: ModelFormProps) {
   const [testState, setTestState] = useState<TestState>("idle");
+  /** 成功时记延迟（ms）、失败时记错误文案 */
+  const [testNote, setTestNote] = useState("");
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const configured = model.id.trim().length > 0;
   const patch = (p: Partial<ModelConfig>) => onChange({ ...model, ...p });
 
-  const runTest = () => {
+  /*
+   * 连通性测试：live 形态走 `POST /models/test`（一次性最小真实请求，不落盘、不改当前选择）；
+   * 未传 `onTest`（mock 形态）沿用第一批的 800ms 延迟成功反馈。
+   * 结果（成功带延迟 / 失败带原因）显示在**按钮组最右侧**，不插在按钮中间挤位。
+   */
+  const runTest = async () => {
     if (testState === "testing") return;
     setTestState("testing");
-    // mock：800ms 后转成功（第二批接真实端点）
-    window.setTimeout(() => setTestState("success"), 800);
+    setTestNote("");
+    try {
+      const res: ModelTestResult = onTest
+        ? await onTest()
+        : await new Promise((resolve) => {
+            window.setTimeout(() => resolve({ ok: true, latencyMs: 800 }), 800);
+          });
+      if (res.ok) {
+        setTestState("success");
+        setTestNote(`${res.latencyMs}ms`);
+      } else {
+        setTestState("error");
+        setTestNote(res.error ?? "连接失败");
+      }
+    } catch (e) {
+      setTestState("error");
+      setTestNote(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  /** 确认移除后立刻收起确认组：否则组件被复用时「确认移除」会一直挂在界面上 */
+  const doRemove = () => {
+    setConfirmRemove(false);
+    onRemove();
   };
 
   const fillFromModelsDev = () => {
@@ -85,17 +115,11 @@ export function ModelForm({ model, providerName, onChange, onRemove }: ModelForm
             disabled={testState === "testing" || !configured}
             data-testid="model-test"
           >
-            {testState === "testing" ? "测试中…" : testState === "success" ? "已测试" : "测试"}
+            {testState === "testing" ? "测试中…" : "测试"}
           </Button>
-          {testState === "success" ? (
-            <span className="flex items-center gap-1 text-xs text-success" data-testid="model-test-result">
-              <Icon icon={CheckCircle2} size={14} />
-              连接成功
-            </span>
-          ) : null}
           {confirmRemove ? (
             <span className="flex items-center gap-2">
-              <Button size="sm" variant="danger" onClick={onRemove} data-testid="model-remove-confirm">
+              <Button size="sm" variant="danger" onClick={doRemove} data-testid="model-remove-confirm">
                 确认移除
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setConfirmRemove(false)}>
@@ -107,6 +131,25 @@ export function ModelForm({ model, providerName, onChange, onRemove }: ModelForm
               移除
             </Button>
           )}
+          {/* 测试结果恒在按钮组最右侧：不插在「测试」与「移除」中间，避免挤位与换行错位 */}
+          {testState === "success" ? (
+            <span
+              className="flex shrink-0 items-center gap-1 text-xs text-success"
+              data-testid="model-test-result"
+            >
+              <Icon icon={CheckCircle2} size={14} />
+              连接成功{testNote ? ` · ${testNote}` : ""}
+            </span>
+          ) : null}
+          {testState === "error" ? (
+            <span
+              className="max-w-[200px] shrink-0 truncate text-xs text-danger"
+              data-testid="model-test-error"
+              title={testNote}
+            >
+              {testNote || "连接失败"}
+            </span>
+          ) : null}
         </div>
       </div>
 

@@ -33,6 +33,12 @@ export function ProviderForm({ provider, onChange, onDelete }: ProviderFormProps
 
   const patch = (p: Partial<ModelProviderConfig>) => onChange({ ...provider, ...p });
 
+  /** 删除后立刻收起确认组（与模型「确认移除」同源：组件被复用时不该留着确认按钮） */
+  const doDelete = () => {
+    setConfirmDelete(false);
+    onDelete();
+  };
+
   /** 启用开关两步确认：首次点击只弹确认，不切换值 */
   const onEnableToggle = () => {
     if (!enableConfirm) {
@@ -77,7 +83,7 @@ export function ProviderForm({ provider, onChange, onDelete }: ProviderFormProps
           </div>
           {confirmDelete ? (
             <span className="flex items-center gap-2">
-              <Button size="sm" variant="danger" onClick={onDelete} data-testid="provider-delete-confirm">
+              <Button size="sm" variant="danger" onClick={doDelete} data-testid="provider-delete-confirm">
                 确认删除
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>

@@ -49,7 +49,7 @@ const TAB_PANEL_PREFIX = "settings-tab";
 
 const IDLE_STATUS = { tone: "normal", text: "保存后应用于新的会话" } as const;
 
-type StatusTone = "normal" | "warning" | "danger";
+type StatusTone = "normal" | "success" | "warning" | "danger";
 
 export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen);
@@ -103,13 +103,17 @@ export function SettingsDialog() {
 
   const close = () => setSettingsOpen(false);
 
+  /**
+   * 保存：**不关闭弹窗**（2026-09-23 用户裁决）—— 底部状态条给结果反馈，
+   * 让用户能接着改、也能看见 core 的回退提示；关闭动作交给 ✕ / 取消 / 遮罩。
+   */
   const onSave = async () => {
     const snapshot = draft.map((p) => structuredClone(p));
     saveModelProviders(snapshot);
 
     const transport = getLiveTransport();
     if (!transport) {
-      close();
+      setStatus({ tone: "success", text: "保存成功（应用于新的会话）" });
       return;
     }
     setStatus({ tone: "normal", text: "正在写入 core…" });
@@ -120,9 +124,8 @@ export function SettingsDialog() {
       setStatus(
         res.fallbackApplied
           ? { tone: "warning", text: res.warning ?? "当前生效模型已失效，已自动回退" }
-          : { ...IDLE_STATUS },
+          : { tone: "success", text: "保存成功（已写入 core，应用于新的会话）" },
       );
-      close();
     } catch (e) {
       // 写失败不关闭弹窗、也不丢用户的编辑，让用户看见原因并可重试
       setStatus({
@@ -165,6 +168,7 @@ export function SettingsDialog() {
           <p
             className={cn(
               "min-w-0 truncate text-xs text-text-tertiary",
+              status.tone === "success" && "text-success",
               status.tone === "warning" && "text-warning",
               status.tone === "danger" && "text-danger",
             )}

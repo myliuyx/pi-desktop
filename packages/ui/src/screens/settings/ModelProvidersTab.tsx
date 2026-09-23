@@ -7,6 +7,8 @@ import {
   SETTINGS_DIALOG_SPLIT_GAP,
 } from "@/lib/layout";
 import type { ModelConfig, ModelProviderConfig } from "@/mock/model-config";
+import { headersToRecord } from "@/mock/provider-convert";
+import { getLiveTransport } from "@/services/live-transport";
 import { ProviderForm } from "./ProviderForm";
 import { ModelForm } from "./ModelForm";
 
@@ -121,6 +123,29 @@ export function ModelProvidersTab({ providers, onChange }: ModelProvidersTabProp
 
   const toggleExpand = (providerId: string) =>
     setExpanded((prev) => ({ ...prev, [providerId]: !prev[providerId] }));
+
+  /**
+   * 模型连通性测试：live 形态发一次性最小真实请求（`POST /models/test`，max_tokens=1）；
+   * mock 形态沿用 800ms 延迟成功。模型级 endpointOverride / headers 优先于 Provider 级。
+   */
+  const runModelTest = async (): Promise<{ ok: boolean; latencyMs: number; error?: string }> => {
+    if (!selectedProvider || !selectedModel) return { ok: false, latencyMs: 0, error: "未选中模型" };
+    const transport = getLiveTransport();
+    if (!transport) {
+      await new Promise((resolve) => window.setTimeout(resolve, 800));
+      return { ok: true, latencyMs: 800 };
+    }
+    return transport.testModel({
+      baseUrl: selectedModel.advanced.endpointOverride || selectedProvider.baseUrl,
+      apiKey: selectedProvider.apiKey,
+      api: selectedProvider.api,
+      headers: {
+        ...headersToRecord(selectedProvider.headers),
+        ...headersToRecord(selectedModel.advanced.headers),
+      },
+      modelId: selectedModel.id,
+    });
+  };
 
   const selectedProvider =
     selection?.kind === "provider" || selection?.kind === "model"
@@ -272,16 +297,21 @@ export function ModelProvidersTab({ providers, onChange }: ModelProvidersTabProp
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden" data-testid="model-form-pane">
         {selection?.kind === "provider" && selectedProvider ? (
           <ProviderForm
+            /* key：切换 Provider 时重建表单，避免上一项的「确认删除」等局部态残留 */
+            key={selectedProvider.id}
             provider={selectedProvider}
             onChange={(next) => updateProvider(selectedProvider.id, next)}
             onDelete={() => deleteProvider(selectedProvider.id)}
           />
         ) : selection?.kind === "model" && selectedProvider && selectedModel ? (
           <ModelForm
+            /* key：切换模型（含「移除后选中项回落」）时重建表单，避免「确认移除」一直挂着 */
+            key={`${selectedProvider.id}#${selection.modelIndex}`}
             model={selectedModel}
             providerName={selectedProvider.name}
             onChange={(next) => updateModel(selectedProvider.id, selection.modelIndex, next)}
             onRemove={() => removeModel(selectedProvider.id, selection.modelIndex)}
+            onTest={runModelTest}
           />
         ) : (
           <div className="flex h-full min-w-0 items-center justify-center text-sm text-text-tertiary">
