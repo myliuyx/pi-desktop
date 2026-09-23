@@ -36,7 +36,7 @@ interface StartOptions {
   uiDist?: string;
 }
 
-const API_ROUTES = new Set(["/health", "/events", "/prompt", "/abort", "/approve"]);
+const API_ROUTES = new Set(["/health", "/events", "/prompt", "/abort", "/approve", "/cancel-approval"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object";
@@ -194,7 +194,15 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		};
 
 		if (req.method === "GET" && urlPath === "/health") {
-			return json(200, { ok: true, sseClients: sseClients.size, port: actualPort });
+			// C3：补发信任门结论与扩展数 —— 信任门三态（never/always/ask）的直接证据来源。
+			// 会话就绪前 trust / extensions 为 null（服务已可用，只是会话还在初始化）。
+			return json(200, {
+				ok: true,
+				sseClients: sseClients.size,
+				port: actualPort,
+				extensions: runtime.getExtensionCount(),
+				trust: runtime.getTrust(),
+			});
 		}
 
 		if (req.method === "GET" && urlPath === "/events") {
@@ -205,6 +213,13 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			});
 			res.write(": connected\n\n");
 			sseClients.add(res);
+			/*
+			 * ★ C3：补发「连接之前就已下发」的未决授权请求。
+			 * 场景一（必须）：ask 态信任门在会话创建前提问，而 core 此时才刚 listen，
+			 * 浏览器/脚本还没连上 SSE —— 不补发则提问永久丢失、启动卡死到超时。
+			 * 场景二（顺手）：页面刷新 / SSE 短暂断线重连后，未决授权卡还能重新出现。
+			 */
+			for (const pending of runtime.getPendingApprovals()) push(pending);
 			const hb = setInterval(() => res.write(": ping\n\n"), 15000);
 			req.on("close", () => {
 				clearInterval(hb);
@@ -231,6 +246,13 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		if (req.method === "POST" && urlPath === "/approve") {
 			const body = (await readBody(req)) as { requestId?: string; choice?: string };
 			const r = runtime.resolveApproval(String(body.requestId ?? ""), String(body.choice ?? ""));
+			return json(200, { ok: true, accepted: r.accepted });
+		}
+
+		// C3 新增：取消授权（与「拒绝」语义不同 —— 扩展读到的是「取消」而非某个选项文案）
+		if (req.method === "POST" && urlPath === "/cancel-approval") {
+			const body = (await readBody(req)) as { requestId?: string };
+			const r = runtime.cancelApproval(String(body.requestId ?? ""));
 			return json(200, { ok: true, accepted: r.accepted });
 		}
 

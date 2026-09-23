@@ -209,6 +209,9 @@ export type AgentEvent =
       title: string;
       options?: string[];
       message?: string;
+      /** C3 补：`input` 的占位提示（S3 §五 A 的草案形状，原 C0 契约漏了） */
+      placeholder?: string;
+      /** C3 补：扩展传入 `opts.timeout` 时的倒计时毫秒数（UI 据此渲染失效态） */
       timeoutMs?: number;
     }
   /** 新增：授权已结算（UI 乐观写 resolved；Pi 不回显结果） */
