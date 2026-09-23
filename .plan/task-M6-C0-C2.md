@@ -125,5 +125,20 @@
 
 ## 五、主控复核栏（主控填写）
 
-> 独立复跑命令清单与结果：______
-> 结论：______
+> 复核日期：2026-09-23。**全部判据独立复跑通过（不采信执行方回报），C0/C1 复核通过 ✅**
+>
+> | 命令 | 结果 |
+> |---|---|
+> | `tsc --noEmit -p tsconfig.app.json`（packages/ui） | EXIT=0 |
+> | `check:adapter` | **32/32**（24 既有 + 8 新增） |
+> | `accept:m2`（M2_ORIGIN=http://127.0.0.1:5180，dev 5180） | **32/32** |
+> | `accept:m4`（M4_ORIGIN=http://127.0.0.1:5180） | **16/16** |
+> | core `tsc --noEmit -p tsconfig.json` | EXIT=0 |
+> | `core-security-check` | **5/5**（401/401/403/200/ok:true） |
+> | `core-smoke`（真实模型） | 通过，108 事件（start=3/update=97/end=1/settled=1） |
+> | `vite build` | 6.6s（首次复跑卡渲染 18min，清 tsbuildinfo+dist 后即刻恢复——台账坑复现）；dist grep 仅 mock 文案命中，**无真实 core/pi import** |
+> | 抽查代码 | `server.ts` 安全段（Bearer 401 / Host 白名单 403）与 `reduce.ts` approval 分支（乐观 resolved）实现与 S3 语义一致 |
+>
+> 备注：① 执行方保留 `output:string` 字段属合理偏差（守住既有 check:adapter 断言）；② 端口口径备注——
+> vite.config.ts 现写 5173，台账口径 5180 需显式 `--port 5180 --strictPort` 启动（本次按台账执行）；
+> ③ 冒烟一prompt 3 条 message_start 与 S1「一 prompt 多 assistant 消息」实测一致。

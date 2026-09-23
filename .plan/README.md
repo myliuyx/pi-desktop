@@ -21,6 +21,7 @@
 
 | 文档 | 什么时候读 |
 |---|---|
+| [`task-M6-C0-C2.md`](./task-M6-C0-C2.md) | **M6 第一阶段（C0–C2）规格书，执行方开工前必读**——契约提升 / core 骨架 / 消息流接通三步的接口契约、完成判据与全局约束（不动清单、发布包依赖、env 注入 key） |
 | [`survey/S6-integration-design.md`](./survey/S6-integration-design.md) | **动 `packages/core` 的实现蓝图（S6 汇总，唯一开工入口）**——总体架构、core 模块规划、AgentTransport/AgentEvent 契约定稿（含三条实测修订）、mock 去留统一裁决（全保留+URL 参数惯例）、安全五条、C0–C6 落地顺序（~24h，建议立项 M6，**预算待拍板**）、开工前置与未验清单 |
 | [`decision-rulings-2026-09-23.md`](./decision-rulings-2026-09-23.md) | **core 的信任门与授权中断设计前必读（两条均已裁决 2026-09-23）**——A 扩展信任门：**A3 跟随 Pi**（归因已实证：信任门是 `reload({resolveProjectTrust})` 显式两段式，SDK 默认绕过）；B 拒绝后重试：**暂不做**，Pi 有公开 `abort()`、后期扩展零障碍；B2 拒绝理由明示随 core 顺手带上 |
 | [`spike-core-2026-09-23.md`](./spike-core-2026-09-23.md) | **动 core 实现前必读**——纯 Node + SDK + `uiContext` + HTTP/SSE 已实测跑通；含**两条必须裁决项**（项目本地扩展的信任门⚠️安全、拒绝授权后的重试循环）与三处被推翻的判断 |
