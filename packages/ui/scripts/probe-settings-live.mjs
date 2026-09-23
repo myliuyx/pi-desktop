@@ -376,26 +376,26 @@ try {
 			const okEl = window.__L.q('[data-testid="model-test-result"]');
 			const errEl = window.__L.q('[data-testid="model-test-error"]');
 			const el = okEl || errEl;
-			const remove = window.__L.q('[data-testid="model-remove"]');
+			const testBtn = window.__L.q('[data-testid="model-test"]');
 			const r = el ? el.getBoundingClientRect() : null;
-			const rr = remove ? remove.getBoundingClientRect() : null;
+			const rb = testBtn ? testBtn.getBoundingClientRect() : null;
 			return {
 				text: (el?.textContent ?? '').trim(),
 				ok: !!okEl,
-				resultLeft: r ? +r.left.toFixed(2) : null,
-				removeRight: rr ? +rr.right.toFixed(2) : null,
+				resultRight: r ? +r.right.toFixed(2) : null,
+				testBtnLeft: rb ? +rb.left.toFixed(2) : null,
 			};
 		})()`);
 		ctx.record("L6_模型测试", { 结果已出现: appeared, ...testInfo });
-		failures += ctx.assert("L6 「测试」发真实最小请求，且反馈显示在按钮组**右侧**（不在按钮中间）", {
+		failures += ctx.assert("L6 「测试」发真实最小请求，且反馈显示在**左侧**（不在按钮组里、不在中间）", {
 			有反馈出现: appeared === true,
 			真实连通成功: testInfo.ok === true,
 			文案含连接成功: (testInfo.text ?? "").includes("连接成功"),
 			带延迟ms: /\d+ms/.test(testInfo.text ?? ""),
-			结果在移除按钮右侧:
-				testInfo.resultLeft !== null &&
-				testInfo.removeRight !== null &&
-				testInfo.resultLeft >= testInfo.removeRight,
+			结果在测试按钮左侧:
+				testInfo.resultRight !== null &&
+				testInfo.testBtnLeft !== null &&
+				testInfo.resultRight <= testInfo.testBtnLeft,
 		})
 			? 0
 			: 1;
