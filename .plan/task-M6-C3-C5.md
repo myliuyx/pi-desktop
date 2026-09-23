@@ -170,3 +170,24 @@
 > 备注：实现方上报的「`tool_execution_start` 早于 `approval_request`」实序已按实测定稿注释；
 > 信任门实现路径 = 自建 `DefaultResourceLoader` + 显式 `reload({resolveProjectTrust})` 两段式后
 > 交 `createAgentSession({resourceLoader})`（依据 `sdk.js` 内部 reload 不传该回调 ＝ 无门）。
+>
+> **C4 + C5 复核（2026-09-23）：通过 ✅**（全部判据独立复跑）
+>
+> | 命令 | 结果 |
+> |---|---|
+> | `check:c4`（core） | **25/25** —— 清单/加载/续接三端点、`SessionEntry→Message` 映射全类目（主干取 `getBranch()`、toolResult 挂宿主 assistant、`display=false` 跳过、usage 兜底成 TokenUsage、标题回落 firstMessage）、未知 id → 404、**新端点 401/403 负向用例** |
+> | `check:c5`（core） | **26/26** —— 三类清单、信任态联动（trusted 时项目本地扩展被列出且来源标「项目内」/未信任被拦）、模型与思考档位**写回 `settings.json` 实证**、非法档位 400、不存在模型 400、新端点 401/403 |
+> | `probe:c4` / `probe:c5`（UI, CDP） | **7/7 / 8/8** —— 点会话后 DOM 真渲染 2 条（`contextWindow=128000` 来自 core）；切模型与 High 后 settings 实写、`?mcp=1` 回归正常 |
+> | `accept:m1` / `m2` / `m3` / `m4` / `m5` | 全通过（0 个 false）/ 32/32 / 15/15 / 16/16 / 21/21 |
+> | `check:cn` / `check:adapter` / `live:smoke` | 20/20 / 35 项 / 8/8 + 传输层 4 项全过 |
+> | core `security-check` / `smoke:check` | 5/5 / 4/4（含 `agent_settled` 终态顺序） |
+> | core / ui `tsc --noEmit -p` | EXIT=0 / EXIT=0 |
+> | `vite build` + dist 隔离 | 10.59s；唯一命中仍是 mock 消息里的示例代码字符串 `from "@pi-coding-agent/sdk"`（已两次确认非真实引用） |
+>
+> C4/C5 两处**诚实偏差**（复核认可，非缺陷）：
+> ① `TerminalBlock.exitCode/truncated` 在历史映射里**刻意不填** —— 会话 entry 里无此字段，编值＝造假；
+> ② 「按信任结论过滤项目扩展」不能用条数差做判据 —— 未信任时 Pi 本就**不加载**项目本地资源
+> （过滤前后同为 0），故改用 `hasTrustRequiringProjectResources(cwd)` + 信任态断言（已写进 `check:c5` 注释）。
+>
+> 遗留（交 C6 汇总，均非阻断）：`continue-recent` 只读不重建活动会话（真 switch 需重建扩展绑定）；
+> 分支/fork 的 UI 未做；04 屏工具开关仍走本地持久化、未接 `setActiveToolsByName`。
