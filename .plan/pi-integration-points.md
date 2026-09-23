@@ -19,7 +19,7 @@
   `ToolCallBlock` / `TerminalBlock` / `ApprovalBlock` / `PlanBlock`（+`PlanStep`/`PlanStepStatus`）；
   收窄工具 `isBlock()` / `BlockType`
 - 设置域：`ThinkingLevel` / `ModelOption` / `McpServer` / `McpStatus` / `ToolStatus`
-  （⚠️ `McpServer` / `McpStatus` 随 **MCP 暂缓**（2026-09-23），见 `pi-survey-plan.md` S5「MCP 暂缓处置」）
+  （⚠️ `McpServer` / `McpStatus` 随 **MCP 暂缓**（2026-09-23），见 `archive/pi-survey-plan.md` S5「MCP 暂缓处置」）
 - 消费者（全部 **type-only import**，17 个消费文件中的 10 个）：
   `MessageBubble` / `MessageList` / `PlanCard` / `TerminalCard` / `ThinkingCard` / `ApprovalCard` /
   `RunDetailScreen` / `chat-store` / `ui-store` / `ShellPreview`
@@ -31,7 +31,7 @@
 | --- | --- | --- |
 | `sendMessage(text)` | 追加 user 消息 + `simulateStream` 打字机回复 + `computeTokens` 估算 | 发送真实输入；订阅 Pi 会话事件，事件→Block 增量更新（assistant 消息可能含 thinking/plan/tool_call/terminal/approval 多种 Block；保持「流式中只更新最后一条 assistant 消息」的既有模式，虚拟测量依赖其稳定） |
 | `abortStream()` | `activeStream.abort()` + 定格 | 中断 Pi 会话；已产出 Block 定格（streaming 标志清掉） |
-| `resolveApproval(requestId, choice)` | 本地把 `resolved` 置为 choice | 回传 Pi 授权应答；**幂等语义保留**（已决 requestId 不再覆盖）。**细节见 `survey/S3-tool-approval.md` §二/§三**——`requestId` 其实是我们生成的（Pi 在 SDK 模式下不给 id）、应答形状按 `method` 分三种、取消建议另开 `cancelApproval` |
+| `resolveApproval(requestId, choice)` | 本地把 `resolved` 置为 choice | 回传 Pi 授权应答；**幂等语义保留**（已决 requestId 不再覆盖）。**细节见 `.plan/archive/survey/S3-tool-approval.md` §二/§三**——`requestId` 其实是我们生成的（Pi 在 SDK 模式下不给 id）、应答形状按 `method` 分三种、取消建议另开 `cancelApproval` |
 | `loadSession(session)` | 切 mock 会话（先 abort） | 加载真实会话（消息已是 Block 形态） |
 | `reset()` | 回 `INITIAL_SESSION` | 回空会话或最近会话（产品决策） |
 
@@ -70,7 +70,7 @@
 | 文件 | 关键导出 | 消费点 | 接 Pi 后来源 |
 | --- | --- | --- | --- |
 | `mock/runs.ts` | `RUN_SUMMARY` / `RUN_STEPS` / `RUN_STEP_COUNT` / `RUN_STATUS_COUNT` / type `RunStep`·`RunSummary` | `RunDetailScreen.tsx:19-26` | 真实运行记录 |
-| `mock/composer.ts` | `COMPOSER_MODELS` / `COMPOSER_MODEL_GROUPS` / `COMPOSER_THINKING_LEVELS` / `THINKING_LABEL` / `INITIAL_MODEL_INDEX` / `INITIAL_THINKING_INDEX` / ~~`COMPOSER_MCP_SERVERS`~~ / ~~`MCP_CONNECTED_COUNT`~~ | `ComposerToolbar.tsx:14`、`SettingsScreen.tsx:12`、`SkillsScreen.tsx:10`、`ui-store.ts:12` | 模型 / 思考档位来自 Pi 配置（`ModelRuntime` + `settings.json`）。~~MCP 清单来自 Pi 配置~~ —— **更正：Pi 无 MCP 概念，该清单在 Pi 侧没有任何来源**；2026-09-23 裁决暂缓，见 `pi-survey-plan.md` S5「MCP 暂缓处置」 |
+| `mock/composer.ts` | `COMPOSER_MODELS` / `COMPOSER_MODEL_GROUPS` / `COMPOSER_THINKING_LEVELS` / `THINKING_LABEL` / `INITIAL_MODEL_INDEX` / `INITIAL_THINKING_INDEX` / ~~`COMPOSER_MCP_SERVERS`~~ / ~~`MCP_CONNECTED_COUNT`~~ | `ComposerToolbar.tsx:14`、`SettingsScreen.tsx:12`、`SkillsScreen.tsx:10`、`ui-store.ts:12` | 模型 / 思考档位来自 Pi 配置（`ModelRuntime` + `settings.json`）。~~MCP 清单来自 Pi 配置~~ —— **更正：Pi 无 MCP 概念，该清单在 Pi 侧没有任何来源**；2026-09-23 裁决暂缓，见 `archive/pi-survey-plan.md` S5「MCP 暂缓处置」 |
 | `mock/settings.ts` | `SETTINGS_GROUPS` / `SESSION_SWITCHES` / `DEFAULT_SESSION_SWITCHES` / `THEME_OPTIONS` / `PI_FIELD_NAMES` / `DEFAULT_WORKING_DIR` 等 | `SettingsScreen.tsx:18`、`ui-store.ts:10` | 真实设置项（`PI_FIELD_NAMES` 已预留 Pi 字段映射意图） |
 | `mock/skills.ts` | `SKILL_GROUPS` / `TOOL_ENTRIES` / `DEFAULT_ENABLED_TOOLS` / `SKILL_CATEGORY_LABEL` / ~~`MCP_NOTE`~~ 等 | `SkillsScreen.tsx:17`、`ui-store.ts:5` | 真实技能 / 工具清单 —— **已实测 Pi 三类数据全有**：`resourceLoader.getExtensions()` / `getSkills().skills` / `getPrompts().prompts`（`core/resource-loader.ts:41-42`、`core/agent-session.ts:1089`）。工具口径：Pi 8 个内置实现、默认启用 4 个（`usage.md:218`、`agent-session.ts:2972-2974`）。~~MCP_NOTE~~ 随 MCP 暂缓，见 S5 |
 | `mock/shells.ts` | `SHELL_VARIANTS` / `SHELL_OS_VALUES` / `isOsName()` / 屏标题常量 | `ShellsScreen.tsx:11`、`ShellPreview.tsx:12` | 06 屏是壳演示屏，可保留 mock 或按真实平台枚举 |

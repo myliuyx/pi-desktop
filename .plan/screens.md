@@ -108,14 +108,14 @@
 
 - 技能列表（对应 Pi 的 `get_commands` 三类：extension / prompt / skill）。
   **数据源已实测**（SDK 侧）：`resourceLoader.getExtensions()` / `getSkills().skills` /
-  `getPrompts().prompts` —— 见 `pi-survey-plan.md` S5
+  `getPrompts().prompts` —— 见 `archive/pi-survey-plan.md` S5
 - 工具列表与开关（对应 Pi 的 `tools` allowlist：read / bash / edit / write）。
   实测口径：Pi 有 **8 个内置实现**、**默认只启用这 4 个**
   （`docs/usage.md:218`、`core/agent-session.ts:2972-2974`）
 - MCP 服务器列表（**Pi 不内置 MCP，此屏为自建能力的展示位**）。
   ⏸ **2026-09-23 裁决暂缓**：Pi 无 MCP 概念 ⇒ 该清单无数据源，继续展示 mock 数据属误导。
   牵连面（含会打破 `accept:m2` 2-11 / `accept:m4` 4-4）与三个处置方案
-  见 `pi-survey-plan.md` S5「MCP 暂缓处置」
+  见 `archive/pi-survey-plan.md` S5「MCP 暂缓处置」
 
 ### 05 · 设置
 

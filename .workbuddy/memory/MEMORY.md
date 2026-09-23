@@ -7,9 +7,10 @@
 ## 定位与阶段
 
 - Ardot 画布 fileId `728255468414716`（设计稿是令牌唯一权威来源）。
-- M0–M5 纯 UI 原型已定稿验收（2026-09-22），净工时 69.5h（14h 缓冲未动用）。8 屏六路由。
-- **当前：Pi 对接阶段**。React 19 + TS + Vite 6 + Tailwind v4 + Zustand + lucide-react + shiki
-  + react-markdown + remark-gfm + react-virtual（8 依赖冻结，勿新增）。
+- **M0–M5（纯 UI 原型）+ M6（Pi 对接）全部完成并通过主控终验（2026-09-23）**。8 屏六路由。
+  交付形态：本地 core 服务 + 浏览器套壳，`?live=1` 走真实链路。React 19 + TS + Vite 6
+  + Tailwind v4 + Zustand + lucide-react + shiki + react-markdown + remark-gfm + react-virtual
+  （8 依赖冻结，勿新增）+ 新增 `packages/core`（依赖 npm 发布包 `@earendil-works/pi-coding-agent@0.87.1`）。
 - **部署形态已裁决（2026-09-23）**：本地起服务 + 浏览器访问，默认绑 `127.0.0.1`；
   Electron 降级为可选外壳。连带：**本地 token 不能删**（任意网页可请求 127.0.0.1）、
   **需校验 `Host` 头防 DNS rebinding**（S4 初稿漏的一条）。
@@ -45,13 +46,12 @@ G6 无横向滚动 ｜ G7 键盘可达 ｜ G8 折叠必须有过渡。
 ③ UI 断言取样限定屏级容器；④ cdp.eval 正则反斜杠双写、数字开头键加引号；
 ⑤ 同文件多次 Edit 必须串行、长命令必须后台跑。
 
-## Pi 梳理（状态见 `.plan/README.md` 速览，此处只记未入档事实）
+## Pi 梳理（已完结并归档；状态见 `.plan/README.md`，此处只记未入档事实）
 
-- S0–S4 完成，S5 降级为产品决策，剩 S6；core 骨架 spike 已通过。
-  **两条裁决项已拍板（2026-09-23，见 `.plan/decision-rulings-2026-09-23.md`）**：
-  A 信任门 = **A3 跟随 Pi**（实证：信任门是 `reload({resolveProjectTrust})` 显式两段式，SDK 默认绕过，
-  core 须显式传回调）；B 拒绝后重试 = **暂不做**（Pi 有公开 `abort()`，后期扩展零障碍），
-  拒绝理由明示随 core 顺手带上。
+- S0–S6 全部完成；**梳理期与 M6 全部文档已归档到 `.plan/archive/`**（2026-09-23 整理，
+  全仓引用路径已修）。两条裁决的落实：A 信任门 = **A3 跟随 Pi**（core 显式传
+  `resolveProjectTrust`，`trust.ts`）；B 拒绝后重试 = **暂不做**（Pi 有公开 `abort()`，
+  core `POST /abort` 已暴露，后期扩展零障碍）。裁决单：`.plan/archive/decision-rulings-2026-09-23.md`。
 - **术语警告**：链路里两个同名无关的 `baseUrl`——①UI↔core（我们定义）②core↔模型（Pi 持有）。
   UI 从不直接请求模型。
 - 火山方舟 `https://ark.cn-beijing.volces.com/api/coding/v3` 是 **openai-completions** 端点；
@@ -98,10 +98,11 @@ git 身份是占位 `myliu@localhost`（local 级），推远端前需改真实�
   ⇒ 地址不再需要手工拼 token；跨源 dev（vite→core）仍用 `?core=&token=`。
   带 `agentdir-ext` 夹具可演示授权卡；`/health` 会回 `extensions` 与 `trust` 状态。
   ⚠️ **tsx 不热载**——改 core 源码后必须重启 core 才生效（实踩）。
-- **★ M6 已完成（C0–C6，2026-09-23；C6 待主控复核）**：`continue-recent` 已**重建**活动会话
+- **★ M6 已完成（C0–C6，2026-09-23，主控终验全绿）**：`continue-recent` 已**重建**活动会话
   （公开路径 `createAgentSession({sessionManager: SessionManager.open(file)})`，续写落同一文件）；
   04 屏工具开关 live 读写 `GET/POST /tools/active`（`getActiveToolNames`/`setActiveToolsByName`，
-  写入下一 agent 轮次生效）；分支/fork UI 确认记后期。验收记录 `.plan/progress-M6.md`。
+  写入下一 agent 轮次生效）；live 启动加载最近真实会话（不再展示 mock）；分支/fork UI 记后期。
+  验收记录 `.plan/archive/progress-M6.md`（§三 终验数字 / §五 主控复核 / §四 遗留清单）。
 - **日常使用（最终形态）**：`cd packages/core && npm run smoke` → 浏览器
   `http://127.0.0.1:<core端口>/?live=1`（core 同源托管 ui/dist、免 token；ui dist 需先 build）。
   自检：侧边栏 live 显示真实 sessions、mock 形态是 8 条演示会话。
@@ -113,7 +114,8 @@ PowerShell stdout 常不回传 → node 写文件再 Read；长命令 `run_in_ba
 CDP 用系统 Chrome（**不装 puppeteer/playwright**）；「构建卡住」先清 vite dev server 与陈旧 `tsbuildinfo`。
 中文脚本勿用多行 `node -e`（shell 转义会崩），写独立脚本文件跑。
 
-## 遗留（均非阻断）
+## 遗留（均非阻断；当前 backlog 权威版在 `.plan/README.md` A 层清单）
 
-06 屏缩略窗（scale 0.42）文字不可读（单壳 `#/shells?os=` 替代）；主包 520 kB（可对 03~06 屏 React.lazy）；
-DEV 下 `window.__chatStore` 桩接 Pi 后要改回真实 UI 驱动（范式：同 MCP 门控）。
+分支/fork UI、input 型授权卡输入控件、MCP 暂缓（`?mcp=1` 恢复）、06 屏缩略窗（单壳替代）、
+主包 520 kB（React.lazy）、npm 发布包形态变化后重跑探针、`block.reason` 上下文验证；
+DEV 下 `window.__chatStore` live 挂真实 store 是既有口径（供脚本驱动），非缺陷。

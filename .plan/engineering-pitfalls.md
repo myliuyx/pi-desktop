@@ -123,5 +123,5 @@ flex 居中量的是 svg **盒**（Δ=0），但 lucide Send 的**字形质心**
 
 - `.plan/acceptance-criteria.md` —— 验收标准总纲与逐项口径
 - `.plan/ui-rulings.md` —— 布局与交互的**防回退台账**（R1–R10）
-- `.plan/survey/S3-tool-approval.md` §八 —— 教训 #9 的完整案例
+- `.plan/archive/survey/S3-tool-approval.md` §八 —— 教训 #9 的完整案例
 - skill `flexbox-collapse-zerowidth` / `design-token-contrast-audit` —— 与本文档有部分重叠
