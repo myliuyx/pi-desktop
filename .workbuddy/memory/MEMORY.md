@@ -84,8 +84,9 @@ git 身份是占位 `myliu@localhost`（local 级），推远端前需改真实�
   信任门 never·always·ask+拒绝·信任·超时·cancel 五态；UI 超时失效态探针 4/4）；C4 会话
   （`check:c4` 25/25，`SessionEntry[]→Message[]` 独立映射、主干取 `getBranch()`）；C5 04/05 屏真数据
   （`check:c5` 26/26；UI 探针 7/7 + 8/8）；期间修掉 C2 遗留的 `core-smoke` 红灯。
-- **命令口径（M6 新增）**：core `npm run check:c3|c4|c5`、`security-check`、`smoke:check`；
-  ui `npm run probe:c4|c5`、`live:smoke`。**shim 无 `head`/`tail`，别用管道**。
+- **命令口径（M6 新增）**：core `npm run check:c3|c4|c5|c6`、`security-check`、`smoke:check`；
+  ui `npm run probe:c4|c5`、`live:smoke`。**check:c6 是 M6 总验收**（全链路端到端 + UI 探针引用，
+  33/33；前置：packages/ui 先 build 出 dist）。**shim 无 `head`/`tail`，别用管道**。
 - **★ 一页式体验（core 同源托管）**：core 默认 serve `packages/ui/dist`（`CORE_UI_DIST` 可覆盖）
   且静态资源免鉴权 ⇒ **一条 URL 看全部**：
   `cd packages/core` → `export CORE_PORT=5190 CORE_AGENT_DIR=<测试夹具 agentdir-ext>
@@ -97,11 +98,13 @@ git 身份是占位 `myliu@localhost`（local 级），推远端前需改真实�
   ⇒ 地址不再需要手工拼 token；跨源 dev（vite→core）仍用 `?core=&token=`。
   带 `agentdir-ext` 夹具可演示授权卡；`/health` 会回 `extensions` 与 `trust` 状态。
   ⚠️ **tsx 不热载**——改 core 源码后必须重启 core 才生效（实踩）。
-- **待批**：C6 收尾（汇总 + 全链路复核与文档收口）。**C6 首个修复项（2026-09-23 用户实测反馈）**：
-  `?live=1` 打开时**首屏仍是 7 条 mock 会话**，导致「看着和纯 UI 没区别」——
-  应改为 live 模式启动即 `listSessions` 并加载最近一条真实会话（空则显示空态，别拿 mock 顶）。
-  **最快的自检口径**：看侧边栏「历史会话」——mock 形态是 8 条假会话，live 形态是你真实的
-  `~/.pi/agent/sessions` 记录。
+- **★ M6 已完成（C0–C6，2026-09-23；C6 待主控复核）**：`continue-recent` 已**重建**活动会话
+  （公开路径 `createAgentSession({sessionManager: SessionManager.open(file)})`，续写落同一文件）；
+  04 屏工具开关 live 读写 `GET/POST /tools/active`（`getActiveToolNames`/`setActiveToolsByName`，
+  写入下一 agent 轮次生效）；分支/fork UI 确认记后期。验收记录 `.plan/progress-M6.md`。
+- **日常使用（最终形态）**：`cd packages/core && npm run smoke` → 浏览器
+  `http://127.0.0.1:<core端口>/?live=1`（core 同源托管 ui/dist、免 token；ui dist 需先 build）。
+  自检：侧边栏 live 显示真实 sessions、mock 形态是 8 条演示会话。
 
 ## Windows 踩坑
 

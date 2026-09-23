@@ -1,7 +1,8 @@
 # 文档索引（唯一入口）
 
 > 最后更新：2026-09-23
-> **当前阶段**：纯 UI 原型 M0–M5 已全部完成并通过验收（8 屏六路由可演示），进入 **Pi 对接阶段**。
+> **当前阶段**：**Pi 对接（M6）已完成（C0–C6）**，进入**日常使用 / 后续迭代**；
+> 纯 UI 原型 M0–M5 此前已全部通过验收（8 屏六路由可演示）。
 > **部署形态已裁决（2026-09-23）**：**本地起一个服务 + 浏览器访问，不涉及云端**；默认只绑 `127.0.0.1`，
 > `0.0.0.0`（内网可访问）作为显式开关另议。**Electron 降级为可选外壳**（保留与否暂缓，不阻塞任何当前工作）。
 > 本文件是文档的唯一入口。**新增文档必须登记到这里，否则视为不存在。**
@@ -21,7 +22,8 @@
 
 | 文档 | 什么时候读 |
 |---|---|
-| [`task-M6-C6.md`](./task-M6-C6.md) | **M6 第三阶段（C6 收尾）规格书**——三条遗留归置（工具开关接 Pi / continue-recent 限时评估 / 分支 UI 记后期）+ `probe:c6` 全链路端到端终验 + 文档收口 |
+| [`progress-M6.md`](./progress-M6.md) | **M6 验收记录（C0–C6 判据与证据索引、裁决落实、遗留清单、试用口径）** |
+| [`task-M6-C6.md`](./task-M6-C6.md) | **M6 第三阶段（C6 收尾）规格书**（已执行，§四 待主控复核）——三条遗留归置（工具开关接 Pi / continue-recent 限时评估 / 分支 UI 记后期）+ `check:c6` 全链路端到端终验 + 文档收口 |
 | [`task-M6-C3-C5.md`](./task-M6-C3-C5.md) | **M6 第二阶段（C3–C5）规格书**（已完成并通过复核）
 | [`task-M6-C0-C2.md`](./task-M6-C0-C2.md) | **M6 第一阶段（C0–C2）规格书**（已完成并通过复核）
 | [`survey/S6-integration-design.md`](./survey/S6-integration-design.md) | **动 `packages/core` 的实现蓝图（S6 汇总，唯一开工入口）**——总体架构、core 模块规划、AgentTransport/AgentEvent 契约定稿（含三条实测修订）、mock 去留统一裁决（全保留+URL 参数惯例）、安全五条、C0–C6 落地顺序（~24h，建议立项 M6，**预算待拍板**）、开工前置与未验清单 |
@@ -115,11 +117,19 @@
   规格书与复核记录：[`task-M6-C3-C5.md`](./task-M6-C3-C5.md)。
   ⚠️ 本轮修掉一处遗留红灯：`core-smoke` 自 C2 起因断言 `agent_end`（不在我们事件契约里）
   而 EXIT=1，已由主控改为 `agent_settled` + 终态顺序断言并转绿。
-- **下一步（待用户批预算）**：**C6 收尾**（汇总 + 全链路复核与文档收口）。C6 之前可先体验：
-  `packages/core` 起 `npm run smoke` → `packages/ui` 起 dev（`--port 5180 --strictPort`）→
-  浏览器 `http://127.0.0.1:5180/?live=1&core=http://127.0.0.1:<core端口>&token=<token>`
-- **下一步（大方向）**：按 `pi-integration-points.md` 把 mock 换成真实数据链路；
-  `chat-store` 五方法签名冻结，只换内部实现
+- **★ M6 第三阶段（C6 收尾）已执行（2026-09-23，分支 `dev-m6`，待主控复核）**：
+  §1.1 工具开关接 Pi（`GET/POST /tools/active`，0.87.1 `getActiveToolNames`/`setActiveToolsByName`；
+  UI live 开关读写真实状态）；§1.2 `continue-recent` **重建活动会话**（公开低险路径：
+  `createAgentSession({sessionManager})`，续写落同一 session 文件）；§1.3 分支 UI 确认记后期。
+  **总验收 `npm run check:c6`（core 包）33/33 全绿**：完整真实会话（授权闭环 + bash 成功）→
+  会话落盘/加载 → 重建切换 → 工具开关往返（关 bash ⇒ 不出现 bash 调用）→ resources/models →
+  复用 probe:c4/c5/live:smoke。全家桶终验全绿（m1~m5 / cn 20 / adapter 35 / c3 36 / c4 25 / c5 26 /
+  security / smoke / 两包 tsc / build 隔离 0 命中）。
+  验收记录：[`progress-M6.md`](./progress-M6.md)。
+- **下一步**：**进入日常使用 / 后续迭代**（遗留清单见 progress-M6 §四：分支 UI、input 型授权卡、
+  MCP 恢复开关等，均非阻断）。日常使用：`cd packages/core && npm run smoke` →
+  浏览器开 `http://127.0.0.1:<core端口>/?live=1`（core 同源托管 ui/dist，**免 token**；
+  dist 需先在 packages/ui `npm run build`）。
 - **开工前必读**：`survey/S0-our-contract.md` → `survey/S1-event-mapping.md` →
   `survey/S4-transport-decision.md` → **`survey/S3-tool-approval.md`**（若动授权/终端链路）
   （四份加起来就能动手，不必通读 `.plan/`）

@@ -146,17 +146,21 @@ core 输出与 mock 数据同构（S4 §四，`AgentEvent` 自定义类型的直
 
 ---
 
-## 八、落地顺序与预算（建议）
+## 八、落地顺序与预算（建议）—— ✅ **全部完成（C0–C6，2026-09-23 同日三波执行并通过复核/待复核）**
 
-| 步 | 内容 | 估时 | 前置 |
-|---|---|---|---|
-| C0 | Block 六型提升共享契约 + `AgentEvent` 补 approval/字段修正 + `check:adapter` 扩用例 | ~2h | 无 |
-| C1 | core 骨架转正：`server.ts` + 安全三件套 + 静态资源 + `session.ts`（prompt/abort） | ~4h | C0 |
-| C2 | 事件适配上收 + SSE 批处理 + 终态单独下发；01 屏接真实会话 | ~4h | C1 |
-| C3 | `ui-context.ts` 授权闭环 + 信任门 A3 + 倒计时/失效态 | ~3h | C1 |
-| C4 | `sessions.ts` 会话列表/加载/续接 + `SessionEntry[]→Message[]` 映射 + Sidebar 接真数据 | ~4h | C1 |
-| C5 | 04 屏 `resources.ts` + 05 屏 `models.ts` | ~3h | C1 |
-| C6 | core 侧验收脚本（probe-core-*：SSE 回放、授权往返、信任门三态、Host/token 负向用例）+ 全量联调 | ~4h | C2/C3/C4/C5 |
+| 步 | 内容 | 估时 | 实际 | 前置 |
+|---|---|---|---|---|
+| C0 | Block 六型提升共享契约 + `AgentEvent` 补 approval/字段修正 + `check:adapter` 扩用例 | ~2h | ✅ 完成（复核通过） | 无 |
+| C1 | core 骨架转正：`server.ts` + 安全三件套 + 静态资源 + `session.ts`（prompt/abort） | ~4h | ✅ 完成（复核通过） | C0 |
+| C2 | 事件适配上收 + SSE 批处理 + 终态单独下发；01 屏接真实会话 | ~4h | ✅ 完成（复核通过；复核顺手修掉 core-smoke 红灯） | C1 |
+| C3 | `ui-context.ts` 授权闭环 + 信任门 A3 + 倒计时/失效态 | ~3h | ✅ 完成（check:c3 36/36） | C1 |
+| C4 | `sessions.ts` 会话列表/加载/续接 + `SessionEntry[]→Message[]` 映射 + Sidebar 接真数据 | ~4h | ✅ 完成（check:c4 25/25） | C1 |
+| C5 | 04 屏 `resources.ts` + 05 屏 `models.ts` | ~3h | ✅ 完成（check:c5 26/26） | C1 |
+| C6 | ~~core 侧验收脚本（probe-core-*）~~ → 实际形态：三条遗留归置（工具开关接 Pi / continue-recent 重建 / 分支 UI 记后期）+ **总验收 `check:c6` 33/33**（全链路端到端 + UI 探针引用）+ 文档收口 | ~4h | ✅ 完成（待主控复核） | C2/C3/C4/C5 |
+
+> C6 形态说明：本表初稿写的「probe-core-* 系列」在实际执行中并入了既有的 check:c3/c4/c5 体系，
+> 最终以单一总验收 `npm run check:c6`（全链路端到端 + 引用 UI 探针）承载「全量联调」。
+> 判据与证据见 `.plan/progress-M6.md`。
 
 **合计 ~24h，超出既有 14h 缓冲** → 建议立项为 **M6（Pi 对接）里程碑**、单独走规格书与验收流程
 （铁律不变：规格书主控写、验收脚本非实现方写）。**预算需用户拍板，本表仅为建议。**
