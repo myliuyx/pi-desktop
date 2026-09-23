@@ -1,7 +1,7 @@
 /**
  * `ExtensionUIContext` 正式实现 —— 授权通道（C3 由 `session.ts` 里的最小实现转正）。
  *
- * 形态依据（`survey/S3-tool-approval.md`）：
+ * 形态依据（`.plan/archive/survey/S3-tool-approval.md`）：
  * - 授权通道**不是**消费 Pi 的 `extension_ui_request` 事件，而是 **core 自己实现
  *   `ExtensionUIContext` 接口**（`extension_ui_request` 只是 RPC 模式对该接口的序列化），
  *   core 经 `session.bindExtensions({ uiContext, mode: "rpc" })` 注入（S3 §2.3/§2.5）。

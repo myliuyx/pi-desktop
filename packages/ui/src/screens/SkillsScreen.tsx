@@ -38,7 +38,7 @@ import { useUiStore } from "@/store/ui-store";
  *   Pi 无 MCP 概念（`usage.md:310`），该清单在 Pi 侧没有任何数据源，继续展示 mock 数据属误导。
  *   但 `accept:m2` 的 2-11 与 `accept:m4` 的 4-4 依赖该区块存在 → 按 §五纪律选
  *   「保留 mock 分支供回归」：**组件代码 / testid / mock 数据全部保留，仅用 `?mcp=1` 门控**。
- *   见 `@/lib/feature-flags` 与 `.plan/pi-survey-plan.md` S5。
+ *   见 `@/lib/feature-flags` 与 `.plan/archive/pi-survey-plan.md` S5。
  */
 
 /** 技能分类 → 标题图标（列表里给的是 categories，图标是纯展示，不进 mock 数据） */

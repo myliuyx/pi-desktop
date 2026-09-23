@@ -7,7 +7,7 @@
  * 3. Pi 升级导致事件形状变化时，改动被关在 core 里。
  *
  * 由 `packages/core` 把 Pi 事件翻译成这里（契约）的形状再下发。
- * 字段来源见 `.plan/survey/S1-event-mapping.md`。
+ * 字段来源见 `.plan/archive/survey/S1-event-mapping.md`。
  */
 
 export type {

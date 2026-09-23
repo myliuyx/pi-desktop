@@ -15,7 +15,7 @@
  * 装了第三方 MCP 扩展之后那份清单**归那个扩展管**，Pi 不保证是否/如何暴露给宿主
  * ⇒ 在没有来源的情况下继续展示 mock 数据属于误导。
  * 牵连面（含会打破 `accept:m2` 2-11 与 `accept:m4` 4-4）与三个处置方案
- * 见 `.plan/pi-survey-plan.md` S5「MCP 暂缓处置」。**在用户拍板处置方案前，本文件保持原状。**
+ * 见 `.plan/archive/pi-survey-plan.md` S5「MCP 暂缓处置」。**在用户拍板处置方案前，本文件保持原状。**
  */
 
 import type { McpServer, ThinkingLevel } from "./types";

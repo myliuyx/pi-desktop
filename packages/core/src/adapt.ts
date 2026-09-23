@@ -6,7 +6,7 @@
  * core 是独立 Node 进程，允许 import pi 包类型；但这里只 `import type` 共享契约，
  * 不引入任何运行时依赖（UI 侧的 `toAgentEvent` 已退役，统一收口到此处）。
  *
- * 实测字段形状见 `.plan/survey/S1-event-mapping.md`。
+ * 实测字段形状见 `.plan/archive/survey/S1-event-mapping.md`。
  */
 
 import type { AgentContentPart, AgentEvent, AgentMessage, AgentMessageRole } from "./contract.ts";

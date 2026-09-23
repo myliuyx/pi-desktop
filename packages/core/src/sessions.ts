@@ -1,7 +1,7 @@
 /**
  * C4 · 会话持久化封装 —— `SessionManager` 的薄封装 + **独立**的 `SessionEntry[] → Message[]` 映射。
  *
- * ## 为什么必须另写一份映射（`survey/S2-sessions.md` §四，本模块的存在理由）
+ * ## 为什么必须另写一份映射（`.plan/archive/survey/S2-sessions.md` §四，本模块的存在理由）
  *
  * 会话文件里存的是 **`SessionEntry[]`（Pi 的落盘形状，带 id/parentId 的树）**，
  * 而实时对话走的是 **`AgentEvent`（事件流）** —— 两条路径的输入完全不同，

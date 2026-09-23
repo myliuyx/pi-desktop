@@ -5,7 +5,7 @@
  * 为什么不是无状态纯函数：需要维护「当前 assistant 消息」与「按 toolCallId 索引的终端块」。
  * 为什么不是直接写 store：与 React / zustand 解耦才好单测。
  *
- * 依据：`.plan/survey/S1-event-mapping.md`（映射表与实测结论）
+ * 依据：`.plan/archive/survey/S1-event-mapping.md`（映射表与实测结论）
  */
 
 import type { ApprovalBlock, Block, Message, TerminalBlock } from "../mock/types.ts";

@@ -12,7 +12,7 @@
  *   ⑤ 安全三件套对新端点同样生效（无 token → 401、错 Host → 403）。
  *
  * 为什么要有 ③（关键）：判据 ①② 只能证明「接口通了」，而 C4 的真正难点是
- * **`SessionEntry[] → Message[]` 的独立映射**（`survey/S2-sessions.md` §四）。
+ * **`SessionEntry[] → Message[]` 的独立映射**（`.plan/archive/survey/S2-sessions.md` §四）。
  * 靠真实模型只能得到 user+assistant 两条，覆盖不到 toolResult 合并、display:false、
  * usage 汇总与分支裁剪 —— 这些正是最容易写错、且错了不会报错的地方。
  *

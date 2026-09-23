@@ -1,7 +1,7 @@
 /**
  * C6 · 全链路端到端终验 —— **M6 的总验收**（node 直跑，不引框架；一层脚本串起全部能力）。
  *
- * 覆盖 task-M6-C6.md §二 的七步：
+ * 覆盖 archive/task-M6-C6.md §二 的七步：
  *   ① 起 core（真实模型 + `test/fixtures/agentdir-ext` 夹具的 approval-gate 扩展）；
  *   ② 经 SSE+HTTP 走一轮**完整真实会话**：prompt（要求用 bash 执行 `echo c6-e2e-ok`）→
  *      授权 `approval_request` → 应答「允许」→ `tool_execution_start/end`（成功）→ `agent_settled`；

@@ -17,7 +17,7 @@
  * ## 为什么保留 `?mcp=1` 而不是直接删掉
  *
  * `accept:m2` 的 2-11（工具条顺序）与 `accept:m4` 的 4-4（MCP 区块 5 条断言）
- * 都依赖 MCP 区块存在。按 `.plan/pi-survey-plan.md` §五纪律，验收处置只能二选一：
+ * 都依赖 MCP 区块存在。按 `.plan/archive/pi-survey-plan.md` §五纪律，验收处置只能二选一：
  * **保留 mock 分支供回归** 或 退役并归档证据 —— 本实现选前者。
  * 于是：**组件代码、testid 契约、mock 数据全部原样保留在源码里**，仅默认不渲染；
  * 验收脚本带上 `?mcp=1` 即可继续跑原断言，**期望值一行都不用改**。
@@ -25,7 +25,7 @@
  * 与「不动清单」的关系：本开关**没有移除任何 `data-testid`**（关闭时只是不渲染），
  * 因此不构成对不动清单的破坏；恢复也只需让本函数返回 `true`。
  *
- * @see .plan/pi-survey-plan.md S5「MCP 暂缓处置」
+ * @see .plan/archive/pi-survey-plan.md S5「MCP 暂缓处置」
  * @see src/App.tsx 的 `applyStressParam()` / `applyPreviewTabParam()` / `applyEmptyParam()`
  */
 

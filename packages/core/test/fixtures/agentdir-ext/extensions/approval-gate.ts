@@ -6,7 +6,7 @@
  * - 判据③（信任门三态）：本文件被复制到临时 cwd 的 **.pi/extensions/** 下，
  *   成为「项目本地扩展」→ 是否被加载完全由信任门决定。
  *
- * 机制依据（`survey/S3-tool-approval.md` §3.3）：
+ * 机制依据（`.plan/archive/survey/S3-tool-approval.md` §3.3）：
  * 授权靠 `pi.on("tool_call", handler)` 的**返回值**（`{ block: true, reason }` 拦下 /
  * `undefined` 放行），它**不是事件**，所以 Pi 不会把授权结果回显给 UI ——
  * UI 侧的收卡只能靠 core 补发的 `approval_settled`。

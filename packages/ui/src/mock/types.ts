@@ -5,7 +5,7 @@
  * 已提升为 `packages/core/src/contract.ts` 的共享契约（UI 只 `import type` 它，
  * vite build 后 dist 不含 core/pi 痕迹）。本文件统一 re-export 契约类型，
  * 并保留 UI 侧专属类型（ThinkingLevel / McpStatus / ModelOption / McpServer）
- * 与运行时工具 `isBlock`。字段语义见 contract.ts 与 .plan/survey/S1-event-mapping.md。
+ * 与运行时工具 `isBlock`。字段语义见 contract.ts 与 .plan/archive/survey/S1-event-mapping.md。
  */
 
 export type {

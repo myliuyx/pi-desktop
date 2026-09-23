@@ -25,7 +25,7 @@ import {
  * ⏸ **MCP 芯片默认不渲染（2026-09-23 用户裁决「MCP 暂缓」）**：
  * Pi 无 MCP 概念（`usage.md:310`），数量无真实来源 → 默认关。但验收 2-11 的顺序断言
  * 含 `composer-chip-mcp`，故按 §五纪律选「保留 mock 分支供回归」：**芯片代码与 testid 保留，
- * 用 `?mcp=1` 门控**。见 `@/lib/feature-flags` 与 `.plan/pi-survey-plan.md` S5。
+ * 用 `?mcp=1` 门控**。见 `@/lib/feature-flags` 与 `.plan/archive/pi-survey-plan.md` S5。
  * 注意：`?mcp=1` 关闭时顺序退化为「模型 → 思考强度 → 弹性占位 → TokenStats」，
  * 这是有意的 —— 验收 2-11 带参数跑，断言仍是原样。
  *
