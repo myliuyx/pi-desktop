@@ -24,7 +24,14 @@ export const SidebarFooter = forwardRef<HTMLDivElement, SidebarFooterProps>(func
   ref,
 ) {
   const halves = [
-    { key: "model", label: "模型", icon: Cpu, onClick: onOpenModel },
+    {
+      key: "model",
+      label: "模型",
+      icon: Cpu,
+      // 未传 onOpenModel 时回退到打开设置弹窗（2026-09-23 用户裁决：模型按钮也是设置入口，
+      // 弹窗默认落在「模型」Tab）。当前所有调用点都不传 onOpenModel。
+      onClick: onOpenModel ?? onOpenSettings,
+    },
     { key: "settings", label: "设置", icon: Settings, onClick: onOpenSettings },
   ] as const;
 

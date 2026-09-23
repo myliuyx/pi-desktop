@@ -9,7 +9,16 @@ import {
   type SessionSwitchField,
 } from "@/mock/settings";
 import type { ThinkingLevel } from "@/mock/types";
-import { COMPOSER_MODELS, COMPOSER_THINKING_LEVELS, INITIAL_MODEL_INDEX, INITIAL_THINKING_INDEX } from "@/mock/composer";
+import {
+  COMPOSER_MODELS,
+  COMPOSER_THINKING_LEVELS,
+  INITIAL_MODEL_INDEX,
+  INITIAL_THINKING_INDEX,
+} from "@/mock/composer";
+import {
+  INITIAL_MODEL_PROVIDERS,
+  type ModelProviderConfig,
+} from "@/mock/model-config";
 
 export type Theme = "light" | "dark";
 export type ThemeSource = "user" | "system";
@@ -146,6 +155,27 @@ interface UiState {
   setPreviewTab: (tab: PreviewTab) => void;
 
   /* -------------------------------------------------------------------------
+   * 设置弹窗（第一批，D1）
+   *
+   * 设置从「05 屏路由」改为「全局 Dialog」，任意屏都能弹出。
+   * `settingsOpen` 是唯一的开放真相，侧边栏底部按钮 / 标题栏按钮都只调
+   * `setSettingsOpen(true)`（R5 教训：按钮语义是公共 API，改语义先 grep 消费方）。
+   * ------------------------------------------------------------------------- */
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
+
+  /* -------------------------------------------------------------------------
+   * 模型管理（第一批 mock，D2）
+   *
+   * 弹窗里编辑的是「草稿」，只有点「保存」才提交到这里（`saveModelProviders`），
+   * 「取消」丢弃（草稿在 SettingsDialog 内本地持有，关闭即回落本 store 的提交值）。
+   * 第一批不接 core，初始值来自 `mock/model-config.ts`；类型也只活在那个文件，
+   * 不污染 M2 冻结契约 `mock/types.ts`。
+   * ------------------------------------------------------------------------- */
+  modelProviders: ModelProviderConfig[];
+  saveModelProviders: (providers: ModelProviderConfig[]) => void;
+
+  /* -------------------------------------------------------------------------
    * M4 · 04 屏工具开关（验收 4-3）
    *
    * 为什么进 store 而不是组件内 useState：开关的语义是「这个能力全局是否可用」，
@@ -239,6 +269,13 @@ export const useUiStore = create<UiState>((set, get) => ({
     }
     set({ previewTab: tab });
   },
+
+  /* --------------------------------------------------- 设置弹窗 / 模型配置 */
+  settingsOpen: false,
+  setSettingsOpen: (open) => set({ settingsOpen: open }),
+
+  modelProviders: INITIAL_MODEL_PROVIDERS,
+  saveModelProviders: (providers) => set({ modelProviders: providers }),
 
   /* ---------------------------------------------------------------- M4 段 */
 

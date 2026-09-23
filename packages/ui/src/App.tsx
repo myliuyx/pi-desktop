@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { WorkbenchScreen } from "@/components/shell/WorkbenchScreen";
 import { TokensScreen } from "@/screens/TokensScreen";
 import { RunDetailScreen } from "@/screens/RunDetailScreen";
 import { SkillsScreen } from "@/screens/SkillsScreen";
-import { SettingsScreen } from "@/screens/SettingsScreen";
+import { SettingsDialog } from "@/screens/SettingsDialog";
 import { ShellsScreen } from "@/screens/ShellsScreen";
 import { createStressSession, EMPTY_SESSION } from "@/mock/sessions";
 import { useChatStore } from "@/store/chat-store";
@@ -23,14 +23,13 @@ import { useUiStore, type PreviewTab } from "@/store/ui-store";
  * 逐条 if 的写法在只认 1 个值时够用，扩到 6 个值后每个新增屏都要改一遍判断链，
  * 且「非法值回落 workbench」这条兜底语义会在链式写法里变得不明显。
  */
-export type ScreenId = "workbench" | "run-detail" | "skills" | "settings" | "tokens" | "shells";
+export type ScreenId = "workbench" | "run-detail" | "skills" | "tokens" | "shells";
 
 /** hash 值 → 屏幕 id 的对照表。表的键即合法 hash，其余一律回落 workbench */
 const SCREEN_BY_HASH: Record<string, ScreenId> = {
   workbench: "workbench",
   "run-detail": "run-detail",
   skills: "skills",
-  settings: "settings",
   tokens: "tokens",
   shells: "shells",
 };
@@ -129,20 +128,33 @@ export default function App() {
    * 06 屏（`#/shells`）同样是「工作台里的一块」，但内容区是并排三端壳 / 单壳全屏。
    */
   const goWorkbench = () => setScreen("workbench");
-  const goSettings = () => setScreen("settings");
+  // D1：设置改为全局弹窗，设置按钮只负责打开弹窗（任意屏可弹出）
+  const setSettingsOpen = useUiStore((state) => state.setSettingsOpen);
+  const goSettings = () => setSettingsOpen(true);
 
+  let content: ReactNode;
   switch (screen) {
     case "run-detail":
-      return <RunDetailScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
+      content = <RunDetailScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
+      break;
     case "skills":
-      return <SkillsScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
-    case "settings":
-      return <SettingsScreen onBackToWorkbench={goWorkbench} />;
+      content = <SkillsScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
+      break;
     case "tokens":
-      return <TokensScreen onBackToWorkbench={goWorkbench} />;
+      content = <TokensScreen onBackToWorkbench={goWorkbench} />;
+      break;
     case "shells":
-      return <ShellsScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
+      content = <ShellsScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
+      break;
     default:
-      return <WorkbenchScreen onOpenSettings={goSettings} />;
+      content = <WorkbenchScreen onOpenSettings={goSettings} />;
   }
+
+  return (
+    <>
+      {content}
+      {/* 设置弹窗挂在 App 级，任意屏都能弹出（D1） */}
+      <SettingsDialog />
+    </>
+  );
 }

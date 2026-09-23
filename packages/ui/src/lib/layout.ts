@@ -248,3 +248,45 @@ export const SHELL_PREVIEW_BORDER_WIDTH = 1;
  * 提示条带 `data-mode`（grid / single），让验收脚本知道当前处于哪种模式。
  */
 export const SHELLS_MODE_HINT_HEIGHT = 28;
+
+/* ---------------------------------------------------------------------------
+ * 设置弹窗（第一批：全局 Dialog，D1）
+ *
+ * ★ 尺寸唯一来源：以下常量全部进本文件，组件用 `style={{}}` 引用，
+ *   禁止在组件里写裸数值（≤1px 发丝线除外）。弹窗宽度、头部/底部条高度、
+ *   内边距、左栏宽度等都从设计稿折算后集中在这里。
+ * ------------------------------------------------------------------------- */
+
+/** 设置弹窗宽度（设计稿中弹窗约 880，留足左右两栏） */
+export const SETTINGS_DIALOG_WIDTH = 880;
+
+/**
+ * 弹窗整体高度（px，配合 MAX_HEIGHT_VH 做视口钳制）。
+ * ★ 必须恒定、不随内容塌缩：模型 Tab 删光全部 Provider 后内容区为空，
+ *   若高度由内容撑开，弹窗会缩成一条（2026-09-23 用户实踩）。
+ */
+export const SETTINGS_DIALOG_HEIGHT = 640;
+
+/** 弹窗头部高度（Tab 条 + ✕ 按钮所在的一整条） */
+export const SETTINGS_DIALOG_HEADER_HEIGHT = 48;
+
+/** 弹窗底部条高度（取消 / 保存 所在的一整条） */
+export const SETTINGS_DIALOG_FOOTER_HEIGHT = 56;
+
+/** 弹窗内部统一内边距（内容区四边） */
+export const SETTINGS_DIALOG_PADDING = 20;
+
+/** 弹窗内模型 Tab 的左栏（Provider 树）宽度 */
+export const SETTINGS_DIALOG_LEFT_WIDTH = 280;
+
+/** 模型 Tab 左右两栏之间的间距 */
+export const SETTINGS_DIALOG_SPLIT_GAP = 16;
+
+/** 模型表单里标签列的基准宽度（窄屏下会换行，不设固定总宽） */
+export const MODEL_FORM_LABEL_WIDTH = 132;
+
+/** 折叠 / 弹窗过渡时长（ms）—— 与 COLLAPSE_DURATION 同源，验收要求有过渡非瞬间跳变 */
+export const DIALOG_TRANSITION_MS = 200;
+
+/** 弹窗展开时的最大高度（视口占比，留边距；用 vh 表达，非颜色） */
+export const SETTINGS_DIALOG_MAX_HEIGHT_VH = 90;

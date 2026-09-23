@@ -1,11 +1,11 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-23T07:55:18.128Z",
+  "startedAt": "2026-09-23T12:58:13.178Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 62,
+        "扫描文件数": 69,
         "hex在tokens之外": [],
         "dark变体命中": [],
         "内置调色板命中": [],
@@ -194,19 +194,18 @@
       }
     },
     {
-      "name": "4-5_05屏设置分组",
+      "name": "4-5_设置弹窗分组",
       "value": {
-        "screenExists": true,
-        "order": [
-          "model",
+        "dialogOpen": true,
+        "defaultTabModels": true,
+        "groups": [
           "thinking",
           "session",
           "appearance",
           "working-dir"
         ],
-        "hasAllFive": true,
         "orderCorrect": true,
-        "modelOptions": 5,
+        "modelGroupGone": true,
         "thinkingOptions": 3,
         "sessionSwitches": 2,
         "themeOptions": 3,
@@ -214,13 +213,13 @@
       }
     },
     {
-      "name": "4-6_05屏字段对齐Pi",
+      "name": "4-6_常规Tab字段对齐Pi",
       "value": {
-        "model": true,
         "thinking": true,
         "autoCompact": true,
         "autoRetry": true,
-        "cwd": true
+        "cwd": true,
+        "modelFieldNameGone": true
       }
     },
     {
@@ -234,12 +233,12 @@
           "theme": "dark",
           "stored": "dark",
           "darkActive": "true",
-          "bgApp": "rgb(22, 24, 28)"
+          "bgApp": "rgb(35, 38, 44)"
         }
       }
     },
     {
-      "name": "4-7_三屏响应式",
+      "name": "4-7_响应式",
       "value": [
         {
           "route": "/#/run-detail",
@@ -252,15 +251,6 @@
         },
         {
           "route": "/#/skills",
-          "expandedOverflow": 0,
-          "collapsedOverflow": 0,
-          "sidebarWidthCollapsed": 0,
-          "expandedNoOverflow": true,
-          "collapsedNoOverflow": true,
-          "sidebarReachedZero": true
-        },
-        {
-          "route": "/#/settings",
           "expandedOverflow": 0,
           "collapsedOverflow": 0,
           "sidebarWidthCollapsed": 0,
@@ -280,48 +270,55 @@
       }
     },
     {
-      "name": "深色走查_三屏",
+      "name": "深色走查_屏级",
       "value": [
         {
           "route": "/#/run-detail",
           "theme": "dark",
           "bigBrightBlocks": 0,
-          "measuredTextNodes": 73,
-          "minTextContrast": 3.5,
-          "bodyMinContrast": 5.68,
+          "measuredTextNodes": 115,
+          "minTextContrast": 3.21,
+          "bodyMinContrast": 4.9,
           "bodyMinSample": {
-            "text": "~ / projects / atlas-age",
-            "contrast": 5.68,
-            "tag": "span",
-            "color": "rgb(154, 160, 168)",
-            "cls": "truncate font-mono text-xs text-text-secondary"
+            "text": "模型",
+            "contrast": 4.9,
+            "tag": "button",
+            "color": "rgb(107, 147, 255)",
+            "cls": "px-3 h-8 rounded-full text-base transition-colors duration-150 ease-ou"
           },
-          "auxCount": 32,
-          "auxMinContrast": 3.5,
+          "auxCount": 40,
+          "auxMinContrast": 3.21,
           "worst3": [
             {
-              "text": "历史会话",
-              "contrast": 3.5,
-              "tag": "span",
+              "text": "AliYun",
+              "contrast": 3.21,
+              "tag": "p",
               "color": "rgb(110, 116, 124)",
-              "cls": "text-xs font-medium text-text-tertiary"
+              "cls": "min-w-0 truncate text-xs text-text-tertiary"
             },
             {
-              "text": "3小时前 7 条消息",
-              "contrast": 3.5,
+              "text": "模型在 Provider 内的唯一标识",
+              "contrast": 3.21,
               "tag": "span",
               "color": "rgb(110, 116, 124)",
-              "cls": "truncate text-xs text-text-tertiary"
+              "cls": "text-xs text-text-tertiary"
             },
             {
-              "text": "8小时前 292 条消息",
-              "contrast": 3.5,
+              "text": "来源： models.dev",
+              "contrast": 3.21,
               "tag": "span",
               "color": "rgb(110, 116, 124)",
-              "cls": "truncate text-xs text-text-tertiary"
+              "cls": "text-xs text-text-tertiary"
             }
           ],
           "worst3Body": [
+            {
+              "text": "模型",
+              "contrast": 4.9,
+              "tag": "button",
+              "color": "rgb(107, 147, 255)",
+              "cls": "px-3 h-8 rounded-full text-base transition-colors duration-150 ease-ou"
+            },
             {
               "text": "~ / projects / atlas-age",
               "contrast": 5.68,
@@ -331,13 +328,6 @@
             },
             {
               "text": "模型",
-              "contrast": 5.68,
-              "tag": "span",
-              "color": "rgb(154, 160, 168)",
-              "cls": "truncate"
-            },
-            {
-              "text": "设置",
               "contrast": 5.68,
               "tag": "span",
               "color": "rgb(154, 160, 168)",
@@ -354,17 +344,17 @@
           "route": "/#/skills",
           "theme": "dark",
           "bigBrightBlocks": 0,
-          "measuredTextNodes": 85,
+          "measuredTextNodes": 127,
           "minTextContrast": 3.17,
-          "bodyMinContrast": 5.68,
+          "bodyMinContrast": 4.9,
           "bodyMinSample": {
-            "text": "~ / projects / atlas-age",
-            "contrast": 5.68,
-            "tag": "span",
-            "color": "rgb(154, 160, 168)",
-            "cls": "truncate font-mono text-xs text-text-secondary"
+            "text": "模型",
+            "contrast": 4.9,
+            "tag": "button",
+            "color": "rgb(107, 147, 255)",
+            "cls": "px-3 h-8 rounded-full text-base transition-colors duration-150 ease-ou"
           },
-          "auxCount": 33,
+          "auxCount": 41,
           "auxMinContrast": 3.17,
           "worst3": [
             {
@@ -391,6 +381,13 @@
           ],
           "worst3Body": [
             {
+              "text": "模型",
+              "contrast": 4.9,
+              "tag": "button",
+              "color": "rgb(107, 147, 255)",
+              "cls": "px-3 h-8 rounded-full text-base transition-colors duration-150 ease-ou"
+            },
+            {
               "text": "~ / projects / atlas-age",
               "contrast": 5.68,
               "tag": "span",
@@ -402,81 +399,6 @@
               "contrast": 5.68,
               "tag": "span",
               "color": "rgb(154, 160, 168)",
-              "cls": "truncate"
-            },
-            {
-              "text": "设置",
-              "contrast": 5.68,
-              "tag": "span",
-              "color": "rgb(154, 160, 168)",
-              "cls": "truncate"
-            }
-          ],
-          "rootBg": "rgb(22, 24, 28)",
-          "overflow": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
-          }
-        },
-        {
-          "route": "/#/settings",
-          "theme": "dark",
-          "bigBrightBlocks": 0,
-          "measuredTextNodes": 69,
-          "minTextContrast": 3.5,
-          "bodyMinContrast": 4.9,
-          "bodyMinSample": {
-            "text": "支持 Max",
-            "contrast": 4.9,
-            "tag": "span",
-            "color": "rgb(107, 147, 255)",
-            "cls": "shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent"
-          },
-          "auxCount": 29,
-          "auxMinContrast": 3.5,
-          "worst3": [
-            {
-              "text": "历史会话",
-              "contrast": 3.5,
-              "tag": "span",
-              "color": "rgb(110, 116, 124)",
-              "cls": "text-xs font-medium text-text-tertiary"
-            },
-            {
-              "text": "3小时前 7 条消息",
-              "contrast": 3.5,
-              "tag": "span",
-              "color": "rgb(110, 116, 124)",
-              "cls": "truncate text-xs text-text-tertiary"
-            },
-            {
-              "text": "8小时前 292 条消息",
-              "contrast": 3.5,
-              "tag": "span",
-              "color": "rgb(110, 116, 124)",
-              "cls": "truncate text-xs text-text-tertiary"
-            }
-          ],
-          "worst3Body": [
-            {
-              "text": "支持 Max",
-              "contrast": 4.9,
-              "tag": "span",
-              "color": "rgb(107, 147, 255)",
-              "cls": "shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent"
-            },
-            {
-              "text": "High",
-              "contrast": 4.9,
-              "tag": "span",
-              "color": "rgb(107, 147, 255)",
-              "cls": "truncate"
-            },
-            {
-              "text": "深色",
-              "contrast": 4.9,
-              "tag": "span",
-              "color": "rgb(107, 147, 255)",
               "cls": "truncate"
             }
           ],
@@ -604,14 +526,14 @@
       }
     },
     {
-      "name": "4-5 05 屏设置：模型/思考强度/会话/外观/工作目录五组齐全且顺序正确",
+      "name": "4-5 设置弹窗：默认「模型」Tab；常规 Tab 四组齐全且顺序正确（无模型组）",
       "pass": true,
       "failed": [],
       "detail": {
-        "屏存在": true,
-        "五组齐全": true,
-        "顺序正确": true,
-        "模型可选项存在": true,
+        "弹窗打开": true,
+        "默认模型Tab": true,
+        "四组齐全": true,
+        "模型组已删": true,
         "思考强度档位存在": true,
         "会话开关存在": true,
         "主题三段存在": true,
@@ -619,19 +541,19 @@
       }
     },
     {
-      "name": "4-6 05 屏字段命名与 Pi 的 SettingsManager / AgentOptions 对应（UI 上可读到）",
+      "name": "4-6 常规 Tab 字段命名与 Pi 的 SettingsManager / AgentOptions 对应（UI 上可读到）",
       "pass": true,
       "failed": [],
       "detail": {
-        "model对齐": true,
         "thinking对齐": true,
         "autoCompact对齐": true,
         "autoRetry对齐": true,
-        "cwd对齐": true
+        "cwd对齐": true,
+        "旧模型字段名未回流": true
       }
     },
     {
-      "name": "4-6b 05 屏外观分组：切换主题真的换肤并持久化（走 ui-store）",
+      "name": "4-6b 设置弹窗外观分组：切换主题真的换肤并持久化（走 ui-store）",
       "pass": true,
       "failed": [],
       "detail": {
@@ -642,18 +564,17 @@
       }
     },
     {
-      "name": "4-7 三屏响应式：展开/折叠组合下均无横向溢出",
+      "name": "4-7 响应式：展开/折叠组合下均无横向溢出",
       "pass": true,
       "failed": [],
       "detail": {
-        "三个路由都测了": true,
+        "两个路由都测了": true,
         "展开态都无溢出": true,
         "折叠态都无溢出": true,
         "折叠后侧边栏收到0": true,
         "各路由溢出量": [
           "/#/run-detail: 0/0",
-          "/#/skills: 0/0",
-          "/#/settings: 0/0"
+          "/#/skills: 0/0"
         ]
       }
     },
@@ -668,11 +589,11 @@
       }
     },
     {
-      "name": "深色下三屏无大面积白底；正文对比度 >= 4.5、辅助文字 >= 3（分层口径见脚本注释）",
+      "name": "深色下各屏无大面积白底；正文对比度 >= 4.5、辅助文字 >= 3（分层口径见脚本注释）",
       "pass": true,
       "failed": [],
       "detail": {
-        "三屏都测了": true,
+        "两屏都测了": true,
         "无大面积浅底": true,
         "每屏都量到文字节点": true,
         "正文对比度达标": true,
@@ -681,37 +602,28 @@
         "深色确实生效": true,
         "深色下仍无横向溢出": true,
         "各屏正文最低对比度": [
-          "/#/run-detail: 5.68",
-          "/#/skills: 5.68",
-          "/#/settings: 4.9"
+          "/#/run-detail: 4.9",
+          "/#/skills: 4.9"
         ],
         "各屏正文最低样本": [
           {
-            "text": "~ / projects / atlas-age",
-            "contrast": 5.68,
-            "tag": "span",
-            "color": "rgb(154, 160, 168)",
-            "cls": "truncate font-mono text-xs text-text-secondary"
-          },
-          {
-            "text": "~ / projects / atlas-age",
-            "contrast": 5.68,
-            "tag": "span",
-            "color": "rgb(154, 160, 168)",
-            "cls": "truncate font-mono text-xs text-text-secondary"
-          },
-          {
-            "text": "支持 Max",
+            "text": "模型",
             "contrast": 4.9,
-            "tag": "span",
+            "tag": "button",
             "color": "rgb(107, 147, 255)",
-            "cls": "shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent"
+            "cls": "px-3 h-8 rounded-full text-base transition-colors duration-150 ease-ou"
+          },
+          {
+            "text": "模型",
+            "contrast": 4.9,
+            "tag": "button",
+            "color": "rgb(107, 147, 255)",
+            "cls": "px-3 h-8 rounded-full text-base transition-colors duration-150 ease-ou"
           }
         ],
         "各屏辅助文字最低对比度": [
-          "/#/run-detail: 3.5 (32 处)",
-          "/#/skills: 3.17 (33 处)",
-          "/#/settings: 3.5 (29 处)"
+          "/#/run-detail: 3.21 (40 处)",
+          "/#/skills: 3.17 (41 处)"
         ]
       }
     }

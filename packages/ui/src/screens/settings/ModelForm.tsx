@@ -1,0 +1,301 @@
+import { useState } from "react";
+import { CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
+import { cn } from "@/lib/cn";
+import { Button } from "@/components/primitives";
+import { Icon } from "@/components/common/icons";
+import type { ModelConfig } from "@/mock/model-config";
+import { Field, INPUT_CLASS, HeadersEditor, Collapsible } from "./form-fields";
+
+/**
+ * 单个模型配置表单。
+ *
+ * 入口：选中左栏某条模型行进入（右栏默认即此表单，因为对话框打开时默认选中首个模型）。
+ *
+ * 状态语义：模型「待配置 / 已配置」由 `id` 是否为空决定（空串 = 待配置）。
+ * 「测试」按钮：点击后 800ms 延迟转成功态（mock，第二批接 `POST /models/test`）。
+ * 「移除」、以及（若接上）启用开关均两步确认（不弹新窗）。
+ */
+export interface ModelFormProps {
+  model: ModelConfig;
+  providerName: string;
+  onChange: (next: ModelConfig) => void;
+  onRemove: () => void;
+}
+
+type TestState = "idle" | "testing" | "success";
+
+function parseNumber(value: string): number {
+  if (value.trim() === "") return 0;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function ModelForm({ model, providerName, onChange, onRemove }: ModelFormProps) {
+  const [testState, setTestState] = useState<TestState>("idle");
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  const configured = model.id.trim().length > 0;
+  const patch = (p: Partial<ModelConfig>) => onChange({ ...model, ...p });
+
+  const runTest = () => {
+    if (testState === "testing") return;
+    setTestState("testing");
+    // mock：800ms 后转成功（第二批接真实端点）
+    window.setTimeout(() => setTestState("success"), 800);
+  };
+
+  const fillFromModelsDev = () => {
+    patch({
+      name: model.name || "导入的模型",
+      contextWindow: model.contextWindow || 128000,
+      maxTokens: model.maxTokens || 8192,
+      pricing: model.pricing.input ? model.pricing : { input: 1, output: 3, cacheRead: 0.25, cacheWrite: 0.5 },
+    });
+  };
+
+  return (
+    <div className="flex min-w-0 flex-col gap-5">
+      {/* 顶部：状态 + 测试 / 移除 */}
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+            模型配置
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-xs",
+                configured ? "bg-success-soft text-success" : "bg-warning-soft text-warning",
+              )}
+              data-testid="model-status"
+            >
+              {configured ? "已配置" : "待配置"}
+            </span>
+          </h3>
+          <p className="min-w-0 truncate text-xs text-text-tertiary" title={providerName}>
+            {providerName}
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={runTest}
+            disabled={testState === "testing" || !configured}
+            data-testid="model-test"
+          >
+            {testState === "testing" ? "测试中…" : testState === "success" ? "已测试" : "测试"}
+          </Button>
+          {testState === "success" ? (
+            <span className="flex items-center gap-1 text-xs text-success" data-testid="model-test-result">
+              <Icon icon={CheckCircle2} size={14} />
+              连接成功
+            </span>
+          ) : null}
+          {confirmRemove ? (
+            <span className="flex items-center gap-2">
+              <Button size="sm" variant="danger" onClick={onRemove} data-testid="model-remove-confirm">
+                确认移除
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmRemove(false)}>
+                取消
+              </Button>
+            </span>
+          ) : (
+            <Button size="sm" variant="danger" onClick={() => setConfirmRemove(true)} data-testid="model-remove">
+              移除
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid min-w-0 grid-cols-2 gap-4">
+        <Field label="ID" required hint="模型在 Provider 内的唯一标识">
+          <input
+            className={INPUT_CLASS}
+            value={model.id}
+            placeholder="例如 qwen-max"
+            data-testid="model-id"
+            onChange={(e) => patch({ id: e.target.value })}
+          />
+        </Field>
+        <Field label="Name">
+          <input
+            className={INPUT_CLASS}
+            value={model.name}
+            placeholder="展示名"
+            data-testid="model-name"
+            onChange={(e) => patch({ name: e.target.value })}
+          />
+        </Field>
+      </div>
+
+      {/* 能力复选框 */}
+      <div className="flex min-w-0 flex-col gap-2">
+        <span className="text-sm font-medium text-text-primary">能力</span>
+        <label className="flex min-w-0 items-center gap-2 text-sm text-text-primary">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-accent"
+            checked={model.reasoning}
+            data-testid="model-cap-reasoning"
+            onChange={(e) => patch({ reasoning: e.target.checked })}
+          />
+          推理 / 思考
+        </label>
+        <label className="flex min-w-0 items-center gap-2 text-sm text-text-primary">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-accent"
+            checked={model.imageInput}
+            data-testid="model-cap-image"
+            onChange={(e) => patch({ imageInput: e.target.checked })}
+          />
+          图片输入
+        </label>
+      </div>
+
+      <div className="grid min-w-0 grid-cols-2 gap-4">
+        <Field label="上下文窗口 (tokens)">
+          <input
+            type="number"
+            min={0}
+            className={INPUT_CLASS}
+            value={model.contextWindow}
+            data-testid="model-context-window"
+            onChange={(e) => patch({ contextWindow: parseNumber(e.target.value) })}
+          />
+        </Field>
+        <Field label="最大输出 tokens">
+          <input
+            type="number"
+            min={0}
+            className={INPUT_CLASS}
+            value={model.maxTokens}
+            data-testid="model-max-tokens"
+            onChange={(e) => patch({ maxTokens: parseNumber(e.target.value) })}
+          />
+        </Field>
+      </div>
+
+      {/* 每百万 tokens 价格四列 */}
+      <div className="flex min-w-0 flex-col gap-2">
+        <span className="text-sm font-medium text-text-primary">每百万 TOKENS 价格</span>
+        <div className="grid min-w-0 grid-cols-2 gap-4">
+          <Field label="输入">
+            <input
+              type="number"
+              min={0}
+              step="0.1"
+              className={INPUT_CLASS}
+              value={model.pricing.input}
+              data-testid="model-price-input"
+              onChange={(e) => patch({ pricing: { ...model.pricing, input: parseNumber(e.target.value) } })}
+            />
+          </Field>
+          <Field label="输出">
+            <input
+              type="number"
+              min={0}
+              step="0.1"
+              className={INPUT_CLASS}
+              value={model.pricing.output}
+              data-testid="model-price-output"
+              onChange={(e) => patch({ pricing: { ...model.pricing, output: parseNumber(e.target.value) } })}
+            />
+          </Field>
+          <Field label="缓存读取">
+            <input
+              type="number"
+              min={0}
+              step="0.1"
+              className={INPUT_CLASS}
+              value={model.pricing.cacheRead}
+              data-testid="model-price-cache-read"
+              onChange={(e) => patch({ pricing: { ...model.pricing, cacheRead: parseNumber(e.target.value) } })}
+            />
+          </Field>
+          <Field label="缓存写入">
+            <input
+              type="number"
+              min={0}
+              step="0.1"
+              className={INPUT_CLASS}
+              value={model.pricing.cacheWrite}
+              data-testid="model-price-cache-write"
+              onChange={(e) => patch({ pricing: { ...model.pricing, cacheWrite: parseNumber(e.target.value) } })}
+            />
+          </Field>
+        </div>
+      </div>
+
+      {/* 填入模型信息 + 来源 */}
+      <div className="flex min-w-0 flex-col gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={Sparkles}
+          onClick={fillFromModelsDev}
+          data-testid="model-fill"
+          className="self-start"
+        >
+          填入模型信息
+        </Button>
+        <span className="text-xs text-text-tertiary">来源： models.dev</span>
+      </div>
+
+      {/* 高级设置折叠 */}
+      <div className="flex min-w-0 flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((v) => !v)}
+          aria-expanded={advancedOpen}
+          data-testid="model-advanced-toggle"
+          className={cn(
+            "flex w-full min-w-0 items-center gap-1.5 rounded-md px-0 py-1 text-left text-sm font-medium text-text-primary",
+            "transition-colors duration-150 hover:text-text-secondary",
+          )}
+        >
+          <Icon
+            icon={ChevronDown}
+            size={15}
+            className={cn("text-icon-neutral transition-transform duration-200 ease-out", advancedOpen && "rotate-180")}
+          />
+          高级设置
+        </button>
+        <Collapsible open={advancedOpen}>
+          <div className="flex min-w-0 flex-col gap-4 pt-1">
+            <Field label="API 端点覆盖">
+              <input
+                className={INPUT_CLASS}
+                value={model.advanced.endpointOverride}
+                placeholder="留空则用 Provider 的 Base URL"
+                data-testid="model-endpoint-override"
+                onChange={(e) =>
+                  patch({ advanced: { ...model.advanced, endpointOverride: e.target.value } })
+                }
+              />
+            </Field>
+            <div className="flex min-w-0 flex-col gap-2">
+              <span className="text-sm font-medium text-text-primary">Headers</span>
+              <HeadersEditor
+                headers={model.advanced.headers}
+                onChange={(headers) => patch({ advanced: { ...model.advanced, headers } })}
+              />
+            </div>
+            <Field label="兼容性">
+              <input
+                className={INPUT_CLASS}
+                value={model.advanced.compatibility}
+                placeholder="例如 openai"
+                data-testid="model-compatibility"
+                onChange={(e) =>
+                  patch({ advanced: { ...model.advanced, compatibility: e.target.value } })
+                }
+              />
+            </Field>
+          </div>
+        </Collapsible>
+      </div>
+    </div>
+  );
+}

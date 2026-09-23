@@ -416,59 +416,77 @@ await withBrowser(
       });
     }
 
-    /* ================================================================ 4-5 05 屏设置分组 */
-    await ctx.open("/#/settings");
+    /* ================================================================ 4-5 设置弹窗分组
+     * 口径迁移（2026-09-23，D1/D3/D4）：05 屏路由已废弃，设置 = 全局弹窗。
+     * 入口：侧边栏底部「设置」按钮；默认落在「模型」Tab；常规 Tab 四组
+     * 思考强度 → 会话 → 外观 → 工作目录（模型组已删，模型管理走「模型」Tab）。
+     * 弹窗专项断言（默认 Tab / 高度恒定 / 钉底 / 焦点陷阱）见 probe:settings。
+     */
+    await ctx.open("/");
     await cdp.eval(HELPERS);
-    await sleep(700);
+    await sleep(400);
+    await cdp.eval(`(() => { window.__T4.q('[data-testid="sidebar-footer-settings"]').click(); return true; })()`);
+    await sleep(500);
     {
       const r = await cdp.eval(`(() => {
-        const groups = window.__T4.qa('[data-testid="settings-group"]');
-        const order = groups.map(g => g.dataset.group);
+        const dialog = window.__T4.q('[role="dialog"]');
+        const open = !!dialog && !dialog.hasAttribute('inert');
+        const tabModels = window.__T4.q('[data-testid="settings-tab-models"]');
         return {
-          screenExists: !!window.__T4.q('[data-testid="settings-screen"]'),
-          order,
-          hasAllFive: ['model','thinking','session','appearance','working-dir'].every(g => order.includes(g)),
-          orderCorrect: JSON.stringify(order) === JSON.stringify(['model','thinking','session','appearance','working-dir']),
-          modelOptions: window.__T4.qa('[data-testid="settings-model-option"]').length,
+          dialogOpen: open,
+          defaultTabModels: tabModels ? tabModels.getAttribute('aria-selected') === 'true' : false,
+        };
+      })()`);
+      // 切到常规 Tab 再读分组（默认「模型」Tab 里没有 settings-group）
+      await cdp.eval(`(() => { window.__T4.q('[data-testid="settings-tab-general"]').click(); return true; })()`);
+      await sleep(400);
+      const r2 = await cdp.eval(`(() => {
+        const groups = window.__T4.qa('[data-testid="settings-group"]').map(g => g.dataset.group);
+        return {
+          groups,
+          orderCorrect: JSON.stringify(groups) === JSON.stringify(['thinking','session','appearance','working-dir']),
+          modelGroupGone: !groups.includes('model'),
           thinkingOptions: window.__T4.qa('[data-testid="settings-thinking-option"]').length,
           sessionSwitches: window.__T4.qa('[data-testid="settings-switch"]').length,
           themeOptions: window.__T4.qa('[data-testid="settings-theme-option"]').length,
           workingDirCode: (window.__T4.q('[data-testid="settings-working-dir"] code') || {}).textContent || null,
         };
       })()`);
-      ctx.record("4-5_05屏设置分组", r);
-      ctx.assert("4-5 05 屏设置：模型/思考强度/会话/外观/工作目录五组齐全且顺序正确", {
-        屏存在: r.screenExists === true,
-        五组齐全: r.hasAllFive === true,
-        顺序正确: r.orderCorrect === true,
-        模型可选项存在: r.modelOptions > 0,
-        思考强度档位存在: r.thinkingOptions > 0,
-        会话开关存在: r.sessionSwitches === 2,
-        主题三段存在: r.themeOptions === 3,
-        工作目录路径可见: !!r.workingDirCode && r.workingDirCode.includes("/"),
+      ctx.record("4-5_设置弹窗分组", { ...r, ...r2 });
+      ctx.assert("4-5 设置弹窗：默认「模型」Tab；常规 Tab 四组齐全且顺序正确（无模型组）", {
+        弹窗打开: r.dialogOpen === true,
+        默认模型Tab: r.defaultTabModels === true,
+        四组齐全: r2.orderCorrect === true,
+        模型组已删: r2.modelGroupGone === true,
+        思考强度档位存在: r2.thinkingOptions > 0,
+        会话开关存在: r2.sessionSwitches === 2,
+        主题三段存在: r2.themeOptions === 3,
+        工作目录路径可见: !!r2.workingDirCode && r2.workingDirCode.includes("/"),
       });
     }
 
-    /* ================================================================ 4-6 05 屏字段对齐 Pi */
+    /* ================================================================ 4-6 常规 Tab 字段对齐 Pi
+     * 口径迁移（2026-09-23）：模型组删除 → AgentOptions.model 不再出现在设置里
+     * （模型管理走「模型」Tab 的 models.json 编辑器，字段对齐在第二批接 core 时验）。
+     */
     {
       const r = await cdp.eval(`(() => {
-        const text = document.body.innerText;
-        const checks = {
-          model: /AgentOptions\\.model/.test(text),
+        const text = window.__T4.q('[data-testid="settings-general-tab"]').innerText;
+        return {
           thinking: /set_thinking_level/.test(text),
           autoCompact: /SettingsManager\\.autoCompact/.test(text),
           autoRetry: /SettingsManager\\.autoRetry/.test(text),
           cwd: /AgentOptions\\.cwd/.test(text),
+          modelFieldNameGone: !/AgentOptions\\.model/.test(text),
         };
-        return checks;
       })()`);
-      ctx.record("4-6_05屏字段对齐Pi", r);
-      ctx.assert("4-6 05 屏字段命名与 Pi 的 SettingsManager / AgentOptions 对应（UI 上可读到）", {
-        model对齐: r.model === true,
+      ctx.record("4-6_常规Tab字段对齐Pi", r);
+      ctx.assert("4-6 常规 Tab 字段命名与 Pi 的 SettingsManager / AgentOptions 对应（UI 上可读到）", {
         thinking对齐: r.thinking === true,
         autoCompact对齐: r.autoCompact === true,
         autoRetry对齐: r.autoRetry === true,
         cwd对齐: r.cwd === true,
+        旧模型字段名未回流: r.modelFieldNameGone === true,
       });
     }
 
@@ -483,11 +501,11 @@ await withBrowser(
           theme: document.documentElement.dataset.theme,
           stored: localStorage.getItem('theme'),
           darkActive: dark.dataset.active,
-          bgApp: getComputedStyle(document.querySelector('[data-testid="settings-screen"]')).backgroundColor,
+          bgApp: getComputedStyle(window.__T4.q('[role="dialog"]').lastElementChild).backgroundColor,
         };
       })()`);
       ctx.record("4-6b_主题切换", { before, after });
-      ctx.assert("4-6b 05 屏外观分组：切换主题真的换肤并持久化（走 ui-store）", {
+      ctx.assert("4-6b 设置弹窗外观分组：切换主题真的换肤并持久化（走 ui-store）", {
         主题真的变化: after.theme === "dark" && before.theme !== "dark",
         已持久化: after.stored === "dark",
         激活态同步: after.darkActive === "true",
@@ -499,9 +517,11 @@ await withBrowser(
       await sleep(250);
     }
 
-    /* ================================================================ 4-7 三屏响应式（折叠组合无横向溢出） */
+    /* ================================================================ 4-7 响应式（折叠组合无横向溢出）
+     * 口径迁移（2026-09-23）：设置已改全局弹窗（无独立路由），
+     * 弹窗内溢出由 probe:settings 的 G6 断言覆盖。 */
     {
-      const routes = ["/#/run-detail", "/#/skills", "/#/settings"];
+      const routes = ["/#/run-detail", "/#/skills"];
       const results = [];
       for (const route of routes) {
         // 展开态
@@ -535,9 +555,9 @@ await withBrowser(
           sidebarReachedZero: collapsed.sidebarWidth !== null && collapsed.sidebarWidth <= 0.5,
         });
       }
-      ctx.record("4-7_三屏响应式", results);
-      ctx.assert("4-7 三屏响应式：展开/折叠组合下均无横向溢出", {
-        三个路由都测了: results.length === 3,
+      ctx.record("4-7_响应式", results);
+      ctx.assert("4-7 响应式：展开/折叠组合下均无横向溢出", {
+        两个路由都测了: results.length === 2,
         展开态都无溢出: results.every((r) => r.expandedNoOverflow),
         折叠态都无溢出: results.every((r) => r.collapsedNoOverflow),
         折叠后侧边栏收到0: results.every((r) => r.sidebarReachedZero),
@@ -566,11 +586,13 @@ await withBrowser(
       });
     }
 
-    /* ================================================================ 深色走查（三屏） */
-    /* 注：本段必须放在最后 —— 它会把 localStorage 的 theme 设成 dark 再复位，
-       若排在前面会污染后续「主题切换」断言。 */
+    /* ================================================================ 深色走查（屏级）
+     * 口径迁移（2026-09-23）：设置已改全局弹窗；弹窗深色由 4-6b（换肤后弹窗底色）与
+     * probe:settings 覆盖。
+     * 注：本段必须放在最后 —— 它会把 localStorage 的 theme 设成 dark 再复位，
+     * 若排在前面会污染后续「主题切换」断言。 */
     {
-      const routes = ["/#/run-detail", "/#/skills", "/#/settings"];
+      const routes = ["/#/run-detail", "/#/skills"];
       const darkResults = [];
       for (const route of routes) {
         await cdp.eval(`localStorage.setItem('theme','dark'); true`);
@@ -652,11 +674,11 @@ await withBrowser(
         darkResults.push(r);
       }
       await cdp.eval(`localStorage.setItem('theme','light'); true`);
-      ctx.record("深色走查_三屏", darkResults);
+      ctx.record("深色走查_屏级", darkResults);
       ctx.assert(
-        `深色下三屏无大面积白底；正文对比度 >= ${BODY_TEXT_MIN}、辅助文字 >= ${AUX_TEXT_MIN}（分层口径见脚本注释）`,
+        `深色下各屏无大面积白底；正文对比度 >= ${BODY_TEXT_MIN}、辅助文字 >= ${AUX_TEXT_MIN}（分层口径见脚本注释）`,
         {
-          三屏都测了: darkResults.length === 3,
+          两屏都测了: darkResults.length === 2,
           无大面积浅底: darkResults.every((r) => r.bigBrightBlocks === 0),
           每屏都量到文字节点: darkResults.every((r) => r.measuredTextNodes > 20),
           正文对比度达标: darkResults.every((r) => r.bodyMinContrast !== null && r.bodyMinContrast >= BODY_TEXT_MIN),

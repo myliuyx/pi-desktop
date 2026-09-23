@@ -23,6 +23,7 @@
     "probe:c4": "node scripts/probe-c4-session-load.mjs",
     "probe:c5": "node scripts/probe-c5-live-screens.mjs",
     "probe:auth": "node scripts/probe-auth-input.mjs",
+    "probe:settings": "node scripts/probe-settings-dialog.mjs",
     "shots:m1": "node scripts/m1-shots.mjs"
   },
   "dependencies": {

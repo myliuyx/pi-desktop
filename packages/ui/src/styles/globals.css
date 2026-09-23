@@ -38,6 +38,9 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
 
+  /* 弹窗遮罩 */
+  --color-overlay: var(--overlay);
+
   /* 图标固定中性色（不随主题变化） */
   --color-icon-neutral: var(--icon-neutral);
 
@@ -247,4 +250,22 @@
   ::-webkit-scrollbar-corner {
     background: transparent;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * 设置弹窗 Tab 切换淡入（G8：Tab 切换必须有过渡，不用 display:none 跳变）
+ * ------------------------------------------------------------------------- */
+@keyframes settings-tab-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-tab-in {
+  animation: settings-tab-in 160ms ease-out;
 }

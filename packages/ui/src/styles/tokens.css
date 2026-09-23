@@ -38,6 +38,9 @@
   --border-default: #d8dbdf;
   --border-strong: #b9bdc3;
 
+  /* 弹窗遮罩（G1：颜色只在 tokens.css；Light/Dark 各补一套） */
+  --overlay: rgba(16, 20, 26, 0.45);
+
   /* 强调色 */
   --accent: #3563e8; /* 白字对比度 5.12:1（原 #3b6ef5 仅 4.44:1，未达 G3 正文 4.5 门槛） */
   --accent-hover: #2a55cf;
@@ -97,6 +100,8 @@
   --border-subtle: #2a2e35;
   --border-default: #343941;
   --border-strong: #454b54;
+
+  --overlay: rgba(0, 0, 0, 0.6);
 
   --accent: #6b93ff;
   --accent-hover: #85a6ff;

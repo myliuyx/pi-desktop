@@ -7,5 +7,8 @@ export type { IconButtonProps, IconButtonSize } from "./IconButton";
 export { Chip, CHIP_STATE_CLASSES } from "./Chip";
 export type { ChipProps, ChipVariant } from "./Chip";
 
-export { Tabs, tabPanelId } from "./Tabs";
+export { Tabs, tabPanelId, tabPanelProps } from "./Tabs";
 export type { TabsProps, TabItem } from "./Tabs";
+
+export { Dialog } from "./Dialog";
+export type { DialogProps } from "./Dialog";
