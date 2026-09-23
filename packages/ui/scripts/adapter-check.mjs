@@ -139,6 +139,51 @@ function blocksOfType(state, type) {
 	);
 }
 
+/* -------------------------------------------------------------------------
+ * 五、授权分支（C0 新增，不改既有期望值）
+ * ---------------------------------------------------------------------- */
+{
+	let s = createDraft();
+	s = applyEvent(s, { type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "在处理中…" }] } });
+	s = applyEvent(s, {
+		type: "approval_request",
+		requestId: "r1",
+		method: "confirm",
+		title: "允许执行命令？",
+		message: "bash: rm -rf /tmp/x",
+		options: ["允许", "拒绝"],
+	});
+
+	const blocks = s.messages[s.messages.length - 1].blocks;
+	const card = blocks[blocks.length - 1];
+	check("[approval] 授权请求挂到当前 assistant 末尾", card.type, "approval");
+	check("[approval] 挂卡时 requestId 正确", card.requestId, "r1");
+	check("[approval] 挂卡时未决（resolved 为空）", card.resolved, undefined);
+
+	s = applyEvent(s, { type: "approval_settled", requestId: "r1", resolution: "accepted" });
+	const after = s.messages[s.messages.length - 1].blocks;
+	const settled = after[after.length - 1];
+	check("[approval] 结算后乐观写 resolved=accepted", settled.resolved, "accepted");
+}
+
+/* -------------------------------------------------------------------------
+ * 六、被拒工具调用 → TerminalBlock 正常渲染（isError）
+ * ---------------------------------------------------------------------- */
+{
+	let s = createDraft();
+	s = applyEvent(s, { type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "试试工具" }] } });
+	s = applyEvent(s, { type: "tool_execution_start", toolCallId: "t1", toolName: "bash", args: { command: "rm -rf /" } });
+	s = applyEvent(s, { type: "tool_execution_update", toolCallId: "t1", output: "Permission denied" });
+	s = applyEvent(s, { type: "tool_execution_end", toolCallId: "t1", output: "Permission denied", isError: true });
+
+	const terminals = s.messages.flatMap((m) => m.blocks.filter((b) => b.type === "terminal"));
+	check("[tool-error] 被拒调用产生终端块", terminals.length, 1);
+	check("[tool-error] 终态 status=error", terminals[0].status, "error");
+	check("[tool-error] 输出正常渲染（非空白）", terminals[0].output.length > 0, true);
+	// 工具执行在 turn 内：currentAssistantId 仍指向进行中的 assistant（终态由 message_end / agent_settled 收口）
+	check("[tool-error] 被拒调用不破坏流式上下文", s.currentAssistantId !== null, true);
+}
+
 /* ---------------------------------------------------------------------- */
 if (fails.length > 0) {
 	console.error(`\n适配层断言失败 ${fails.length} 项：`);

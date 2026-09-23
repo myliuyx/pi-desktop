@@ -8,7 +8,7 @@
  * 依据：`.plan/survey/S1-event-mapping.md`（映射表与实测结论）
  */
 
-import type { Block, Message, TerminalBlock } from "../mock/types.ts";
+import type { ApprovalBlock, Block, Message, TerminalBlock } from "../mock/types.ts";
 import type { AgentContentPart, AgentEvent, AgentMessage } from "./pi-events.ts";
 
 export interface DraftState {
@@ -67,6 +67,13 @@ function updateTerminal(
 			block.type === "terminal" && block.toolCallId === toolCallId ? update(block) : block,
 		),
 	}));
+}
+
+function lastAssistantId(messages: Message[]): string | null {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		if (messages[i].role === "assistant") return messages[i].id;
+	}
+	return null;
 }
 
 function findTerminalOwner(messages: Message[], toolCallId: string): string | null {
@@ -205,8 +212,41 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 				})),
 			};
 
-		case "turn_start":
-		case "turn_end":
-			return state;
+	case "approval_request": {
+		// 授权请求挂在当前流式 assistant 消息后（无则挂到最后一条 assistant）
+		const ownerId = state.currentAssistantId ?? lastAssistantId(state.messages);
+		if (!ownerId) return state;
+		const block: ApprovalBlock = {
+			type: "approval",
+			requestId: event.requestId,
+			title: event.title,
+			message: event.message,
+			options: event.options ?? [],
+			// resolved 不在这里写：未决态由 UI 渲染可点；结算见 approval_settled
+		};
+		return {
+			...state,
+			messages: replaceMessage(state.messages, ownerId, (m) => ({ ...m, blocks: [...m.blocks, block] })),
+		};
 	}
+
+	case "approval_settled": {
+		// 乐观写 resolved（Pi 不回显授权结果，UI 自己收卡）
+		return {
+			...state,
+			messages: state.messages.map((m) => ({
+				...m,
+				blocks: m.blocks.map((block) =>
+					block.type === "approval" && block.requestId === event.requestId
+						? { ...block, resolved: event.resolution }
+						: block,
+				),
+			})),
+		};
+	}
+
+	case "turn_start":
+	case "turn_end":
+		return state;
+}
 }

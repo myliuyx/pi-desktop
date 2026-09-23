@@ -1,0 +1,23 @@
+{
+  "name": "@agent/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "security-check": "node scripts/core-security-check.mjs",
+    "smoke:check": "node scripts/core-smoke.mjs",
+    "smoke": "node --env-file=../../pi/_poc/.env.local node_modules/tsx/dist/cli.mjs src/main.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.87.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2"
+  }
+}
