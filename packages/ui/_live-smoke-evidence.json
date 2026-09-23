@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5188",
-  "startedAt": "2026-09-23T07:44:30.657Z",
+  "startedAt": "2026-09-23T07:57:15.709Z",
   "steps": [
     {
       "name": "live_store_已挂载",
@@ -11,7 +11,7 @@
       "value": {
         "initialCount": 2,
         "initialAssistantIds": [
-          "m-fb63bb27"
+          "m-906f88d1"
         ]
       }
     },
@@ -22,7 +22,7 @@
         "新增assistant条目": [
           "a-3"
         ],
-        "新增assistant文本": "思考过程\n\nPi 是一个开源的终端 AI 编码代理（coding agent），能在终端界面中自主读取文件、执行命令、编辑代码并调用工具来帮你完成编程任务。",
+        "新增assistant文本": "思考过程\n\nPi 是一个由 Earendil Works 开发的开源 AI 编程助手（coding agent），它运行在终端里，能通过与模型交互、调用工具（如读写文件、执行命令）来帮你完成编程任务。",
         "列表data-total-count": "4"
       }
     },
@@ -32,10 +32,10 @@
         "initialCount": 2,
         "末消息数": 4,
         "assistantIds": [
-          "m-fb63bb27",
+          "m-906f88d1",
           "a-3"
         ],
-        "assistantText": "Pi 是一个开源的终端 AI 编码代理（coding agent），能在终端界面中自主读取文件、执行命令、编辑代码并调用工具来帮你完成编程任务。",
+        "assistantText": "Pi 是一个由 Earendil Works 开发的开源 AI 编程助手（coding agent），它运行在终端里，能通过与模型交互、调用工具（如读写文件、执行命令）来帮你完成编程任务。",
         "streamingSeen": true,
         "streamingResolved": true,
         "newAssistantCount": 1
@@ -141,14 +141,14 @@
       "turn_start": 1,
       "message_start": 3,
       "message_end": 3,
-      "message_update": 19,
+      "message_update": 18,
       "turn_end": 1,
       "agent_settled": 1
     },
-    "sse观测_总帧数": 29,
-    "原始dump_message_update": 79,
-    "sse_message_update": 19,
-    "合并率": 0.759,
+    "sse观测_总帧数": 28,
+    "原始dump_message_update": 84,
+    "sse_message_update": 18,
+    "合并率": 0.786,
     "末帧类型": "agent_settled",
     "agent_settled之后仍有message_update": 0
   }

@@ -416,7 +416,7 @@
             "label": "收起左侧",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(65, 97, 190)"
+            "outlineColor": "rgb(58, 90, 182)"
           },
           {
             "tag": "button",
@@ -424,7 +424,7 @@
             "label": "切换到深色",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(46, 79, 171)"
+            "outlineColor": "rgb(45, 77, 170)"
           },
           {
             "tag": "button",
@@ -432,7 +432,7 @@
             "label": "设置",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(44, 77, 169)"
+            "outlineColor": "rgb(45, 77, 169)"
           },
           {
             "tag": "button",
@@ -440,7 +440,7 @@
             "label": "收起右侧",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(44, 77, 169)"
+            "outlineColor": "rgb(45, 77, 169)"
           },
           {
             "tag": "button",
@@ -448,7 +448,7 @@
             "label": "新建任务",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(67, 100, 193)"
+            "outlineColor": "rgb(73, 100, 174)"
           },
           {
             "tag": "button",
@@ -456,7 +456,7 @@
             "label": "搜索",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(73, 100, 174)"
+            "outlineColor": "rgb(67, 100, 193)"
           },
           {
             "tag": "button",
@@ -464,7 +464,7 @@
             "label": "接入 Pi 工具链的调研\n3小时前 7 ",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(44, 77, 169)"
+            "outlineColor": "rgb(45, 77, 169)"
           },
           {
             "tag": "button",
@@ -502,12 +502,12 @@
       "name": "1-10_过渡中间帧采样",
       "value": {
         "首帧": {
-          "t": 13.4,
+          "t": 14.7,
           "sidebar": 264,
           "workspace": 680
         },
         "末帧": {
-          "t": 329.6,
+          "t": 331.6,
           "sidebar": 0,
           "workspace": 944
         },
@@ -515,12 +515,12 @@
         "中间帧数_宽度介于1与263之间": 6,
         "宽度序列_抽样": [
           264,
-          161.52,
-          101.19,
-          60.52,
-          32.7,
-          14.48,
-          4.02,
+          161.58,
+          101.53,
+          60.34,
+          32.59,
+          14.42,
+          4.06,
           0.09,
           0,
           0,
@@ -537,12 +537,12 @@
         ],
         "内容区宽度序列_抽样": [
           680,
-          782.48,
-          842.81,
-          883.48,
-          911.3,
-          929.52,
-          939.98,
+          782.42,
+          842.47,
+          883.66,
+          911.41,
+          929.58,
+          939.94,
           943.91,
           944,
           944,
