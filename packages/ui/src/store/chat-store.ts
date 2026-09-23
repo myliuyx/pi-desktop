@@ -359,6 +359,29 @@ if (typeof window !== "undefined") {
     (window as unknown as { __chatStore?: typeof useChatStore }).__chatStore = useChatStore;
     // live 模式：建立真实链路订阅（SSE → reducer → store），并拉一次会话清单给 Sidebar
     ensureLive();
-    if (isLiveEnabled()) useChatStore.getState().refreshSessions();
+    if (isLiveEnabled()) {
+      useChatStore.getState().refreshSessions();
+      /*
+       * C6 首个修复项（2026-09-23 用户实测反馈）：live 启动**不再展示 mock 会话**。
+       * 加载最近一条真实会话；一条都没有则进入空态（messages: []），
+       * 绝不拿 `INITIAL_SESSION` 的 7 条 mock 顶数 —— 否则用户看到的永远「和纯 UI 没区别」。
+       */
+      void (async () => {
+        const transport = getLiveTransport();
+        if (!transport) return;
+        try {
+          const sessions = await transport.listSessions();
+          if (sessions.length > 0) {
+            const latest = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+            useChatStore.getState().loadSessionById(latest.id, latest.title);
+          } else {
+            liveDraft = createDraft([]);
+            useChatStore.setState({ messages: [], sessionTitle: "新会话", streaming: false });
+          }
+        } catch (e) {
+          console.error("[live] 启动加载最近会话失败:", e);
+        }
+      })();
+    }
   }
 }
