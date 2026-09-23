@@ -234,85 +234,71 @@ try {
 			含自建能力说明: mcp.note.includes("自建能力") || mcp.note.length > 0,
 		});
 
-		/* =============================================================== 05 屏 */
-		phase = "05 屏：live 渲染真实模型清单";
-		await ctx.open(`/?live=1&token=${TOKEN}#/settings`);
-		await cdp.eval(waitCount('[data-testid="settings-model-option"]', 2), true);
-		await sleep(300);
+		/* ================================================================ 设置弹窗（原 05 屏路由） */
+		/*
+		 * ⚠️ 口径迁移（2026-09-23，第一批 D1 / D3 修订）：
+		 *   `#/settings` 路由已删（改为全局设置弹窗），常规 Tab 里的「模型」组也按 D3 修订删除
+		 *   （模型管理走「模型」Tab，选用走工具条上拉菜单）。所以这里不再断言已消失的
+		 *   `settings-model-option`，改断三件事：
+		 *     ① 「模型」Tab 的 Provider 树读自 core 的 models.json（live 读）；
+		 *     ② 「常规」Tab 的思考档位仍是 mock 契约 3 档，点击后写回 core 的 settings.json；
+		 *     ③ 负断言：常规 Tab 不再挂模型单选组。
+		 *   「切换模型 → 写回 settings.json」这条能力没丢，改由 core 侧 `check:c5` ④ 覆盖。
+		 */
+		phase = "设置弹窗：live 渲染 core 的 Provider 清单";
+		await ctx.open(`/?live=1&token=${TOKEN}`);
+		await cdp.eval(`(() => { document.querySelector('[data-testid="sidebar-footer-settings"]').click(); return true; })()`);
+		await cdp.eval(waitCount('[data-testid="provider-header"]', 2), true);
+		await sleep(600);
 
 		const settings = await cdp.eval(`(() => {
-		  const opts = [...document.querySelectorAll('[data-testid="settings-model-option"]')].map((el) => ({
-		    id: el.dataset.modelId, provider: el.dataset.modelProvider, active: el.dataset.active, text: (el.innerText || '').replace(/\\s+/g, ' ').trim(),
-		  }));
-		  const chips = [...document.querySelectorAll('[data-testid="settings-thinking-option"]')].map((el) => ({
+		  const providers = [...document.querySelectorAll('[data-testid="provider-header"]')].map((el) => el.dataset.providerId);
+		  const models = [...document.querySelectorAll('[data-testid="model-row"]')].map((el) => el.dataset.modelId);
+		  const statusTone = document.querySelector('[data-testid="settings-status"]')?.dataset.tone ?? null;
+		  return { providers, models, statusTone };
+		})()`);
+		ctx.record("设置弹窗 · 模型 Tab 快照", settings);
+
+		/** core 端点 `/models` 去重后的 provider 集合（期望值现读，不写死） */
+		const coreProviders = [...new Set((modelsBefore.models ?? []).map((m) => m.provider))].sort();
+		const uiProviders = [...settings.providers].sort();
+		A("C5[设置弹窗] live Provider 清单来自 core（命中 models.json 的 key、无演示数据）", {
+			与端点一致: JSON.stringify(uiProviders) === JSON.stringify(coreProviders),
+			含arkCoding: uiProviders.includes("ark-coding"),
+			含合成provider: uiProviders.includes(ALT_PROVIDER),
+			无演示数据: !settings.providers.some((id) => ["aliyun", "setfun", "local-buddy", "ark-plan"].includes(id)),
+			模型行含合成模型id: settings.models.includes(ALT_MODEL_ID),
+			状态条非危险态: settings.statusTone === "normal",
+		});
+
+		phase = "设置弹窗 · 常规 Tab：思考档位 3 档 + 模型组已迁出";
+		await cdp.eval(`(() => { document.querySelector('[data-testid="settings-tab-general"]').click(); return true; })()`);
+		await sleep(500);
+		const general = await cdp.eval(`(() => ({
+		  chips: [...document.querySelectorAll('[data-testid="settings-thinking-option"]')].map((el) => ({
 		    level: el.dataset.thinkingLevel, active: el.dataset.active,
-		  }));
-		  return { opts, chips, subtitle: (document.querySelector('[data-testid="settings-screen"] header')?.innerText ?? '').replace(/\\s+/g, ' ').trim() };
-		})()`);
-		ctx.record("05 屏 DOM 快照", settings);
-
-		A("C5[05屏] live 模型清单来自 core（≥2 条、providers 命中 core 侧、无 mock 供应商）", {
-			条数至少2: settings.opts.length >= 2,
-			含arkCoding: settings.opts.some((o) => o.provider === "ark-coding"),
-			含alt: settings.opts.some((o) => o.provider === ALT_PROVIDER && o.id === ALT_MODEL_ID),
-			无mock供应商: !settings.opts.some((o) => ["Anthropic", "OpenAI", "Google"].includes(o.provider)),
-			与端点条数一致: settings.opts.length === (modelsBefore.models ?? []).length,
+		  })),
+		  modelOptions: document.querySelectorAll('[data-testid="settings-model-option"]').length,
+		}))()`);
+		ctx.record("设置弹窗 · 常规 Tab 快照", general);
+		A("C5[设置弹窗] 思考档位仍是 mock 契约的 3 档（Low/High/Max，未因 live 改结构）", {
+			三档: general.chips.length === 3,
+			档位值不变: JSON.stringify(general.chips.map((c) => c.level)) === JSON.stringify(["low", "high", "max"]),
+			无mock之外的档位: !general.chips.some((c) => ["off", "minimal", "medium", "xhigh"].includes(c.level)),
+			初始无激活_未持久化: general.chips.every((c) => c.active === "false"),
 		});
-		/*
-		 * 关于「初始是否有激活项」：live 形态的激活态严格跟 **core 的持久化值**
-		 * （`settings.thinkingLevel`，没有则退到生效值 `thinkingLevel`）。本夹具的 settings.json
-		 * 里没有 `defaultThinkingLevel`，本机模型又 `reasoning:false`（生效值恒 `off`，不在
-		 * Low/High/Max 三档内）⇒ **初始没有任何档位被激活**。这是刻意的诚实口径：
-		 * 不拿 mock 的「默认 High」去冒充真实偏好；用户点一下之后由 core 写回并立即激活
-		 * （下一段断言覆盖）。mock 形态不受影响（仍走 store 的 `high`）。
-		 */
-		A("C5[05屏] 思考档位芯片仍是 mock 契约的 3 档（Low/High/Max，未因 live 改结构）", {
-			三档: settings.chips.length === 3,
-			档位值不变: JSON.stringify(settings.chips.map((c) => c.level)) === JSON.stringify(["low", "high", "max"]),
-			无mock之外的档位: !settings.chips.some((c) => ["off", "minimal", "medium", "xhigh"].includes(c.level)),
-			初始无激活_未持久化: settings.chips.every((c) => c.active === "false"),
+		A("C5[设置弹窗] D3 修订：常规 Tab 不再挂模型单选组（模型管理已迁到「模型」Tab）", {
+			常规Tab无模型选项: general.modelOptions === 0,
 		});
 
-		phase = "05 屏：切换模型（写回 settings.json）";
-		const clickedModel = await cdp.eval(`(() => {
-		  const el = [...document.querySelectorAll('[data-testid="settings-model-option"]')]
-		    .find((n) => n.dataset.modelProvider === ${JSON.stringify(ALT_PROVIDER)});
-		  if (!el) return false;
-		  el.click();
-		  return true;
-		})()`);
-		await cdp.eval(
-			`new Promise((r) => { const t0 = Date.now();
-			   const iv = setInterval(() => {
-			     const el = [...document.querySelectorAll('[data-testid="settings-model-option"]')].find((n) => n.dataset.modelProvider === ${JSON.stringify(ALT_PROVIDER)});
-			     if (el && el.dataset.active === 'true') { clearInterval(iv); r(true); }
-			     else if (Date.now() - t0 > 15000) { clearInterval(iv); r(false); }
-			   }, 100); })`,
-			true,
-		);
-		const afterSelect = readSettings();
-		const modelsAfter = (await request("GET", "/models")).json ?? {};
-		ctx.record("切换模型后（UI 激活态 / settings.json / core 端点）", {
-			已点击: clickedModel,
-			settings文件: afterSelect,
-			core_current: modelsAfter.current,
-			core_settings: modelsAfter.settings,
-		});
-		A("C5[05屏] 切换模型：UI 激活态切到目标 + core 侧 settings.json 实写新值", {
-			已点击: clickedModel === true,
-			文件defaultProvider为alt: afterSelect?.defaultProvider === ALT_PROVIDER,
-			文件defaultModel为alt: afterSelect?.defaultModel === ALT_MODEL_ID,
-			端点current同步: modelsAfter.current?.provider === ALT_PROVIDER && modelsAfter.current?.modelId === ALT_MODEL_ID,
-		});
-
-		phase = "05 屏：切换思考档位（写回 settings.json）";
+		phase = "设置弹窗 · 常规 Tab：切换思考档位（写回 settings.json）";
 		const clickedThinking = await cdp.eval(`(() => {
 		  const el = [...document.querySelectorAll('[data-testid="settings-thinking-option"]')].find((n) => n.dataset.thinkingLevel === 'high');
 		  if (!el) return false;
 		  el.click();
 		  return true;
 		})()`);
-		await sleep(600);
+		await sleep(900);
 		const afterThink = readSettings();
 		const modelsAfterThink = (await request("GET", "/models")).json ?? {};
 		const chipsAfter = await cdp.eval(
@@ -324,7 +310,7 @@ try {
 			core_settings: modelsAfterThink.settings,
 			chips: chipsAfter,
 		});
-		A("C5[05屏] 切换思考档位：core 侧 settings.json 实写 defaultThinkingLevel", {
+		A("C5[设置弹窗] 切换思考档位：core 侧 settings.json 实写 defaultThinkingLevel", {
 			已点击: clickedThinking === true,
 			文件defaultThinkingLevel为high: afterThink?.defaultThinkingLevel === "high",
 			端点settings同步: modelsAfterThink.settings?.thinkingLevel === "high",

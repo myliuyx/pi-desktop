@@ -28,7 +28,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const uiDir = path.join(here, "..");
 const vitePath = path.join(uiDir, "node_modules", "vite", "bin", "vite.js");
 const evidencePath = path.join(uiDir, "_probe-auth-evidence.json");
-const devLogFd = fs.openSync(path.join(uiDir, "run", "probe-auth-dev.log"), "w");
+const runDir = path.join(uiDir, "run");
+// ⚠️ run/ 是「清理临时日志」的靶区（2026-09-23 曾整目录删空）⇒ 必须先建再开日志文件，
+//    否则脚本会以 `ENOENT ... probe-auth-dev.log` 直接崩掉，看起来像是探针本身有问题。
+fs.mkdirSync(runDir, { recursive: true });
+const devLogFd = fs.openSync(path.join(runDir, "probe-auth-dev.log"), "w");
 
 const ORIGIN = process.env.PROBE_AUTH_ORIGIN ?? "http://127.0.0.1:5195";
 const CDP_PORT = Number(process.env.PROBE_AUTH_CDP_PORT ?? 9356);
