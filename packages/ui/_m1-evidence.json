@@ -370,7 +370,7 @@
     {
       "name": "G7_键盘可达",
       "value": {
-        "可聚焦元素数": 31,
+        "可聚焦元素数": 30,
         "无标签的元素": [],
         "全部可聚焦元素均有可读名称": true,
         "可聚焦元素testId": [
@@ -401,7 +401,6 @@
           "composer-send",
           "composer-chip-model-trigger",
           "composer-chip-thinking-trigger",
-          "composer-chip-mcp",
           "preview-tab-effect"
         ]
       }
@@ -425,7 +424,7 @@
             "label": "切换到深色",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(43, 69, 142)"
+            "outlineColor": "rgb(45, 77, 170)"
           },
           {
             "tag": "button",
@@ -433,7 +432,7 @@
             "label": "设置",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(45, 77, 169)"
+            "outlineColor": "rgb(47, 85, 191)"
           },
           {
             "tag": "button",
@@ -441,7 +440,7 @@
             "label": "收起右侧",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(44, 77, 169)"
+            "outlineColor": "rgb(45, 77, 169)"
           },
           {
             "tag": "button",
@@ -503,12 +502,12 @@
       "name": "1-10_过渡中间帧采样",
       "value": {
         "首帧": {
-          "t": 9.7,
+          "t": 14,
           "sidebar": 264,
           "workspace": 680
         },
         "末帧": {
-          "t": 325.8,
+          "t": 330.6,
           "sidebar": 0,
           "workspace": 944
         },
@@ -516,11 +515,11 @@
         "中间帧数_宽度介于1与263之间": 6,
         "宽度序列_抽样": [
           264,
-          161.63,
-          101.27,
+          161.17,
+          101.25,
           60.56,
-          32.47,
-          14.52,
+          32.61,
+          14.42,
           4.08,
           0.09,
           0,
@@ -538,11 +537,11 @@
         ],
         "内容区宽度序列_抽样": [
           680,
-          782.38,
-          842.73,
+          782.83,
+          842.75,
           883.44,
-          911.53,
-          929.48,
+          911.39,
+          929.58,
           939.92,
           943.91,
           944,

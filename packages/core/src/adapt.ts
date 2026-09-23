@@ -1,13 +1,15 @@
 /**
  * Pi 原生事件 → 我们的 `AgentEvent`（core 侧用）。
  *
- * 为什么单独一层：S4 决策「UI 不认识 Pi」，翻译关在 core 里；
+ * 为什么放在 core（S4 决策「UI 不认识 Pi」，翻译关在 core 里）：
  * 这一层是纯函数，可以用真实事件 dump 回放做单测，不需要起服务。
+ * core 是独立 Node 进程，允许 import pi 包类型；但这里只 `import type` 共享契约，
+ * 不引入任何运行时依赖（UI 侧的 `toAgentEvent` 已退役，统一收口到此处）。
  *
  * 实测字段形状见 `.plan/survey/S1-event-mapping.md`。
  */
 
-import type { AgentContentPart, AgentEvent, AgentMessage, AgentMessageRole } from "./pi-events.ts";
+import type { AgentContentPart, AgentEvent, AgentMessage, AgentMessageRole } from "./contract.ts";
 
 type Raw = Record<string, unknown>;
 
@@ -55,7 +57,8 @@ function asMessage(value: unknown): AgentMessage | null {
 }
 
 /**
- * 返回 null 表示「该事件与 UI 无关」，调用方直接跳过。
+ * 把一条 Pi 原始事件翻译成我们的 `AgentEvent`。
+ * 返回 null 表示「该事件与 UI 无关」，调用方直接跳过（例如 compaction_* 与 queue_update 等）。
  */
 export function toAgentEvent(raw: unknown): AgentEvent | null {
 	if (!isRecord(raw) || typeof raw.type !== "string") return null;

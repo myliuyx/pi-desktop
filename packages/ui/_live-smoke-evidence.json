@@ -1,0 +1,163 @@
+{
+  "origin": "http://127.0.0.1:5188",
+  "startedAt": "2026-09-23T05:13:58.857Z",
+  "steps": [
+    {
+      "name": "live_store_已挂载",
+      "value": true
+    },
+    {
+      "name": "初始消息数 / 初始 DOM assistant 条目",
+      "value": {
+        "initialCount": 7,
+        "initialAssistantIds": [
+          "m2",
+          "m3",
+          "m4",
+          "m5",
+          "m7"
+        ]
+      }
+    },
+    {
+      "name": "DOM 快照",
+      "value": {
+        "总条目": 9,
+        "新增assistant条目": [
+          "a-8"
+        ],
+        "新增assistant文本": "思考过程\n\nPi 是一个运行在终端里的 AI 编码代理（coding agent）工作台，提供 SDK、扩展、主题、Skills 等能力，用来帮助开发者读取、编辑代码并执行命令完成编程任务。",
+        "列表data-total-count": "9"
+      }
+    },
+    {
+      "name": "live_结果快照",
+      "value": {
+        "initialCount": 7,
+        "末消息数": 9,
+        "assistantIds": [
+          "m2",
+          "m3",
+          "m4",
+          "m5",
+          "m7",
+          "a-8"
+        ],
+        "assistantText": "Pi 是一个运行在终端里的 AI 编码代理（coding agent）工作台，提供 SDK、扩展、主题、Skills 等能力，用来帮助开发者读取、编辑代码并执行命令完成编程任务。",
+        "streamingSeen": true,
+        "streamingResolved": true,
+        "newAssistantCount": 1
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "live 模式挂上真实 store 实例（window.__chatStore）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已挂载": true
+      }
+    },
+    {
+      "name": "composer 发送按钮可点击并已触发",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已点击": true
+      }
+    },
+    {
+      "name": "store：发送后新增 assistant 消息块（含非空文本）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "新增assistant消息数": true,
+        "新增文本非空": true
+      }
+    },
+    {
+      "name": "store：等待期间观察到 streaming=true（真实链路确实进入流式态）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "流式态出现过": true
+      }
+    },
+    {
+      "name": "store：streaming 态最终解除（终态事件到达后）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "streaming已解除": true
+      }
+    },
+    {
+      "name": "store：消息数较初始增加",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "数量增加": true
+      }
+    },
+    {
+      "name": "DOM：渲染出新增 assistant 的 message-item 且含可见文本",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "新增assistant条目": true,
+        "条目含文本": true,
+        "列表 data-total-count 与 store 一致": true
+      }
+    },
+    {
+      "name": "DOM：最终 streaming 态已解除",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "streaming为false": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 12,
+    "passed": 12,
+    "failed": 0,
+    "failedNames": [],
+    "transportChecks": [
+      {
+        "name": "传输层：SSE 收到 message_update（真实链路有事件下发）",
+        "pass": true
+      },
+      {
+        "name": "传输层：SSE 收到 agent_settled（终态未被批处理吞掉）",
+        "pass": true
+      },
+      {
+        "name": "传输层：message_update 无放大（下发条数 ≤ 原始条数）",
+        "pass": true
+      },
+      {
+        "name": "传输层：agent_settled 之后不再冒 message_update（终态顺序正确）",
+        "pass": true
+      }
+    ]
+  },
+  "transport": {
+    "sse观测_事件计数": {
+      "agent_start": 1,
+      "turn_start": 1,
+      "message_start": 3,
+      "message_end": 3,
+      "message_update": 34,
+      "turn_end": 1,
+      "agent_settled": 1
+    },
+    "sse观测_总帧数": 44,
+    "原始dump_message_update": 137,
+    "sse_message_update": 34,
+    "合并率": 0.752,
+    "末帧类型": "agent_settled",
+    "agent_settled之后仍有message_update": 0
+  }
+}

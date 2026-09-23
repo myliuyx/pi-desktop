@@ -3,6 +3,10 @@ import type { Message, Session, TextBlock, TokenUsage } from "@/mock/types";
 import { INITIAL_SESSION, INITIAL_SESSION_TITLE, INITIAL_TOKEN_USAGE } from "@/mock/sessions";
 import { simulateStream, type StreamHandle } from "@/mock/stream";
 import { STREAM_TICK_MS } from "@/lib/layout";
+import { isLiveEnabled, getLiveConfig } from "@/lib/feature-flags";
+import { HttpAgentTransport, type AgentTransport } from "@/services/agent-transport";
+import { applyEvent, createDraft, type DraftState } from "@/adapter/reduce";
+import type { AgentEvent } from "@/adapter/pi-events";
 
 /**
  * 会话工作台状态。
@@ -37,6 +41,24 @@ export interface ChatState {
  * ------------------------------------------------------------------------- */
 let activeStream: StreamHandle | null = null;
 let streamMsgId: string | null = null;
+
+/* ---------------------------------------------------------------------------
+ * live 模式（?live=1）真实链路句柄 —— 模块级闭包，不进可序列化状态。
+ * 与 mock 的 activeStream 互斥：live 走 core + 真实模型，mock 走 simulateStream。
+ * ------------------------------------------------------------------------- */
+let liveTransport: AgentTransport | null = null;
+let liveDraft: DraftState = createDraft();
+
+function ensureLive(): void {
+  if (liveTransport) return;
+  if (typeof window === "undefined" || !isLiveEnabled()) return;
+  liveTransport = new HttpAgentTransport(getLiveConfig());
+  // 订阅生命周期与应用一致：只要还有监听器就保持 SSE 连接（见 transport 内部引用计数）
+  liveTransport.subscribe((event: AgentEvent) => {
+    liveDraft = applyEvent(liveDraft, event);
+    useChatStore.setState({ messages: liveDraft.messages, streaming: liveDraft.streaming });
+  });
+}
 
 /** 按消息内容粗略估算 token（仅原型展示用，不要求精确） */
 function computeTokens(messages: Message[]): TokenUsage {
@@ -97,6 +119,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const trimmed = text.trim();
     if (!trimmed) return;
 
+    // ★ live 分支：经 core 连真实模型（reducer 由 applyEvent 在订阅里驱动，不在此预建 assistant 占位）
+    if (liveTransport) {
+      const now = Date.now();
+      const userMsg: Message = {
+        id: `u-${now}`,
+        role: "user",
+        timestamp: now,
+        blocks: [{ type: "text", content: trimmed }],
+      };
+      set((state) => ({ messages: [...state.messages, userMsg], streaming: true }));
+      // liveDraft 以「当前消息 + 新 user 消息」为基线，后续 assistant 消息由 reducer 追加
+      liveDraft = createDraft([...get().messages]);
+      void liveTransport.sendMessage(trimmed).catch((e) => {
+        console.error("[live] sendMessage 失败:", e);
+        useChatStore.setState({ streaming: false });
+      });
+      return;
+    }
+
     // 1. 同步追加一条 user 消息
     const now = Date.now();
     const userMsg: Message = {
@@ -144,6 +185,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   abortStream: () => {
+    if (liveTransport) {
+      // 真实链路：中止当前会话（已产出内容定格），streaming 立即解除
+      void liveTransport.abort().catch(() => {});
+      set({ streaming: false });
+      return;
+    }
     if (activeStream) {
       activeStream.abort();
       activeStream = null;
@@ -166,6 +213,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   resolveApproval: (requestId, choice) => {
+    if (liveTransport) {
+      // 回传授权选择给 core（core 再 resolve Pi 的 pending）；UI 乐观收卡见下
+      void liveTransport.resolveApproval(requestId, choice).catch(() => {});
+    }
     set((state) => ({
       // 已决的 requestId 再次调用不会改变（resolved 非空时不再覆盖）
       messages: state.messages.map((m) => ({
@@ -186,6 +237,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       activeStream = null;
       streamMsgId = null;
     }
+    if (liveTransport) {
+      void liveTransport.abort().catch(() => {});
+      liveDraft = createDraft(session.messages);
+    }
     set({
       messages: session.messages,
       streaming: false,
@@ -200,6 +255,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
       activeStream = null;
       streamMsgId = null;
     }
+    if (liveTransport) {
+      void liveTransport.abort().catch(() => {});
+      liveDraft = createDraft(INITIAL_SESSION.messages);
+    }
     set({
       messages: INITIAL_SESSION.messages,
       streaming: false,
@@ -212,8 +271,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
 /*
  * 开发期把 store 挂到 window，仅供验收脚本驱动 sendMessage / abortStream
  * （Composer 由 Agent B 实现，A 这边需要真实触发流式来验证自动滚底 2-5）。
- * 仅在 DEV 下暴露，生产构建不挂；用 as any 规避 import.meta.env 的类型依赖。
+ * 仅在 DEV 或 live 模式下暴露（live 模式挂真实 store 实例供脚本驱动，同 MCP 范式）；
+ * 用 as any 规避 import.meta.env 的类型依赖。
  */
-if (typeof window !== "undefined" && (import.meta as { env?: { DEV?: boolean } }).env?.DEV) {
-  (window as unknown as { __chatStore?: typeof useChatStore }).__chatStore = useChatStore;
+if (typeof window !== "undefined") {
+  const dev = (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true;
+  if (dev || isLiveEnabled()) {
+    (window as unknown as { __chatStore?: typeof useChatStore }).__chatStore = useChatStore;
+    // live 模式：建立真实链路订阅（SSE → reducer → store）
+    ensureLive();
+  }
 }

@@ -23,8 +23,10 @@ export interface CoreRuntime {
   prompt(text: string): Promise<void>;
   /** 中止当前会话（Pi 公开 API） */
   abort(): Promise<void>;
-  /** 订阅事件管道：Pi 原始事件 + core 生成的 approval_request 等 */
+  /** 订阅 Pi 原始事件管道（未经翻译；core 侧再经 toAgentEvent 适配后下发 SSE） */
   onEvent(cb: (event: unknown) => void): () => void;
+  /** 订阅 core 直接生成的 AgentEvent（如 uiContext 的 approval_request，已是我们契约形状） */
+  onAgentEvent(cb: (event: unknown) => void): () => void;
   /** 幂等回收授权：未识/已决/过期 id 一律静默 accepted:false（照 spike 手法） */
   resolveApproval(requestId: string, choice: string): { accepted: boolean };
   dispose(): void;
@@ -86,12 +88,16 @@ export async function createCoreRuntime(opts: CreateRuntimeOptions = {}): Promis
   }
 
   const pending = new Map<string, { resolve: (v: string) => void; method: string }>();
-  const listeners = new Set<(e: unknown) => void>();
-  const emit = (e: unknown) => {
-    for (const cb of listeners) cb(e);
+  const rawListeners = new Set<(e: unknown) => void>();
+  const agentListeners = new Set<(e: unknown) => void>();
+  const emitRaw = (e: unknown) => {
+    for (const cb of rawListeners) cb(e);
+  };
+  const emitAgent = (e: unknown) => {
+    for (const cb of agentListeners) cb(e);
   };
 
-  const uiContext = makeUiContext(pending, emit);
+  const uiContext = makeUiContext(pending, emitAgent);
 
   const { session } = await createAgentSession({
     model,
@@ -100,14 +106,18 @@ export async function createCoreRuntime(opts: CreateRuntimeOptions = {}): Promis
   });
   await session.bindExtensions({ uiContext, mode: "rpc" });
 
-  session.subscribe((event: unknown) => emit(event));
+  session.subscribe((event: unknown) => emitRaw(event));
 
   return {
     prompt: (text: string) => session.prompt(text),
     abort: () => session.abort(),
     onEvent: (cb) => {
-      listeners.add(cb);
-      return () => listeners.delete(cb);
+      rawListeners.add(cb);
+      return () => rawListeners.delete(cb);
+    },
+    onAgentEvent: (cb) => {
+      agentListeners.add(cb);
+      return () => agentListeners.delete(cb);
     },
     resolveApproval: (requestId, choice) => {
       const entry = pending.get(requestId);
@@ -148,7 +158,10 @@ function makeUiContext(
       dialog("confirm", title, { message }, opts?.timeout),
     input: (title: string, placeholder?: string, opts?: { timeout?: number }) =>
       dialog("input", title, { placeholder }, opts?.timeout),
-    notify: (message: string, type?: unknown) => emit({ type: "notification", message, notifyType: type }),
+    notify: (message: string, _type?: unknown) => {
+      // 通知不进 SSE（契约无 notification 类型，UI reducer 无法消费）；仅留日志便于排查。
+      console.debug(`[core] uiContext.notify: ${message}`);
+    },
     onTerminalInput: () => () => {},
     setStatus: () => {},
     setWorkingMessage: () => {},

@@ -12,7 +12,8 @@ import fs from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyEvent, createDraft } from "../src/adapter/reduce.ts";
-import { toAgentEvent } from "../src/adapter/from-pi.ts";
+// toAgentEvent 已上收至 core（C2），UI 侧 from-pi.ts 退役
+import { toAgentEvent } from "../../core/src/adapt.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 

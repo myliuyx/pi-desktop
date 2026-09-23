@@ -19,6 +19,7 @@
     "accept:m3": "node scripts/m3-acceptance.mjs",
     "accept:m4": "node scripts/m4-acceptance.mjs",
     "accept:m5": "node scripts/m5-acceptance.mjs",
+    "live:smoke": "node scripts/live-smoke.mjs",
     "shots:m1": "node scripts/m1-shots.mjs"
   },
   "dependencies": {

@@ -1,11 +1,11 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-22T13:07:07.039Z",
+  "startedAt": "2026-09-23T05:17:22.270Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 57,
+        "扫描文件数": 61,
         "hex在tokens之外": [],
         "dark变体命中": [],
         "内置调色板命中": [],
@@ -287,7 +287,7 @@
           "route": "01 工作台",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 338,
+          "measured": 339,
           "tokenValuesExcluded": 0,
           "bodyMin": 5.16,
           "bodyMinSample": {
@@ -327,7 +327,7 @@
           "route": "01b 源码态",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 338,
+          "measured": 339,
           "tokenValuesExcluded": 0,
           "bodyMin": 5.16,
           "bodyMinSample": {
@@ -367,7 +367,7 @@
           "route": "04 技能与工具",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 100,
+          "measured": 85,
           "tokenValuesExcluded": 0,
           "bodyMin": 5.68,
           "bodyMinSample": {
@@ -376,7 +376,7 @@
             "color": "rgb(154, 160, 168)"
           },
           "auxMin": 3.17,
-          "auxCount": 34,
+          "auxCount": 33,
           "minText": 3.17,
           "hScroll": {
             "scrollWidth": 1424,
@@ -407,7 +407,7 @@
           "route": "06 窗口壳",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 309,
+          "measured": 310,
           "tokenValuesExcluded": 0,
           "bodyMin": 5.16,
           "bodyMinSample": {
@@ -514,14 +514,14 @@
           "testid": "titlebar-toggle-preview",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(40, 66, 140)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-new-task",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         },
         {
@@ -535,14 +535,14 @@
           "testid": "sidebar-history-item-0",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(45, 77, 169)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-history-item-1",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(73, 100, 174)",
           "focusVisible": true
         },
         {
@@ -563,7 +563,7 @@
           "testid": "sidebar-history-item-4",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         },
         {
@@ -584,7 +584,7 @@
           "testid": "sidebar-history-item-7",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(73, 100, 174)",
           "focusVisible": true
         }
       ]
@@ -867,7 +867,7 @@
           "00 令牌: 3.17 (99 处)",
           "01b 源码态: 3.17 (13 处)",
           "03 运行详情: 3.5 (32 处)",
-          "04 技能与工具: 3.17 (34 处)",
+          "04 技能与工具: 3.17 (33 处)",
           "05 设置: 3.5 (29 处)",
           "06 窗口壳: 3.17 (29 处)"
         ],

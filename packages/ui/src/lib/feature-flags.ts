@@ -32,6 +32,9 @@
 /** 打开 MCP 区块的 URL 查询参数名（`?mcp=1`），走 `window.location.search` */
 export const MCP_QUERY_PARAM = "mcp";
 
+/** 打开真实链路（live）的 URL 查询参数名（`?live=1`），走 `window.location.search` */
+export const LIVE_QUERY_PARAM = "live";
+
 /**
  * MCP 区块是否启用。
  *
@@ -45,3 +48,27 @@ export function isMcpEnabled(): boolean {
   if (typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).get(MCP_QUERY_PARAM) === "1";
 }
+
+/**
+ * 是否启用真实链路（live）。
+ *
+ * **默认 `false`**（与 MCP 同门控范式：默认形态必须仍是 mock）。
+ * 带 `?live=1` 时为 `true`，UI 才会经 core 连接真实模型；
+ * 同时读 `?core=<url>`（可选，跨源覆盖，默认同源 ""）与 `?token=<bearer>`（core 的 Bearer token）。
+ *
+ * 说明：同 MCP，直接读 `window.location.search`（页面加载即确定，不随 hash 变化）。
+ */
+export function isLiveEnabled(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get(LIVE_QUERY_PARAM) === "1";
+}
+
+/** 读取 live 模式配置（core 基址 + Bearer token）。core 同源托管 UI 时 baseUrl 为 ""。 */
+export function getLiveConfig(): { baseUrl: string; token: string } {
+  if (typeof window === "undefined") return { baseUrl: "", token: "" };
+  const params = new URLSearchParams(window.location.search);
+  const core = params.get("core");
+  const token = params.get("token") ?? "";
+  return { baseUrl: core ?? "", token };
+}
+

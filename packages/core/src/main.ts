@@ -21,6 +21,11 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const runDir = path.join(here, "..", "run");
 fs.mkdirSync(runDir, { recursive: true });
 
+// 同源托管前端：默认 core 包上一级的 ui/dist；可用 CORE_UI_DIST 覆盖
+const uiDist = process.env.CORE_UI_DIST
+	? path.resolve(process.env.CORE_UI_DIST)
+	: path.resolve(here, "..", "..", "ui", "dist");
+
 const token = process.env.CORE_TOKEN ?? randomUUID();
 const port = process.env.CORE_PORT ? Number(process.env.CORE_PORT) : 0;
 
@@ -31,7 +36,7 @@ const runtime = await createCoreRuntime({
   modelId: process.env.PI_MODEL,
 });
 
-const handle = await startServer(runtime, { port, token });
+const handle = await startServer(runtime, { port, token, uiDist });
 
 // 写 run/core.json（含 token，绝不提交）
 fs.writeFileSync(path.join(runDir, "core.json"), JSON.stringify({ port: handle.port, token }, null, 2));
@@ -43,10 +48,8 @@ runtime.onEvent((e) => {
   fs.appendFileSync(dumpPath, `${JSON.stringify(e)}\n`);
 });
 
-// 静态资源托管（同源：浏览器 transport baseUrl 用相对路径 ""，零配置）
-// TODO(C2): serve packages/ui/dist when present.
-
 console.log(`[core] 监听 http://127.0.0.1:${handle.port}  (SSE: /events, 健康: /health)`);
+console.log(`[core] 同源托管 UI: ${uiDist}${fs.existsSync(uiDist) ? "" : "（不存在，浏览器请用 ?core= 指向本服务）"}`);
 
 async function shutdown() {
   console.log("\n[core] 关闭中…");
