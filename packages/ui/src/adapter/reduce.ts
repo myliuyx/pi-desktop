@@ -222,6 +222,9 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 			title: event.title,
 			message: event.message,
 			options: event.options ?? [],
+			// A1：请求形态与占位提示一并透传（缺省为 undefined，mock 行为不变）
+			method: event.method,
+			placeholder: event.placeholder,
 			// C3：请求带超时时一并带下去，卡片据此渲染倒计时/失效态（无则不渲染，mock 行为不变）
 			timeoutMs: event.timeoutMs,
 			// resolved 不在这里写：未决态由 UI 渲染可点；结算见 approval_settled

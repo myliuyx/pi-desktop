@@ -1,0 +1,34 @@
+{"type":"agent_start"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"system","content":[],"timestamp":1790157449668}}
+{"type":"message_end","message":{"role":"system","content":[],"timestamp":1790157449668}}
+{"type":"message_start","message":{"role":"user","content":[{"type":"text","text":"请调用 bash 工具执行命令 echo hello，然后原样告诉我命令执行的结果。"}],"timestamp":1790157449667}}
+{"type":"message_end","message":{"role":"user","content":[{"type":"text","text":"请调用 bash 工具执行命令 echo hello，然后原样告诉我命令执行的结果。"}],"timestamp":1790157449667}}
+{"type":"message_start","message":{"role":"assistant","content":[],"timestamp":1790157449839}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_el1b3o4adznax33snl0b6q4g","name":"bash","arguments":{"command":"echo"}}],"timestamp":1790157449839}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_el1b3o4adznax33snl0b6q4g","name":"bash","arguments":{"command":"echo hello"}}],"timestamp":1790157449839}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"toolCall","id":"call_el1b3o4adznax33snl0b6q4g","name":"bash","arguments":{"command":"echo hello"}}],"timestamp":1790157449839}}
+{"type":"tool_execution_start","toolCallId":"call_el1b3o4adznax33snl0b6q4g","toolName":"bash","args":{"command":"echo hello"}}
+{"type":"tool_execution_end","toolCallId":"call_el1b3o4adznax33snl0b6q4g","output":"BLOCKED-REASON-PROBE-20260923","isError":true}
+{"type":"message_start","message":{"role":"toolResult","content":[{"type":"text","text":"BLOCKED-REASON-PROBE-20260923"}],"toolCallId":"call_el1b3o4adznax33snl0b6q4g","toolName":"bash","isError":true,"timestamp":1790157451246}}
+{"type":"message_end","message":{"role":"toolResult","content":[{"type":"text","text":"BLOCKED-REASON-PROBE-20260923"}],"toolCallId":"call_el1b3o4adznax33snl0b6q4g","toolName":"bash","isError":true,"timestamp":1790157451246}}
+{"type":"turn_end"}
+{"type":"turn_start"}
+{"type":"message_start","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCK"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCKED-REASON"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCKED-REASON-PROBE-"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCKED-REASON-PROBE-20260923\n"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCKED-REASON-PROBE-20260923\n```\n\n该命令被"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCKED-REASON-PROBE-20260923\n```\n\n该命令被安全机制拦截，"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCKED-REASON-PROBE-20260923\n```\n\n该命令被安全机制拦截，未能正常执行 `echo hello`。"}],"timestamp":1790157451276}}
+{"type":"message_update","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCKED-REASON-PROBE-20260923\n```\n\n该命令被安全机制拦截，未能正常执行 `echo hello`。"}],"timestamp":1790157451276}}
+{"type":"message_end","message":{"role":"assistant","content":[{"type":"thinking","thinking":"The command was blocked. I should report this result to the user as-is."},{"type":"text","text":"命令执行的结果是：\n\n```\nBLOCKED-REASON-PROBE-20260923\n```\n\n该命令被安全机制拦截，未能正常执行 `echo hello`。"}],"timestamp":1790157451276}}
+{"type":"turn_end"}
+{"type":"agent_settled"}

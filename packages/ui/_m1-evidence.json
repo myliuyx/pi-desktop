@@ -416,7 +416,7 @@
             "label": "收起左侧",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(58, 90, 182)"
+            "outlineColor": "rgb(56, 93, 200)"
           },
           {
             "tag": "button",
@@ -432,7 +432,7 @@
             "label": "设置",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(45, 77, 169)"
+            "outlineColor": "rgb(40, 67, 140)"
           },
           {
             "tag": "button",
@@ -440,7 +440,7 @@
             "label": "收起右侧",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(45, 77, 169)"
+            "outlineColor": "rgb(44, 77, 169)"
           },
           {
             "tag": "button",
@@ -448,7 +448,7 @@
             "label": "新建任务",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(73, 100, 174)"
+            "outlineColor": "rgb(67, 100, 193)"
           },
           {
             "tag": "button",
@@ -502,26 +502,27 @@
       "name": "1-10_过渡中间帧采样",
       "value": {
         "首帧": {
-          "t": 14.7,
+          "t": 7.9,
           "sidebar": 264,
           "workspace": 680
         },
         "末帧": {
-          "t": 331.6,
+          "t": 336.5,
           "sidebar": 0,
           "workspace": 944
         },
-        "采样帧数": 20,
+        "采样帧数": 21,
         "中间帧数_宽度介于1与263之间": 6,
         "宽度序列_抽样": [
           264,
-          161.58,
-          101.53,
-          60.34,
-          32.59,
-          14.42,
+          161.55,
+          101.5,
+          60.53,
+          32.58,
+          14.41,
           4.06,
           0.09,
+          0,
           0,
           0,
           0,
@@ -537,13 +538,14 @@
         ],
         "内容区宽度序列_抽样": [
           680,
-          782.42,
-          842.47,
-          883.66,
-          911.41,
-          929.58,
+          782.45,
+          842.5,
+          883.47,
+          911.42,
+          929.59,
           939.94,
           943.91,
+          944,
           944,
           944,
           944,

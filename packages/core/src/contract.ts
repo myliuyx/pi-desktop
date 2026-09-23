@@ -82,6 +82,14 @@ export interface ApprovalBlock {
   message?: string;
   /** 如 ["允许", "拒绝"] */
   options: string[];
+  /**
+   * A1 新增（可选，mock / 旧事件不填 → 渲染行为不变）：请求形态。
+   * `select`/`confirm` 渲染 options 按钮；`input` 渲染单行输入框 + 提交按钮（二者互斥）。
+   * 取值与 `AgentEvent.approval_request.method` 一致（core 的 `ui.select/confirm/input`）。
+   */
+  method?: "select" | "confirm" | "input";
+  /** A1 新增（可选）：`input` 的占位提示（core 侧 `input(title, placeholder?)` 原样下发） */
+  placeholder?: string;
   /** 有值即表示已决（UI 乐观写入；Pi 不回显结果） */
   resolved?: string;
   /**
