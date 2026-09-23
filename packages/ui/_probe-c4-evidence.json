@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5194",
-  "startedAt": "2026-09-23T07:51:54.775Z",
+  "startedAt": "2026-09-23T14:40:16.845Z",
   "steps": [
     {
       "name": "store 已挂载 / 等待到的清单条数",
@@ -21,7 +21,7 @@
         ],
         "storeSummaries": [
           {
-            "id": "01a0cd3f-e611-75b3-b2f4-60d29e9187f6",
+            "id": "01a0ceb5-c723-70f3-abf4-adf8b2f629b8",
             "title": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。",
             "messageCount": 3,
             "updatedAtType": "number"
@@ -33,12 +33,12 @@
       "name": "加载后的 store / DOM 快照",
       "value": {
         "storeCount": 2,
-        "liveSessionId": "01a0cd3f-e611-75b3-b2f4-60d29e9187f6",
+        "liveSessionId": "01a0ceb5-c723-70f3-abf4-adf8b2f629b8",
         "streaming": false,
         "tokenUsage": {
-          "input": 139,
-          "output": 2,
-          "total": 1677,
+          "input": 1676,
+          "output": 28,
+          "total": 1704,
           "contextWindow": 128000
         },
         "sessionTitle": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。",
@@ -52,14 +52,14 @@
         ],
         "domItems": [
           {
-            "id": "m-acddbab0",
+            "id": "m-ed9c29b4",
             "role": "user",
             "text": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。"
           },
           {
-            "id": "m-afdc5c5f",
+            "id": "m-0bb7ce66",
             "role": "assistant",
-            "text": "收到"
+            "text": "思考过程\n\nThe user says this is a C4-UI probe: only reply with t"
           }
         ],
         "listTotal": "2"

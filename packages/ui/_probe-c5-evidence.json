@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5195",
-  "startedAt": "2026-09-23T07:51:59.745Z",
+  "startedAt": "2026-09-23T14:40:21.937Z",
   "steps": [
     {
       "name": "04 屏 DOM 快照",
@@ -70,22 +70,22 @@
       }
     },
     {
-      "name": "05 屏 DOM 快照",
+      "name": "设置弹窗 · 模型 Tab 快照",
       "value": {
-        "opts": [
-          {
-            "id": "deepseek-v4-flash",
-            "provider": "ark-coding",
-            "active": "true",
-            "text": "deepseek-v4-flash ark-coding · deepseek-v4-flash 已选"
-          },
-          {
-            "id": "deepseek-v4-pro",
-            "provider": "ark-coding-alt",
-            "active": "false",
-            "text": "DeepSeek V4 Pro (fixture) ark-coding-alt · deepseek-v4-pro 选择"
-          }
+        "providers": [
+          "ark-coding",
+          "ark-coding-alt"
         ],
+        "models": [
+          "deepseek-v4-flash",
+          "deepseek-v4-pro"
+        ],
+        "statusTone": "normal"
+      }
+    },
+    {
+      "name": "设置弹窗 · 常规 Tab 快照",
+      "value": {
         "chips": [
           {
             "level": "low",
@@ -100,27 +100,7 @@
             "active": "false"
           }
         ],
-        "subtitle": "设置 当前模型 deepseek-v4-flash · 思考 Off · 主题 浅色（跟随系统） · 真实数据（core /models） 返回工作台"
-      }
-    },
-    {
-      "name": "切换模型后（UI 激活态 / settings.json / core 端点）",
-      "value": {
-        "已点击": true,
-        "settings文件": {
-          "defaultProjectTrust": "never",
-          "defaultProvider": "ark-coding-alt",
-          "defaultModel": "deepseek-v4-pro"
-        },
-        "core_current": {
-          "provider": "ark-coding-alt",
-          "modelId": "deepseek-v4-pro"
-        },
-        "core_settings": {
-          "provider": "ark-coding-alt",
-          "modelId": "deepseek-v4-pro",
-          "thinkingLevel": null
-        }
+        "modelOptions": 0
       }
     },
     {
@@ -129,13 +109,11 @@
         "已点击": true,
         "settings文件": {
           "defaultProjectTrust": "never",
-          "defaultProvider": "ark-coding-alt",
-          "defaultModel": "deepseek-v4-pro",
           "defaultThinkingLevel": "high"
         },
         "core_settings": {
-          "provider": "ark-coding-alt",
-          "modelId": "deepseek-v4-pro",
+          "provider": null,
+          "modelId": null,
           "thinkingLevel": "high"
         },
         "chips": [
@@ -219,19 +197,20 @@
       }
     },
     {
-      "name": "C5[05屏] live 模型清单来自 core（≥2 条、providers 命中 core 侧、无 mock 供应商）",
+      "name": "C5[设置弹窗] live Provider 清单来自 core（命中 models.json 的 key、无演示数据）",
       "pass": true,
       "failed": [],
       "detail": {
-        "条数至少2": true,
+        "与端点一致": true,
         "含arkCoding": true,
-        "含alt": true,
-        "无mock供应商": true,
-        "与端点条数一致": true
+        "含合成provider": true,
+        "无演示数据": true,
+        "模型行含合成模型id": true,
+        "状态条非危险态": true
       }
     },
     {
-      "name": "C5[05屏] 思考档位芯片仍是 mock 契约的 3 档（Low/High/Max，未因 live 改结构）",
+      "name": "C5[设置弹窗] 思考档位仍是 mock 契约的 3 档（Low/High/Max，未因 live 改结构）",
       "pass": true,
       "failed": [],
       "detail": {
@@ -242,18 +221,15 @@
       }
     },
     {
-      "name": "C5[05屏] 切换模型：UI 激活态切到目标 + core 侧 settings.json 实写新值",
+      "name": "C5[设置弹窗] D3 修订：常规 Tab 不再挂模型单选组（模型管理已迁到「模型」Tab）",
       "pass": true,
       "failed": [],
       "detail": {
-        "已点击": true,
-        "文件defaultProvider为alt": true,
-        "文件defaultModel为alt": true,
-        "端点current同步": true
+        "常规Tab无模型选项": true
       }
     },
     {
-      "name": "C5[05屏] 切换思考档位：core 侧 settings.json 实写 defaultThinkingLevel",
+      "name": "C5[设置弹窗] 切换思考档位：core 侧 settings.json 实写 defaultThinkingLevel",
       "pass": true,
       "failed": [],
       "detail": {

@@ -1,0 +1,280 @@
+{
+  "origin": "http://127.0.0.1:5350",
+  "startedAt": "2026-09-23T14:28:22.310Z",
+  "steps": [
+    {
+      "name": "L1_弹窗数据源",
+      "value": {
+        "open": true,
+        "providerIds": [
+          "ark-coding",
+          "probe-spare"
+        ],
+        "modelIds": [
+          "deepseek-v4-flash",
+          "spare-mini"
+        ],
+        "statusTone": "normal",
+        "statusText": "保存后应用于新的会话",
+        "文件里的provider": [
+          "ark-coding",
+          "probe-spare"
+        ]
+      }
+    },
+    {
+      "name": "L2_保存写回",
+      "value": {
+        "输入框现值": "ark-coding-renamed",
+        "弹窗已关闭": true,
+        "api": {
+          "ok": true,
+          "providers": [
+            {
+              "id": "ark-coding",
+              "enabled": true,
+              "name": "ark-coding-renamed",
+              "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+              "apiKey": "$ARK_API_KEY",
+              "api": "openai-completions",
+              "headers": {},
+              "models": [
+                {
+                  "id": "deepseek-v4-flash",
+                  "name": "",
+                  "reasoning": false,
+                  "input": [
+                    "text"
+                  ],
+                  "contextWindow": 0,
+                  "maxTokens": 0,
+                  "cost": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0
+                  }
+                }
+              ]
+            },
+            {
+              "id": "probe-spare",
+              "enabled": true,
+              "name": "Probe Spare",
+              "baseUrl": "http://127.0.0.1:1/v1",
+              "apiKey": "sk-fixture-only",
+              "api": "openai-completions",
+              "headers": {},
+              "models": [
+                {
+                  "id": "spare-mini",
+                  "name": "",
+                  "reasoning": false,
+                  "input": [
+                    "text"
+                  ],
+                  "contextWindow": 0,
+                  "maxTokens": 0,
+                  "cost": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0
+                  }
+                }
+              ]
+            }
+          ],
+          "current": null,
+          "ready": true
+        },
+        "文件": {
+          "providers": {
+            "ark-coding": {
+              "name": "ark-coding-renamed",
+              "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+              "apiKey": "$ARK_API_KEY",
+              "api": "openai-completions",
+              "headers": {},
+              "models": [
+                {
+                  "id": "deepseek-v4-flash",
+                  "name": "",
+                  "reasoning": false,
+                  "input": [
+                    "text"
+                  ],
+                  "contextWindow": 0,
+                  "maxTokens": 0,
+                  "cost": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0
+                  }
+                }
+              ]
+            },
+            "probe-spare": {
+              "name": "Probe Spare",
+              "baseUrl": "http://127.0.0.1:1/v1",
+              "apiKey": "sk-fixture-only",
+              "api": "openai-completions",
+              "headers": {},
+              "models": [
+                {
+                  "id": "spare-mini",
+                  "name": "",
+                  "reasoning": false,
+                  "input": [
+                    "text"
+                  ],
+                  "contextWindow": 0,
+                  "maxTokens": 0,
+                  "cost": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "L3_删除落盘",
+      "value": {
+        "保存前列表": [
+          "ark-coding",
+          "probe-spare"
+        ],
+        "弹窗已关闭": true,
+        "文件": {
+          "providers": {
+            "ark-coding": {
+              "name": "ark-coding-renamed",
+              "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+              "apiKey": "$ARK_API_KEY",
+              "api": "openai-completions",
+              "headers": {},
+              "models": [
+                {
+                  "id": "deepseek-v4-flash",
+                  "name": "",
+                  "reasoning": false,
+                  "input": [
+                    "text"
+                  ],
+                  "contextWindow": 0,
+                  "maxTokens": 0,
+                  "cost": {
+                    "input": 0,
+                    "output": 0,
+                    "cacheRead": 0,
+                    "cacheWrite": 0
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "api": [
+          "ark-coding"
+        ],
+        "sidecar": {
+          "providers": {}
+        }
+      }
+    },
+    {
+      "name": "L4_不可达回落",
+      "value": {
+        "open": true,
+        "providerIds": [
+          "aliyun",
+          "setfun",
+          "local-buddy",
+          "ark-plan"
+        ],
+        "statusTone": "danger",
+        "statusText": "core 读取失败，已回落到演示数据：Failed to fetch",
+        "panelHeight": 640
+      }
+    },
+    {
+      "name": "L5_console",
+      "value": {
+        "exceptions": []
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "L1 live 形态下弹窗列出 core 的真实 Provider（不是演示数据）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "弹窗已打开": true,
+        "清单等于models_json的key": true,
+        "含真实provider_arkcoding": true,
+        "不含演示数据aliyun": true,
+        "不含演示数据setfun": true,
+        "状态条非危险态": true
+      }
+    },
+    {
+      "name": "L2 改名保存后 core 侧确认：API 复读一致 + models.json 已落盘",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "输入框改到了新名字": true,
+        "保存后弹窗关闭": true,
+        "响应ok": true,
+        "API复读一致": true,
+        "文件里名字同步": true,
+        "另一个provider未受影响": true
+      }
+    },
+    {
+      "name": "L3 删除保存后 models.json 里物理消失（且没进 sidecar 变软标记）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "保存后弹窗关闭": true,
+        "models_json里已消失": true,
+        "sidecar里也没有": true,
+        "API不再列出": true,
+        "剩下的那个还在": true
+      }
+    },
+    {
+      "name": "L4 core 不可达 ⇒ 回落演示数据 + 状态条给出失败原因（不白屏、不静默）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "弹窗仍可用": true,
+        "面板有实际高度": true,
+        "回落演示数据": true,
+        "状态条为危险态": true,
+        "原因文案可读": true
+      }
+    },
+    {
+      "name": "L5 全程无未捕获页面异常",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "无未捕获异常": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 5,
+    "passed": 5,
+    "failed": 0,
+    "failedNames": []
+  }
+}

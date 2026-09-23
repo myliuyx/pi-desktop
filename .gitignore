@@ -9,6 +9,14 @@ dist/
 _chk*.txt
 _pi-*.log
 
+# 脚本落盘产物（验证/探针跑出来的临时日志与截图；据可通过重跑复现，不入库）
+run-*.txt
+COMMIT_MSG.txt
+push-result.txt
+packages/ui/run/
+packages/ui/_*.png
+packages/ui/_settings-live-core.log
+
 # 截图缓存（可随时重新生成，不入库）
 .workbuddy/
 .plan/

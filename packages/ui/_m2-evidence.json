@@ -1,11 +1,11 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-23T07:53:50.669Z",
+  "startedAt": "2026-09-23T14:43:37.796Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 62,
+        "扫描文件数": 71,
         "hex命中文件": [
           "styles/tokens.css"
         ],
@@ -355,7 +355,7 @@
       "value": {
         "dataAtBottom": "false",
         "scrollTop": 0,
-        "dist": 1401,
+        "dist": 1414,
         "totalCount": 9,
         "hasScrollToBottom": true
       }
@@ -379,7 +379,7 @@
     {
       "name": "G7_可聚焦元素",
       "value": {
-        "focusableCount": 27,
+        "focusableCount": 77,
         "noLabelCount": 0,
         "noLabelSamples": [],
         "inputLabelled": true
