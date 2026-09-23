@@ -16,6 +16,10 @@ import {
   SETTINGS_DIALOG_WIDTH,
 } from "@/lib/layout";
 import type { ModelProviderConfig } from "@/mock/model-config";
+import { buildPutRequest, entriesToProviders } from "@/mock/provider-convert";
+import { isLiveEnabled } from "@/lib/feature-flags";
+import { getLiveTransport } from "@/services/live-transport";
+import { cn } from "@/lib/cn";
 import { useUiStore } from "@/store/ui-store";
 import { SettingsGeneralTab } from "./settings/SettingsGeneralTab";
 import { ModelProvidersTab } from "./settings/ModelProvidersTab";
@@ -43,6 +47,10 @@ const TABS: TabItem[] = [
 
 const TAB_PANEL_PREFIX = "settings-tab";
 
+const IDLE_STATUS = { tone: "normal", text: "保存后应用于新的会话" } as const;
+
+type StatusTone = "normal" | "warning" | "danger";
+
 export function SettingsDialog() {
   const open = useUiStore((s) => s.settingsOpen);
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
@@ -52,22 +60,76 @@ export function SettingsDialog() {
   /** 默认打开「模型」Tab（2026-09-23 用户裁决：模型管理是设置的高频入口） */
   const [activeTab, setActiveTab] = useState<SettingsTabId>("models");
   const [draft, setDraft] = useState<ModelProviderConfig[]>(providers);
+  /** 底部状态条：live 读取/写入的进度与失败原因（mock 形态恒 “保存后应用于新的会话”） */
+  const [status, setStatus] = useState<{ tone: StatusTone; text: string }>({ ...IDLE_STATUS });
+
+  const live = isLiveEnabled();
 
   /** 每次打开：从 store 提交值重新拉一份草稿（取消后重开即回落），并回到默认「模型」Tab */
   useEffect(() => {
-    if (open) {
-      setDraft(providers.map((p) => structuredClone(p)));
-      setActiveTab("models");
-    }
+    if (!open) return;
+    const initial = providers.map((p) => structuredClone(p));
+    setDraft(initial);
+    setActiveTab("models");
+    setStatus({ ...IDLE_STATUS });
+
+    if (!live) return;
+    const transport = getLiveTransport();
+    if (!transport) return;
+    let alive = true;
+    setStatus({ tone: "normal", text: "正在读取 core 的模型配置…" });
+    void transport
+      .listProviders()
+      .then((payload) => {
+        if (!alive) return;
+        // 真实数据覆盖演示数据（模型列表 UI 无需区分来源）
+        setDraft(entriesToProviders(payload));
+        setStatus({ ...IDLE_STATUS });
+      })
+      .catch((e) => {
+        if (!alive) return;
+        // C5 同范式：core 取不到就回落草稿（演示数据），绝不白屏
+        setStatus({
+          tone: "danger",
+          text: `core 读取失败，已回落到演示数据：${e instanceof Error ? e.message : String(e)}`,
+        });
+      });
+    return () => {
+      alive = false;
+    };
     // 仅依赖 open：用打开那一刻的 store 提交值，避免编辑过程中被实时提交值覆盖
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const close = () => setSettingsOpen(false);
 
-  const onSave = () => {
-    saveModelProviders(draft.map((p) => structuredClone(p)));
-    close();
+  const onSave = async () => {
+    const snapshot = draft.map((p) => structuredClone(p));
+    saveModelProviders(snapshot);
+
+    const transport = getLiveTransport();
+    if (!transport) {
+      close();
+      return;
+    }
+    setStatus({ tone: "normal", text: "正在写入 core…" });
+    try {
+      const res = await transport.saveProviders(buildPutRequest(snapshot));
+      // 用 core 回给我的合并清单为准（含 enabled 拆分结果与回退后的 current）
+      setDraft(entriesToProviders(res));
+      setStatus(
+        res.fallbackApplied
+          ? { tone: "warning", text: res.warning ?? "当前生效模型已失效，已自动回退" }
+          : { ...IDLE_STATUS },
+      );
+      close();
+    } catch (e) {
+      // 写失败不关闭弹窗、也不丢用户的编辑，让用户看见原因并可重试
+      setStatus({
+        tone: "danger",
+        text: `写入 core 失败（本地草稿已保留）：${e instanceof Error ? e.message : String(e)}`,
+      });
+    }
   };
 
   return (
@@ -100,7 +162,17 @@ export function SettingsDialog() {
           className="flex min-w-0 items-center justify-between gap-3 border-t border-border-subtle px-5"
           style={{ height: SETTINGS_DIALOG_FOOTER_HEIGHT }}
         >
-          <p className="min-w-0 truncate text-xs text-text-tertiary">保存后应用于新的会话</p>
+          <p
+            className={cn(
+              "min-w-0 truncate text-xs text-text-tertiary",
+              status.tone === "warning" && "text-warning",
+              status.tone === "danger" && "text-danger",
+            )}
+            data-testid="settings-status"
+            data-tone={status.tone}
+          >
+            {status.text}
+          </p>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="ghost" size="sm" onClick={close} data-testid="settings-cancel">
               取消

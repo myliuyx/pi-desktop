@@ -38,7 +38,7 @@ function emptyModel(): ModelConfig {
     imageInput: false,
     contextWindow: 0,
     maxTokens: 0,
-    pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     advanced: { endpointOverride: "", compatibility: "", headers: [] },
   };
 }

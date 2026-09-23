@@ -6,7 +6,7 @@
  *   不能为了新表单去改冻结类型。这里的 Provider / Model 形态是「将来接
  *   Pi 的 models.json」的草稿结构，字段与规格书 §一 schema 一一对应
  *   （provider: name/baseUrl/apiKey/api/headers；
- *    model: id/name/reasoning/input/contextWindow/maxTokens/pricing{...}），
+ *    model: id/name/reasoning/input/contextWindow/maxTokens/cost{...}），
  *   但类型定义只活在本文件，避免污染契约。第二批接 core 时再决定如何合并。
  *
  * 颜色 / 尺寸一律不在此文件出现（G1 / 尺寸走 lib/layout.ts），这里只有数据。
@@ -44,7 +44,7 @@ export interface ModelConfig {
   /** 最大输出 tokens */
   maxTokens: number;
   /** 每百万 tokens 价格（四列：输入 / 输出 / 缓存读取 / 缓存写入） */
-  pricing: {
+  cost: {
     input: number;
     output: number;
     cacheRead: number;
@@ -103,7 +103,7 @@ const aliyunModels: ModelConfig[] = [
     imageInput: false,
     contextWindow: 32768,
     maxTokens: 8192,
-    pricing: { input: 2.5, output: 10, cacheRead: 0.6, cacheWrite: 1.2 },
+    cost: { input: 2.5, output: 10, cacheRead: 0.6, cacheWrite: 1.2 },
     advanced: { endpointOverride: "", compatibility: "openai", headers: [] },
   },
   {
@@ -113,7 +113,7 @@ const aliyunModels: ModelConfig[] = [
     imageInput: false,
     contextWindow: 131072,
     maxTokens: 8192,
-    pricing: { input: 0.8, output: 2, cacheRead: 0.2, cacheWrite: 0.4 },
+    cost: { input: 0.8, output: 2, cacheRead: 0.2, cacheWrite: 0.4 },
     advanced: { endpointOverride: "", compatibility: "openai", headers: [] },
   },
   {
@@ -123,7 +123,7 @@ const aliyunModels: ModelConfig[] = [
     imageInput: true,
     contextWindow: 32768,
     maxTokens: 4096,
-    pricing: { input: 3, output: 9, cacheRead: 0.75, cacheWrite: 1.5 },
+    cost: { input: 3, output: 9, cacheRead: 0.75, cacheWrite: 1.5 },
     advanced: { endpointOverride: "", compatibility: "openai", headers: [] },
   },
 ];
@@ -136,7 +136,7 @@ const setfunModels: ModelConfig[] = [
     imageInput: true,
     contextWindow: 200000,
     maxTokens: 16384,
-    pricing: { input: 4, output: 12, cacheRead: 1, cacheWrite: 2 },
+    cost: { input: 4, output: 12, cacheRead: 1, cacheWrite: 2 },
     advanced: { endpointOverride: "", compatibility: "openai", headers: [] },
   },
   {
@@ -146,7 +146,7 @@ const setfunModels: ModelConfig[] = [
     imageInput: false,
     contextWindow: 128000,
     maxTokens: 8192,
-    pricing: { input: 1, output: 3, cacheRead: 0.25, cacheWrite: 0.5 },
+    cost: { input: 1, output: 3, cacheRead: 0.25, cacheWrite: 0.5 },
     advanced: { endpointOverride: "", compatibility: "openai", headers: [] },
   },
 ];
@@ -159,7 +159,7 @@ const localBuddyModels: ModelConfig[] = [
     imageInput: false,
     contextWindow: 131072,
     maxTokens: 4096,
-    pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     advanced: { endpointOverride: "", compatibility: "openai", headers: [] },
   },
   {
@@ -169,7 +169,7 @@ const localBuddyModels: ModelConfig[] = [
     imageInput: false,
     contextWindow: 131072,
     maxTokens: 4096,
-    pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     advanced: { endpointOverride: "", compatibility: "openai", headers: [] },
   },
 ];
@@ -182,7 +182,7 @@ const arkPlanModels: ModelConfig[] = [
     imageInput: true,
     contextWindow: 256000,
     maxTokens: 16384,
-    pricing: { input: 1.5, output: 6, cacheRead: 0.4, cacheWrite: 0.8 },
+    cost: { input: 1.5, output: 6, cacheRead: 0.4, cacheWrite: 0.8 },
     advanced: { endpointOverride: "", compatibility: "openai", headers: [] },
   },
 ];

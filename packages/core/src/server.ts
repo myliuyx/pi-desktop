@@ -18,7 +18,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { toAgentEvent } from "./adapt.ts";
-import type { AgentEvent } from "./contract.ts";
+import type { AgentEvent, ModelTestRequest, PutProvidersRequest } from "./contract.ts";
 import type { CoreRuntime } from "./session.ts";
 
 export interface ServerHandle {
@@ -52,6 +52,10 @@ const API_ROUTES = new Set([
 	"/models",
 	"/models/select",
 	"/thinking",
+	// C2 · 第二批：模型接真（Provider 读写 / 目录 / 测试）
+	"/providers",
+	"/models/catalog",
+	"/models/test",
 	// C6 · 04 屏工具开关接 Pi
 	"/tools/active",
 ]);
@@ -398,6 +402,60 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			} catch (e) {
 				// 未注册的工具名 → 400（core 侧显式校验，不依赖上游的静默忽略）
 				return json(400, { ok: false, error: String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * C2 · 第二批：模型接真（Provider 读写 / 目录 / 测试）
+		 * 安全面（Bearer 401 + Host 403）经上方 API_ROUTES 统一覆盖。
+		 * ----------------------------------------------------------------- */
+
+		// 读取并合并 models.json + sidecar（带 enabled 标志）；解析失败返回结构化 {error}，不 500
+		if (req.method === "GET" && urlPath === "/providers") {
+			try {
+				const payload = runtime.listProviders();
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(200, { error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		// 全量替换写回：按 enabled 拆分写 models.json / sidecar，refresh + 回退检测
+		if (req.method === "PUT" && urlPath === "/providers") {
+			const body = (await readBody(req)) as PutProvidersRequest;
+			if (!body || !Array.isArray(body.providers)) {
+				return json(400, { error: "请求体缺少 providers 数组" });
+			}
+			try {
+				const result = await runtime.saveProviders(body);
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				return json(200, { error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		// 内置目录检索（不出网），按 id/name 不区分大小写匹配，上限 20 条
+		if (req.method === "GET" && urlPath === "/models/catalog") {
+			try {
+				const q = url.searchParams.get("q") ?? "";
+				const payload = runtime.searchCatalog(q);
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(200, { error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		// 一次性最小真实请求（max_tokens:1），不落盘、不改当前选择
+		if (req.method === "POST" && urlPath === "/models/test") {
+			const body = (await readBody(req)) as ModelTestRequest;
+			if (!body || typeof body.baseUrl !== "string" || typeof body.modelId !== "string") {
+				return json(400, { error: "请求体缺少 baseUrl / modelId" });
+			}
+			try {
+				const result = await runtime.testModel(body);
+				return json(200, result);
+			} catch (e) {
+				return json(200, { error: e instanceof Error ? e.message : String(e) });
 			}
 		}
 

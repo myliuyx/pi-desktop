@@ -31,13 +31,20 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type {
 	AgentEvent,
+	CatalogPayload,
+	ModelTestRequest,
+	ModelTestResult,
 	ModelsPayload,
+	ProvidersPayload,
+	ProvidersSaveResult,
+	PutProvidersRequest,
 	ResourcesPayload,
 	SessionLoadResult,
 	SessionSummary,
 	ToolsPayload,
 } from "./contract.ts";
 import { createModelsController, type ModelsController } from "./models.ts";
+import { createProvidersController, type ProvidersController } from "./providers.ts";
 import { collectResources } from "./resources.ts";
 import { continueRecentSession, listSessions, loadSessionById, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
@@ -92,6 +99,18 @@ export interface CoreRuntime {
 	selectModel(provider: string, modelId: string): Promise<ModelsPayload>;
 	/** 设置思考档位并写回 `settings.json`（`defaultThinkingLevel`） */
 	setThinkingLevel(level: string): Promise<ModelsPayload>;
+
+	/* -------------------------------------------------------------------------
+	 * C2 · 第二批：模型接真（Provider 读写 / 目录 / 测试，见 .plan/task-settings-c2.md）
+	 * ----------------------------------------------------------------------- */
+	/** `GET /providers`：读取并合并 models.json + sidecar（启用标志） */
+	listProviders(): ProvidersPayload;
+	/** `PUT /providers`：按 enabled 拆分原子写回、refresh、回退检测 */
+	saveProviders(req: PutProvidersRequest): Promise<ProvidersSaveResult>;
+	/** `GET /models/catalog?q=`：内置目录检索（不出网） */
+	searchCatalog(query: string): CatalogPayload;
+	/** `POST /models/test`：一次性最小真实请求（不落盘、不改当前选择） */
+	testModel(req: ModelTestRequest): Promise<ModelTestResult>;
 
 	/* -------------------------------------------------------------------------
 	 * C6 · 04 屏工具开关（`tools.ts` 的转发）
@@ -154,6 +173,21 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	fs.mkdirSync(agentDir, { recursive: true });
 	const cwd = opts.cwd ?? process.cwd();
 
+	/*
+	 * C2：models.json 路径解析（CORE_MODELS_PATH 或 agentDir 内默认）提前到外层，
+	 * 这样 `GET /providers` 即使会话尚未就绪也能读到文件（文件读不依赖 Pi 会话）。
+	 * 解析失败（env 未设且 agentDir 内无 models.json）→ 记为 null，端点返回结构化 {error}。
+	 */
+	let resolvedModelsPath: string | null = null;
+	let resolvedSidecarPath: string | null = null;
+	try {
+		resolvedModelsPath = resolveModelsPath(agentDir, opts.modelsPath);
+		resolvedSidecarPath = path.join(path.dirname(resolvedModelsPath), "models-disabled.json");
+	} catch {
+		resolvedModelsPath = null;
+		resolvedSidecarPath = null;
+	}
+
 	// 事件管道先建：HTTP 服务要能在会话就绪之前就订阅上（见文件头 ②）
 	const rawListeners = new Set<(e: unknown) => void>();
 	const agentListeners = new Set<(e: unknown) => void>();
@@ -192,8 +226,25 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		getSettings: () => settingsManager,
 	});
 
+	/** C2 · Provider 读写 / 目录 / 测试控制器（惰性 getter，不持有未就绪的 Pi 对象） */
+	const providers: ProvidersController = createProvidersController({
+		getModelsPath: () => resolvedModelsPath,
+		getSidecarPath: () => resolvedSidecarPath,
+		agentDir,
+		getRuntime: () => modelRuntime,
+		// S1 边界回退：与 models.select 同一条路（session.setModel persist:true ⇒
+		// settingsManager.setDefaultModelAndProvider 写 settings.json 既有字段）
+		selectCurrent: async (provider, modelId) => {
+			if (!session || !modelRuntime) return false;
+			const model = modelRuntime.getModel(provider, modelId);
+			if (!model) return false;
+			await session.setModel(model, { persist: true });
+			return true;
+		},
+	});
+
 	const ready = (async (): Promise<void> => {
-		const modelsPath = resolveModelsPath(agentDir, opts.modelsPath);
+		const modelsPath = resolvedModelsPath ?? resolveModelsPath(agentDir, opts.modelsPath);
 		const apiKey = opts.apiKey ?? process.env.ARK_API_KEY;
 		if (!apiKey) throw new Error("ARK_API_KEY 未设置（core 仅经 env 注入，绝不写进文件）");
 
@@ -365,6 +416,24 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		setThinkingLevel: async (level) => {
 			await ready;
 			return models.setThinking(level);
+		},
+
+		/* ------------------------------------------------------------ C2 */
+		listProviders: () => {
+			// 文件读不依赖会话就绪，可直接返回；runtime 未就绪时 ready=false（UI 据此回落 mock）
+			return providers.list();
+		},
+		saveProviders: async (req) => {
+			await ready;
+			return providers.save(req);
+		},
+		searchCatalog: (query) => {
+			// 目录来自 modelRuntime.getModels()，未就绪时返回空结果（UI 自行处理）
+			return providers.catalog(query);
+		},
+		testModel: (req) => {
+			// 真实最小请求，不依赖会话就绪、不落盘
+			return providers.test(req);
 		},
 
 		/* ------------------------------------------------------------ C6 */

@@ -376,3 +376,120 @@ export interface ModelsPayload {
   /** 本机是否检测到会话（未就绪时为 false，UI 据此回落 mock） */
   ready: boolean;
 }
+
+/* ---------------------------------------------------------------------------
+ * C2 · 第二批：模型接真（Provider 读写 / 目录 / 测试）
+ *
+ * 读写 core 侧 models.json（启用 provider）+ 同目录 sidecar `models-disabled.json`
+ * （禁用 provider 完整配置原文）。字段名对齐 models.json 原生 schema（用 `cost`
+ * 而非第一批 mock 的 `pricing`；`input` 用 `["text","image"]` 数组而非布尔）。
+ * 本段与 UI 的 `@/mock/provider-contract.ts` 是同一组类型的「core 权威 / UI 副本」关系。
+ * ------------------------------------------------------------------------- */
+
+/** 单个模型的配置（对齐 Pi `models.json` 的 model 节点原生 schema） */
+export interface ProviderModelEntry {
+  /** 模型 id（Provider 内唯一） */
+  id: string;
+  name: string;
+  /** 是否支持推理 / 思考 */
+  reasoning: boolean;
+  /** 输入模态（对齐 models.json 原生 `input: ("text"|"image")[]`） */
+  input: ("text" | "image")[];
+  /** 上下文窗口（tokens） */
+  contextWindow: number;
+  /** 最大输出 tokens */
+  maxTokens: number;
+  /** 每百万 tokens 价格四列（对齐 models.json 原生 `cost`） */
+  cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  /** 模型级 Headers（对齐 models.json 原生 `headers`） */
+  headers?: Record<string, string>;
+  /** 兼容性标记（对齐 models.json 原生 `compat`，可选） */
+  compat?: string;
+  /**
+   * 高级：API 端点覆盖（UI 表单「高级设置」字段，非 models.json 标准字段，原样透传）。
+   * 写回时作为 model 节点的扩展键保留，读回再回填表单。
+   */
+  endpointOverride?: string;
+}
+
+/** 一个 Provider（模型服务）的配置（`GET /providers` 与 `PUT /providers` 共用形状） */
+export interface ProviderEntry {
+  /** Provider id（= models.json 里 providers 记录的 key） */
+  id: string;
+  name: string;
+  baseUrl: string;
+  /** API key 原文（D6：本地单用户 + 127.0.0.1 + Bearer/Host 白名单，不脱敏） */
+  apiKey: string;
+  /** API 类型（openai-completions / openai-responses / anthropic-messages） */
+  api: string;
+  /** Provider 级 Headers（对齐 models.json 原生 `headers`） */
+  headers: Record<string, string>;
+  /** 是否启用（禁用 = 存 sidecar，Pi 眼中不存在） */
+  enabled: boolean;
+  models: ProviderModelEntry[];
+}
+
+/** `GET /providers` 响应体 */
+export interface ProvidersPayload {
+  providers: ProviderEntry[];
+  /** 当前生效模型（`settings.json` 的 defaultProvider / defaultModel） */
+  current: { provider: string; modelId: string } | null;
+  /** 会话是否已就绪（未就绪时 UI 回落 mock） */
+  ready: boolean;
+}
+
+/** `PUT /providers` 请求体（全量替换写回） */
+export interface PutProvidersRequest {
+  providers: ProviderEntry[];
+}
+
+/** `PUT /providers` 响应体（在 `ProvidersPayload` 基础上附回退标记） */
+export interface ProvidersSaveResult {
+  providers: ProviderEntry[];
+  current: { provider: string; modelId: string } | null;
+  ready: boolean;
+  /** 当前生效模型被删、已回退到可用清单第一个时为 true */
+  fallbackApplied: boolean;
+  /** `fallbackApplied` 时的告警文案（否则省略） */
+  warning?: string;
+}
+
+/** `GET /models/catalog?q=` 单条目录结果（内置目录元数据，不出网） */
+export interface CatalogEntry {
+  id: string;
+  name: string;
+  provider: string;
+  reasoning: boolean;
+  input: ("text" | "image")[];
+  contextWindow: number;
+  maxTokens: number;
+  cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+}
+
+/** `GET /models/catalog?q=` 响应体 */
+export interface CatalogPayload {
+  query: string;
+  results: CatalogEntry[];
+}
+
+/** `POST /models/test` 请求体（用表单里的 provider/model 配置构造一次性最小请求） */
+export interface ModelTestRequest {
+  baseUrl: string;
+  /** API key 原文（`!`/`$ENV` 插值由 core 解析，不落盘、不改当前选择） */
+  apiKey: string;
+  /** API 类型（决定请求路径与报文形态） */
+  api: string;
+  /** Provider 级 Headers */
+  headers?: Record<string, string>;
+  /** 被测模型 id */
+  modelId: string;
+}
+
+/** `POST /models/test` 响应体（D7：最小真实请求，max_tokens:1，费用忽略不计） */
+export interface ModelTestResult {
+  ok: boolean;
+  /** 端到端耗时（ms） */
+  latencyMs: number;
+  /** `ok=false` 时的错误文案 */
+  error?: string;
+}

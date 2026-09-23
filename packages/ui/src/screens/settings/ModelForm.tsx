@@ -12,17 +12,19 @@ import { Field, INPUT_CLASS, HeadersEditor, Collapsible } from "./form-fields";
  * 入口：选中左栏某条模型行进入（右栏默认即此表单，因为对话框打开时默认选中首个模型）。
  *
  * 状态语义：模型「待配置 / 已配置」由 `id` 是否为空决定（空串 = 待配置）。
- * 「测试」按钮：点击后 800ms 延迟转成功态（mock，第二批接 `POST /models/test`）。
- * 「移除」、以及（若接上）启用开关均两步确认（不弹新窗）。
+ * 「测试」按钮：传入 `onTest`（live）→ 发一次性最小真实请求并显示延迟 / 错误文案；
+ * 未传（mock 形态）→ 沿用第一批的 800ms 延迟成功反馈。「移除」两步确认（不弹新窗）。
  */
 export interface ModelFormProps {
   model: ModelConfig;
   providerName: string;
   onChange: (next: ModelConfig) => void;
   onRemove: () => void;
+  /** live 形态：真实连通性测试（POST /models/test）；不传 = mock 反馈 */
+  onTest?: () => Promise<{ ok: boolean; latencyMs: number; error?: string }>;
 }
 
-type TestState = "idle" | "testing" | "success";
+type TestState = "idle" | "testing" | "success" | "error";
 
 function parseNumber(value: string): number {
   if (value.trim() === "") return 0;
@@ -50,7 +52,7 @@ export function ModelForm({ model, providerName, onChange, onRemove }: ModelForm
       name: model.name || "导入的模型",
       contextWindow: model.contextWindow || 128000,
       maxTokens: model.maxTokens || 8192,
-      pricing: model.pricing.input ? model.pricing : { input: 1, output: 3, cacheRead: 0.25, cacheWrite: 0.5 },
+      cost: model.cost.input ? model.cost : { input: 1, output: 3, cacheRead: 0.25, cacheWrite: 0.5 },
     });
   };
 
@@ -187,9 +189,9 @@ export function ModelForm({ model, providerName, onChange, onRemove }: ModelForm
               min={0}
               step="0.1"
               className={INPUT_CLASS}
-              value={model.pricing.input}
+              value={model.cost.input}
               data-testid="model-price-input"
-              onChange={(e) => patch({ pricing: { ...model.pricing, input: parseNumber(e.target.value) } })}
+              onChange={(e) => patch({ cost: { ...model.cost, input: parseNumber(e.target.value) } })}
             />
           </Field>
           <Field label="输出">
@@ -198,9 +200,9 @@ export function ModelForm({ model, providerName, onChange, onRemove }: ModelForm
               min={0}
               step="0.1"
               className={INPUT_CLASS}
-              value={model.pricing.output}
+              value={model.cost.output}
               data-testid="model-price-output"
-              onChange={(e) => patch({ pricing: { ...model.pricing, output: parseNumber(e.target.value) } })}
+              onChange={(e) => patch({ cost: { ...model.cost, output: parseNumber(e.target.value) } })}
             />
           </Field>
           <Field label="缓存读取">
@@ -209,9 +211,9 @@ export function ModelForm({ model, providerName, onChange, onRemove }: ModelForm
               min={0}
               step="0.1"
               className={INPUT_CLASS}
-              value={model.pricing.cacheRead}
+              value={model.cost.cacheRead}
               data-testid="model-price-cache-read"
-              onChange={(e) => patch({ pricing: { ...model.pricing, cacheRead: parseNumber(e.target.value) } })}
+              onChange={(e) => patch({ cost: { ...model.cost, cacheRead: parseNumber(e.target.value) } })}
             />
           </Field>
           <Field label="缓存写入">
@@ -220,9 +222,9 @@ export function ModelForm({ model, providerName, onChange, onRemove }: ModelForm
               min={0}
               step="0.1"
               className={INPUT_CLASS}
-              value={model.pricing.cacheWrite}
+              value={model.cost.cacheWrite}
               data-testid="model-price-cache-write"
-              onChange={(e) => patch({ pricing: { ...model.pricing, cacheWrite: parseNumber(e.target.value) } })}
+              onChange={(e) => patch({ cost: { ...model.cost, cacheWrite: parseNumber(e.target.value) } })}
             />
           </Field>
         </div>

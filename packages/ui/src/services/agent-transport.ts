@@ -18,6 +18,14 @@ import type {
   ThinkingLevelName,
   ToolsPayload,
 } from "@/mock/types";
+import type {
+  CatalogPayload,
+  ModelTestRequest,
+  ModelTestResult,
+  ProvidersPayload,
+  ProvidersSaveResult,
+  PutProvidersRequest,
+} from "@/mock/provider-contract";
 
 /**
  * 浏览器侧唯一依赖的传输契约（S6 §三草案，C2 落地子集 + C4/C5 补全会话与 04/05 屏）。
@@ -61,6 +69,16 @@ export interface AgentTransport {
   listActiveTools(): Promise<ToolsPayload>;
   /** 04 屏：设置启用工具集（core 转发 Pi 的 `setActiveToolsByName`，下一 agent 轮次生效） */
   setActiveTools(names: string[]): Promise<ToolsPayload>;
+
+  /* ------------------------------------------------- C2 · 模型接真（设置弹窗） */
+  /** 设置弹窗：读 models.json + sidecar 合并清单（D6：apiKey 原文）；失败抛错（UI 回落 mock） */
+  listProviders(): Promise<ProvidersPayload>;
+  /** 设置弹窗：全量替换写回（按 enabled 拆分 models.json / sidecar）；fallbackApplied 时带 warning */
+  saveProviders(req: PutProvidersRequest): Promise<ProvidersSaveResult>;
+  /** 设置弹窗：内置目录检索（models.dev 快照，不出网），供「导入模型…」 */
+  searchCatalog(query: string): Promise<CatalogPayload>;
+  /** 设置弹窗：一次性最小真实请求（max_tokens:1）测连通性；不落盘、不改当前选择 */
+  testModel(req: ModelTestRequest): Promise<ModelTestResult>;
 }
 
 export interface LiveConfig {
@@ -162,6 +180,37 @@ export class HttpAgentTransport implements AgentTransport {
     }
   }
 
+  private async put<T>(path: string, body: unknown): Promise<T> {
+    const res = await fetch(`${this.cfg.baseUrl}${path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...this.authHeader() },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`core ${path} -> ${res.status}`);
+    try {
+      return (await res.json()) as T;
+    } catch {
+      return null as T;
+    }
+  }
+
+  /**
+   * C2 端点响应解包：core 对「业务失败但不 500」的端点返回 `{ error }`（无 `ok` 字段），
+   * 成功返回 `{ ok: true, ...payload }`。这里把前者转成 throw，调用方 catch 后走回落分支。
+   * （`ModelTestResult` 的 `ok:false` 带 `error` 属正常业务结果，有 `ok` 字段，不会误伤。）
+   */
+  private unwrap<T>(body: unknown): T {
+    if (
+      body &&
+      typeof body === "object" &&
+      "error" in body &&
+      !("ok" in body)
+    ) {
+      throw new Error(String((body as { error: unknown }).error));
+    }
+    return body as T;
+  }
+
   sendMessage(text: string): Promise<void> {
     return this.post("/prompt", { text }) as Promise<void>;
   }
@@ -222,5 +271,25 @@ export class HttpAgentTransport implements AgentTransport {
 
   setActiveTools(names: string[]): Promise<ToolsPayload> {
     return this.post<ToolsPayload>("/tools/active", { names });
+  }
+
+  /* ------------------------------------------------------------------ C2 */
+
+  async listProviders(): Promise<ProvidersPayload> {
+    return this.unwrap<ProvidersPayload>(await this.get("/providers"));
+  }
+
+  async saveProviders(req: PutProvidersRequest): Promise<ProvidersSaveResult> {
+    return this.unwrap<ProvidersSaveResult>(await this.put("/providers", req));
+  }
+
+  async searchCatalog(query: string): Promise<CatalogPayload> {
+    return this.unwrap<CatalogPayload>(
+      await this.get(`/models/catalog?q=${encodeURIComponent(query)}`),
+    );
+  }
+
+  async testModel(req: ModelTestRequest): Promise<ModelTestResult> {
+    return this.unwrap<ModelTestResult>(await this.post("/models/test", req));
   }
 }
