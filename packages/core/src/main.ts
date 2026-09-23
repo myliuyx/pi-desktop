@@ -47,6 +47,7 @@ const boot = createCoreRuntime({
   agentDir: process.env.CORE_AGENT_DIR,
   modelsPath: process.env.CORE_MODELS_PATH,
   shellPath: process.env.CORE_SHELL_PATH,
+  modelProvider: process.env.CORE_MODEL_PROVIDER,
   modelId: process.env.PI_MODEL,
   // C3：信任门提问等待上限（默认 120s，超时按「不信任」收尾）；测试用小值验证超时语义
   trustTimeoutMs: process.env.CORE_TRUST_TIMEOUT_MS ? Number(process.env.CORE_TRUST_TIMEOUT_MS) : undefined,

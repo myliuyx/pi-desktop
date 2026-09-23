@@ -168,6 +168,21 @@ function resolveModelsPath(agentDir: string, envModelsPath?: string): string {
 	);
 }
 
+/** 读 settings.json 的 defaultProvider/defaultModel（Pi 既有字段）；缺失/损坏返回 null */
+function readDefaultModel(agentDir: string): { provider: string; modelId: string } | null {
+	try {
+		const parsed = JSON.parse(fs.readFileSync(path.join(agentDir, "settings.json"), "utf8")) as {
+			defaultProvider?: unknown;
+			defaultModel?: unknown;
+		};
+		const provider = typeof parsed.defaultProvider === "string" ? parsed.defaultProvider : "";
+		const modelId = typeof parsed.defaultModel === "string" ? parsed.defaultModel : "";
+		return provider && modelId ? { provider, modelId } : null;
+	} catch {
+		return null;
+	}
+}
+
 export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstrap {
 	const agentDir = opts.agentDir ?? path.join(os.homedir(), ".pi", "agent");
 	fs.mkdirSync(agentDir, { recursive: true });
@@ -245,16 +260,32 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 
 	const ready = (async (): Promise<void> => {
 		const modelsPath = resolvedModelsPath ?? resolveModelsPath(agentDir, opts.modelsPath);
-		const apiKey = opts.apiKey ?? process.env.ARK_API_KEY;
-		if (!apiKey) throw new Error("ARK_API_KEY 未设置（core 仅经 env 注入，绝不写进文件）");
-
 		const runtime = await ModelRuntime.create({ modelsPath });
-		await runtime.setRuntimeApiKey("ark-coding", apiKey);
-		const model = runtime.getModel(
-			opts.modelProvider ?? "ark-coding",
-			opts.modelId ?? process.env.PI_MODEL ?? "deepseek-v4-flash",
-		);
-		if (!model) throw new Error("模型未解析到（检查 models.json 与 provider/model id）");
+
+		/*
+		 * 初始模型解析（不再硬编码 ark-coding/deepseek-v4-flash）：
+		 *   显式指定（opts.modelProvider / PI_MODEL）> settings.json 的 defaultProvider/defaultModel
+		 *   > 可用快照（已配置凭证）第一个。
+		 * apiKey 变为**可选**：显式注入（opts.apiKey / ARK_API_KEY）仅用于 `$ARK_API_KEY`
+		 *   插值场景；否则直接依赖 models.json 内联凭证（Pi 原生能力）。
+		 */
+		const fallback = readDefaultModel(agentDir);
+		const provider = opts.modelProvider ?? fallback?.provider;
+		const modelId = opts.modelId ?? process.env.PI_MODEL ?? fallback?.modelId;
+		const snapshot = runtime.getAvailableSnapshot();
+
+		let model = provider && modelId ? runtime.getModel(provider, modelId) : undefined;
+		if (!model && modelId) model = snapshot.find((m) => m.id === modelId);
+		if (!model) model = snapshot[0];
+		if (!model) {
+			throw new Error(
+				"没有可用模型：请在 models.json 配置至少一个带凭证的 Provider（或在 settings.json 设 defaultProvider/defaultModel）",
+			);
+		}
+
+		const apiKey = opts.apiKey ?? process.env.ARK_API_KEY;
+		if (apiKey) await runtime.setRuntimeApiKey(model.provider, apiKey);
+
 		modelRuntime = runtime;
 		activeModel = model;
 
