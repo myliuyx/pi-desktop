@@ -21,7 +21,8 @@
 
 | 文档 | 什么时候读 |
 |---|---|
-| [`task-M6-C3-C5.md`](./task-M6-C3-C5.md) | **M6 第二阶段（C3–C5）规格书，执行方开工前必读**——授权闭环 + 信任门 A3（C3）/ 会话列表与加载（C4）/ 04·05 屏接真数据（C5）的接口契约与判据；分 Wave-3、Wave-4 两波派发 |
+| [`task-M6-C6.md`](./task-M6-C6.md) | **M6 第三阶段（C6 收尾）规格书**——三条遗留归置（工具开关接 Pi / continue-recent 限时评估 / 分支 UI 记后期）+ `probe:c6` 全链路端到端终验 + 文档收口 |
+| [`task-M6-C3-C5.md`](./task-M6-C3-C5.md) | **M6 第二阶段（C3–C5）规格书**（已完成并通过复核）
 | [`task-M6-C0-C2.md`](./task-M6-C0-C2.md) | **M6 第一阶段（C0–C2）规格书**（已完成并通过复核）
 | [`survey/S6-integration-design.md`](./survey/S6-integration-design.md) | **动 `packages/core` 的实现蓝图（S6 汇总，唯一开工入口）**——总体架构、core 模块规划、AgentTransport/AgentEvent 契约定稿（含三条实测修订）、mock 去留统一裁决（全保留+URL 参数惯例）、安全五条、C0–C6 落地顺序（~24h，建议立项 M6，**预算待拍板**）、开工前置与未验清单 |
 | [`decision-rulings-2026-09-23.md`](./decision-rulings-2026-09-23.md) | **core 的信任门与授权中断设计前必读（两条均已裁决 2026-09-23）**——A 扩展信任门：**A3 跟随 Pi**（归因已实证：信任门是 `reload({resolveProjectTrust})` 显式两段式，SDK 默认绕过）；B 拒绝后重试：**暂不做**，Pi 有公开 `abort()`、后期扩展零障碍；B2 拒绝理由明示随 core 顺手带上 |
