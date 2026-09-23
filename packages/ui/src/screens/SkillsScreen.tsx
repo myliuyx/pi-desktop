@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import { Blocks, Database, FileText, MessageSquare, Package, Pencil, Sparkles, Terminal } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { isMcpEnabled } from "@/lib/feature-flags";
+import { isLiveEnabled, isMcpEnabled } from "@/lib/feature-flags";
+import { getLiveTransport } from "@/services/live-transport";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { SidebarFooter } from "@/components/shell/SidebarFooter";
 import { WindowShell } from "@/components/shell/WindowShell";
@@ -14,8 +16,10 @@ import {
   SKILL_GROUPS,
   TOOL_ENTRIES,
   type SkillCategory,
+  type SkillGroup,
   type ToolName,
 } from "@/mock/skills";
+import type { ResourcesPayload } from "@/mock/types";
 import { useUiStore } from "@/store/ui-store";
 
 /**
@@ -62,10 +66,49 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
   const enabledTools = useUiStore((state) => state.enabledTools);
   const toggleTool = useUiStore((state) => state.toggleTool);
 
+  /*
+   * ★ C5：live 形态下「技能列表」用 core 的真实三类数据（`GET /resources`）。
+   *
+   * 关键取舍：**分组结构（三个分组、label/note/顺序、testid）从 mock 的 SKILL_GROUPS 派生**，
+   * 只把 `entries` 换成真实条目 —— 这样 04 屏的 DOM 契约与默认形态完全同构
+   * （验收 4-2 读的是 `skill-group` / `skill-item` / `skill-group-count` 的 dataset），
+   * 真实数据不该带来第二套结构。
+   *
+   * 拉取放在组件挂载时（本屏被路由到才有意义），失败只记日志、不回退成假数据
+   * （宁可显示空分组，也不在 live 形态下拿 mock 顶替 —— 那是误导）。
+   */
+  const live = isLiveEnabled();
+  const [liveResources, setLiveResources] = useState<ResourcesPayload | null>(null);
+  useEffect(() => {
+    if (!live) return;
+    const transport = getLiveTransport();
+    if (!transport) return;
+    let alive = true;
+    void transport
+      .listResources()
+      .then((payload) => {
+        if (alive) setLiveResources(payload);
+      })
+      .catch((e) => console.error("[live] /resources 失败:", e));
+    return () => {
+      alive = false;
+    };
+  }, [live]);
+
+  const groups: SkillGroup[] = liveResources ? groupsFromResources(liveResources) : SKILL_GROUPS;
+
   const enabledCount = TOOL_ENTRIES.filter((t) => enabledTools[t.name]).length;
-  const skillTotal = SKILL_GROUPS.reduce((n, g) => n + g.entries.length, 0);
-  /** MCP 区块开关（默认关；`?mcp=1` 打开，供验收回归）—— 见 @/lib/feature-flags */
+  const skillTotal = groups.reduce((n, g) => n + g.entries.length, 0);
+  /** MCP 区块开关（默认关；`?mcp=1` 打开，供验收回归）—— 见 @/lib/feature-flags。**不因 live 而开启** */
   const mcpEnabled = isMcpEnabled();
+  /*
+   * 信任门说明：口径见 `core/src/resources.ts` —— 未信任时 Pi 压根不加载项目本地资源，
+   * 所以判据是「这个目录本来就有需要信任的资源 且 本次未信任」（`projectTrustBlocked`），
+   * 不是「过滤前后条数差」（那个恒为 0，写出来只会是误导性的 0 条）。
+   */
+  const filteredNote = live && liveResources?.projectTrustBlocked
+    ? "本目录含需要信任的项目本地扩展/技能，本次未信任 ⇒ 未加载也未列出（信任结论可在首次打开时确认）"
+    : null;
 
   return (
     <WindowShell os={os} title="技能与工具" onOpenSettings={onOpenSettings}>
@@ -77,6 +120,7 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
           subtitle={
             <span>
               技能 {skillTotal} 条 · 工具 {enabledCount}/{TOOL_ENTRIES.length} 开启
+              {live ? " · 真实数据（core /resources）" : null}
               {/* MCP 摘要随区块一起门控，避免关闭时出现「MCP 4 个服务器」却看不到列表的自相矛盾 */}
               {mcpEnabled ? ` · MCP ${COMPOSER_MCP_SERVERS.length} 个服务器` : null}
             </span>
@@ -90,8 +134,17 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
             title="技能列表"
             note="对应 Pi 的 get_commands 三类：extension / prompt / skill"
           >
+            {/* 信任门过滤的说明只在「确实过滤了东西」时出现（live 形态） */}
+            {filteredNote ? (
+              <p
+                data-testid="resources-trust-note"
+                className="mb-3 rounded-md border border-warning bg-warning-soft px-3 py-2 text-xs text-warning"
+              >
+                {filteredNote}
+              </p>
+            ) : null}
             <div className="flex min-w-0 flex-col" style={{ gap: 16 }}>
-              {SKILL_GROUPS.map((group) => (
+              {groups.map((group) => (
                 <SkillGroupBlock
                   key={group.category}
                   category={group.category}
@@ -194,6 +247,30 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
       </ScreenArea>
     </WindowShell>
   );
+}
+
+/* ---------------------------------------------------------------------------
+ * C5 · `/resources` 载荷 → 04 屏的分组结构
+ *
+ * 只替换 `entries`：`label` / `note` / 分组顺序 / `category` 全部沿用 `SKILL_GROUPS`
+ * —— 04 屏的 DOM 结构与默认形态**完全同构**（分组数 3、每组都有条数标记、testid 不变）。
+ * ------------------------------------------------------------------------- */
+
+function groupsFromResources(resources: ResourcesPayload): SkillGroup[] {
+  const byCategory: Record<SkillCategory, ResourcesPayload["extensions"]> = {
+    extension: resources.extensions ?? [],
+    prompt: resources.prompts ?? [],
+    skill: resources.skills ?? [],
+  };
+  return SKILL_GROUPS.map((group) => ({
+    ...group,
+    entries: byCategory[group.category].map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      description: entry.description,
+      source: entry.source,
+    })),
+  }));
 }
 
 /* ---------------------------------------------------------------------------

@@ -1,5 +1,8 @@
+import { useEffect, useState } from "react";
 import { FolderOpen, Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { isLiveEnabled } from "@/lib/feature-flags";
+import { getLiveTransport } from "@/services/live-transport";
 import { SETTINGS_GROUP_HEADER_MIN_HEIGHT, SETTINGS_LABEL_WIDTH } from "@/lib/layout";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { SidebarFooter } from "@/components/shell/SidebarFooter";
@@ -10,6 +13,7 @@ import { Button, Chip } from "@/components/primitives";
 import { ScreenArea, ScreenBody, ScreenHeader } from "@/components/screens/ScreenLayout";
 import { Switch } from "@/components/screens/Switch";
 import { COMPOSER_MODELS, COMPOSER_THINKING_LEVELS, THINKING_LABEL } from "@/mock/composer";
+import type { ModelsPayload, ThinkingLevel } from "@/mock/types";
 import {
   PI_FIELD_NAMES,
   SESSION_SWITCHES,
@@ -49,7 +53,73 @@ export function SettingsScreen({ os = "mac", onBackToWorkbench }: SettingsScreen
   const toggleSessionSwitch = useUiStore((state) => state.toggleSessionSwitch);
   const workingDir = useUiStore((state) => state.workingDir);
 
-  const currentModel = COMPOSER_MODELS.find((m) => m.id === modelId) ?? COMPOSER_MODELS[0];
+  /*
+   * ★ C5：live 形态下「模型」「思考强度」两组用 core 的真实数据（`GET /models`），并且
+   * 点击即经 `POST /models/select` / `POST /thinking` 写回 core 的 `settings.json`。
+   *
+   * 显示口径（两个刻意的选择，都有实测依据）：
+   * 1. **模型清单**：用 `/models.models`（= Pi 的 `getAvailableSnapshot()`，即「有凭证可用」的模型），
+   *    取不到时（mock 形态 / 会话未就绪）回落 `COMPOSER_MODELS`；
+   * 2. **激活的思考档位**：优先用 `settings.json` 里的 `defaultThinkingLevel`（用户所选），
+   *    而不是 `thinkingLevel`（生效值 —— 会被模型能力夹取：本机 `reasoning:false` 恒为 off）。
+   *    否则用户点了「High」而界面纹丝不动，正是 C3 记过的「点了没反应」陷阱。
+   */
+  const live = isLiveEnabled();
+  const [liveModels, setLiveModels] = useState<ModelsPayload | null>(null);
+  const [liveError, setLiveError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!live) return;
+    const transport = getLiveTransport();
+    if (!transport) return;
+    let alive = true;
+    void transport
+      .listModels()
+      .then((payload) => {
+        if (alive) setLiveModels(payload);
+      })
+      .catch((e) => {
+        console.error("[live] /models 失败:", e);
+        if (alive) setLiveError(String(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [live]);
+
+  const models = live && liveModels && liveModels.models.length > 0 ? liveModels.models : COMPOSER_MODELS;
+  const activeModelId = live ? (liveModels?.current?.modelId ?? "") : modelId;
+  const activeThinking: ThinkingLevel | null = live
+    ? ((liveModels?.settings.thinkingLevel ?? liveModels?.thinkingLevel ?? null) as ThinkingLevel | null)
+    : thinkingLevel;
+
+  const currentModel =
+    models.find((m) => m.id === activeModelId) ?? models[0] ?? COMPOSER_MODELS[0];
+
+  const selectModel = (provider: string, id: string) => {
+    setModelId(id);
+    const transport = getLiveTransport();
+    if (!transport) return;
+    void transport
+      .setModel(provider, id)
+      .then(setLiveModels)
+      .catch((e) => {
+        console.error("[live] setModel 失败:", e);
+        setLiveError(String(e));
+      });
+  };
+
+  const selectThinking = (level: ThinkingLevel) => {
+    setThinkingLevel(level);
+    const transport = getLiveTransport();
+    if (!transport) return;
+    void transport
+      .setThinkingLevel(level)
+      .then(setLiveModels)
+      .catch((e) => {
+        console.error("[live] setThinkingLevel 失败:", e);
+        setLiveError(String(e));
+      });
+  };
 
   return (
     <WindowShell os={os} title="设置" onOpenSettings={() => {}}>
@@ -60,9 +130,10 @@ export function SettingsScreen({ os = "mac", onBackToWorkbench }: SettingsScreen
           title="设置"
           subtitle={
             <span>
-              当前模型 {currentModel.label} · 思考 {THINKING_LABEL[thinkingLevel]} · 主题{" "}
+              当前模型 {currentModel.label} · 思考 {THINKING_LABEL[activeThinking ?? thinkingLevel]} · 主题{" "}
               {theme === "dark" ? "深色" : "浅色"}
               {themeSource === "system" ? "（跟随系统）" : ""}
+              {live ? " · 真实数据（core /models）" : null}
             </span>
           }
           onBackToWorkbench={onBackToWorkbench}
@@ -76,17 +147,18 @@ export function SettingsScreen({ os = "mac", onBackToWorkbench }: SettingsScreen
             note={`对齐 Pi 的 ${PI_FIELD_NAMES.model}`}
           >
             <ul data-testid="settings-model-list" className="min-w-0 overflow-hidden rounded-lg border border-border-subtle bg-bg-surface">
-              {COMPOSER_MODELS.map((model) => {
-                const active = model.id === modelId;
+              {models.map((model) => {
+                const active = model.id === activeModelId;
                 return (
-                  <li key={model.id} className="border-t border-border-subtle first:border-t-0">
+                  <li key={`${model.provider}:${model.id}`} className="border-t border-border-subtle first:border-t-0">
                     <button
                       type="button"
                       data-testid="settings-model-option"
                       data-model-id={model.id}
+                      data-model-provider={model.provider}
                       data-active={active}
                       aria-pressed={active}
-                      onClick={() => setModelId(model.id)}
+                      onClick={() => selectModel(model.provider, model.id)}
                       className={cn(
                         "flex w-full min-w-0 items-center gap-3 px-3 py-2.5 text-left",
                         "transition-colors duration-150 ease-out",
@@ -117,6 +189,15 @@ export function SettingsScreen({ os = "mac", onBackToWorkbench }: SettingsScreen
                 );
               })}
             </ul>
+            {live && liveModels ? (
+              <p className="mt-2 text-xs text-text-tertiary">
+                可用模型 {liveModels.models.length} 个 · 持久化：
+                <code className="ml-1 font-mono">
+                  {liveModels.settings.provider ?? "-"}/{liveModels.settings.modelId ?? "-"}
+                </code>
+                {liveError ? ` · 最近一次操作报错：${liveError}` : null}
+              </p>
+            ) : null}
           </SettingsGroup>
 
           {/* ② 思考强度 —— 对齐 set_thinking_level */}
@@ -127,7 +208,7 @@ export function SettingsScreen({ os = "mac", onBackToWorkbench }: SettingsScreen
           >
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               {COMPOSER_THINKING_LEVELS.map((level) => {
-                const active = level === thinkingLevel;
+                const active = level === activeThinking;
                 return (
                   <Chip
                     key={level}
@@ -136,13 +217,20 @@ export function SettingsScreen({ os = "mac", onBackToWorkbench }: SettingsScreen
                     data-active={active}
                     variant={active ? "accent" : "neutral"}
                     selected={active}
-                    onClick={() => setThinkingLevel(level)}
+                    onClick={() => selectThinking(level)}
                   >
                     {THINKING_LABEL[level]}
                   </Chip>
                 );
               })}
             </div>
+            {live && liveModels ? (
+              <p className="mt-2 text-xs text-text-tertiary">
+                当前模型支持档位：
+                <code className="ml-1 font-mono">{liveModels.availableThinkingLevels.join(" / ") || "-"}</code>
+                {` · 持久化档位：${liveModels.settings.thinkingLevel ?? "-"}`}
+              </p>
+            ) : null}
           </SettingsGroup>
 
           {/* ③ 会话 —— 对齐 SettingsManager.autoCompact / autoRetry */}

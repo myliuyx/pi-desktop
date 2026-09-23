@@ -1,0 +1,273 @@
+{
+  "origin": "http://127.0.0.1:5195",
+  "startedAt": "2026-09-23T06:22:37.017Z",
+  "steps": [
+    {
+      "name": "04 屏 DOM 快照",
+      "value": {
+        "groups": [
+          {
+            "category": "extension",
+            "count": 1,
+            "entries": [
+              {
+                "name": "demo-extension",
+                "text": "demo-extension\n0 工具 · 1 命令\n用户目录"
+              }
+            ]
+          },
+          {
+            "category": "prompt",
+            "count": 1,
+            "entries": [
+              {
+                "name": "/demo-prompt",
+                "text": "/demo-prompt\nC5 夹具提示词（全局/user scope），用于验"
+              }
+            ]
+          },
+          {
+            "category": "skill",
+            "count": 1,
+            "entries": [
+              {
+                "name": "demo-skill",
+                "text": "demo-skill\nC5 夹具技能（全局/user scope），用于验证 g"
+              }
+            ]
+          }
+        ],
+        "counts": [
+          {
+            "type": "extension",
+            "text": "1 条"
+          },
+          {
+            "type": "prompt",
+            "text": "1 条"
+          },
+          {
+            "type": "skill",
+            "text": "1 条"
+          }
+        ],
+        "subtitle": "技能与工具 技能 3 条 · 工具 4/4 开启 · 真实数据（core /resources） 返回工作台",
+        "mcpPresent": false,
+        "trustNotePresent": false,
+        "mockEntryPresent": false
+      }
+    },
+    {
+      "name": "04 屏 ?mcp=1 快照",
+      "value": {
+        "servers": [
+          "FileSystem",
+          "Git",
+          "Database",
+          "WebSearch"
+        ],
+        "note": "MCP 是本项目的自建能力 —— Pi 不内置 MCP。此区块展示我们自行实现的服务器接入位，接入 Pi 时需在本项目侧"
+      }
+    },
+    {
+      "name": "05 屏 DOM 快照",
+      "value": {
+        "opts": [
+          {
+            "id": "deepseek-v4-flash",
+            "provider": "ark-coding",
+            "active": "true",
+            "text": "deepseek-v4-flash ark-coding · deepseek-v4-flash 已选"
+          },
+          {
+            "id": "deepseek-v4-pro",
+            "provider": "ark-coding-alt",
+            "active": "false",
+            "text": "DeepSeek V4 Pro (fixture) ark-coding-alt · deepseek-v4-pro 选择"
+          }
+        ],
+        "chips": [
+          {
+            "level": "low",
+            "active": "false"
+          },
+          {
+            "level": "high",
+            "active": "false"
+          },
+          {
+            "level": "max",
+            "active": "false"
+          }
+        ],
+        "subtitle": "设置 当前模型 deepseek-v4-flash · 思考 Off · 主题 浅色（跟随系统） · 真实数据（core /models） 返回工作台"
+      }
+    },
+    {
+      "name": "切换模型后（UI 激活态 / settings.json / core 端点）",
+      "value": {
+        "已点击": true,
+        "settings文件": {
+          "defaultProjectTrust": "never",
+          "defaultProvider": "ark-coding-alt",
+          "defaultModel": "deepseek-v4-pro"
+        },
+        "core_current": {
+          "provider": "ark-coding-alt",
+          "modelId": "deepseek-v4-pro"
+        },
+        "core_settings": {
+          "provider": "ark-coding-alt",
+          "modelId": "deepseek-v4-pro",
+          "thinkingLevel": null
+        }
+      }
+    },
+    {
+      "name": "切换思考档位后",
+      "value": {
+        "已点击": true,
+        "settings文件": {
+          "defaultProjectTrust": "never",
+          "defaultProvider": "ark-coding-alt",
+          "defaultModel": "deepseek-v4-pro",
+          "defaultThinkingLevel": "high"
+        },
+        "core_settings": {
+          "provider": "ark-coding-alt",
+          "modelId": "deepseek-v4-pro",
+          "thinkingLevel": "high"
+        },
+        "chips": [
+          {
+            "level": "low",
+            "active": "false"
+          },
+          {
+            "level": "high",
+            "active": "true"
+          },
+          {
+            "level": "max",
+            "active": "false"
+          }
+        ]
+      }
+    },
+    {
+      "name": "core 端 /resources 原始载荷（对照基线）",
+      "value": {
+        "extensions": [
+          "demo-extension"
+        ],
+        "prompts": [
+          "/demo-prompt"
+        ],
+        "skills": [
+          "demo-skill"
+        ],
+        "trust": {
+          "trusted": true,
+          "reason": "no-project-resources"
+        },
+        "projectTrustBlocked": false
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "C5[04屏] live 用真实三类资源（分组 3 个且各 ≥1 条）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "分组数3": true,
+        "扩展组至少1": true,
+        "提示词组至少1": true,
+        "技能组至少1": true,
+        "扩展组含夹具": true,
+        "提示词组含夹具": true,
+        "技能组含夹具": true
+      }
+    },
+    {
+      "name": "C5[04屏] 条目来自 core（来源标记「用户目录」；mock 独有条目未出现）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "来源为用户目录": true,
+        "无mock条目": true,
+        "条数标记与条目数一致": true
+      }
+    },
+    {
+      "name": "C5[04屏] MCP 区块默认仍不渲染（未带 ?mcp=1）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "mcp未渲染": true,
+        "副标题不含MCP": true,
+        "信任门说明未出现_本目录无可信任资源": true
+      }
+    },
+    {
+      "name": "C5[04屏] ?mcp=1 时 MCP 区块照旧渲染（既有验收 4-4 不受影响）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "服务器4个": true,
+        "含自建能力说明": true
+      }
+    },
+    {
+      "name": "C5[05屏] live 模型清单来自 core（≥2 条、providers 命中 core 侧、无 mock 供应商）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "条数至少2": true,
+        "含arkCoding": true,
+        "含alt": true,
+        "无mock供应商": true,
+        "与端点条数一致": true
+      }
+    },
+    {
+      "name": "C5[05屏] 思考档位芯片仍是 mock 契约的 3 档（Low/High/Max，未因 live 改结构）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "三档": true,
+        "档位值不变": true,
+        "无mock之外的档位": true,
+        "初始无激活_未持久化": true
+      }
+    },
+    {
+      "name": "C5[05屏] 切换模型：UI 激活态切到目标 + core 侧 settings.json 实写新值",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已点击": true,
+        "文件defaultProvider为alt": true,
+        "文件defaultModel为alt": true,
+        "端点current同步": true
+      }
+    },
+    {
+      "name": "C5[05屏] 切换思考档位：core 侧 settings.json 实写 defaultThinkingLevel",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "已点击": true,
+        "文件defaultThinkingLevel为high": true,
+        "端点settings同步": true,
+        "UI激活态在high": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 8,
+    "passed": 8,
+    "failed": 0,
+    "failedNames": []
+  }
+}

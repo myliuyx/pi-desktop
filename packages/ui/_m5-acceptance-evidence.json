@@ -1,11 +1,11 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-23T05:58:06.733Z",
+  "startedAt": "2026-09-23T06:26:27.916Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 61,
+        "扫描文件数": 62,
         "hex在tokens之外": [],
         "dark变体命中": [],
         "内置调色板命中": [],
@@ -493,14 +493,14 @@
           "testid": "titlebar-toggle-sidebar",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(45, 77, 169)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
           "testid": "titlebar-toggle-theme",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(45, 77, 169)",
           "focusVisible": true
         },
         {
@@ -514,7 +514,7 @@
           "testid": "titlebar-toggle-preview",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(40, 66, 140)",
           "focusVisible": true
         },
         {
@@ -535,7 +535,7 @@
           "testid": "sidebar-history-item-0",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(40, 66, 140)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
@@ -549,7 +549,7 @@
           "testid": "sidebar-history-item-2",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(73, 100, 174)",
           "focusVisible": true
         },
         {
@@ -577,14 +577,14 @@
           "testid": "sidebar-history-item-6",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-history-item-7",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(62, 99, 206)",
+          "outlineColor": "rgb(73, 100, 174)",
           "focusVisible": true
         }
       ]
