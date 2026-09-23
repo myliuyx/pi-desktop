@@ -73,7 +73,10 @@ export interface TerminalBlock {
 /** ← Extension UI Protocol 的 `select` / `confirm` 请求-响应 */
 export interface ApprovalBlock {
   type: "approval";
-  /** 对应授权请求 id */
+  /**
+   * 授权请求 id —— **由 core 生成**（`crypto.randomUUID()`，照 Pi `rpc-mode.ts:99`）。
+   * Pi SDK 模式不产生 id，所以别把它当成 Pi 给的（S3 §五 C 的注释修订）。
+   */
   requestId: string;
   title: string;
   message?: string;
@@ -81,6 +84,12 @@ export interface ApprovalBlock {
   options: string[];
   /** 有值即表示已决（UI 乐观写入；Pi 不回显结果） */
   resolved?: string;
+  /**
+   * C3 新增（可选，既有 mock 数据不填 → 行为不变）：
+   * 请求自带的超时毫秒数。UI 据此渲染倒计时与「已超时」失效态 ——
+   * Pi 到点会自行以默认值收尾，用户再点会被静默丢弃（S3 §3.2「点了没反应」）。
+   */
+  timeoutMs?: number;
 }
 
 export interface PlanStep {

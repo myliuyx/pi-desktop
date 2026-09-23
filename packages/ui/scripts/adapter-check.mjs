@@ -185,6 +185,37 @@ function blocksOfType(state, type) {
 	check("[tool-error] 被拒调用不破坏流式上下文", s.currentAssistantId !== null, true);
 }
 
+/* -------------------------------------------------------------------------
+ * 七、C3 新增：授权请求的超时字段要透传到 Block（卡片的倒计时/失效态据此渲染）
+ *     —— 只增不改：以上各节的期望值一行未动。
+ * ---------------------------------------------------------------------- */
+{
+	let s = createDraft();
+	s = applyEvent(s, { type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "在处理中…" }] } });
+	s = applyEvent(s, {
+		type: "approval_request",
+		requestId: "r2",
+		method: "select",
+		title: "允许执行命令？",
+		options: ["允许", "拒绝"],
+		timeoutMs: 4000,
+	});
+	const block = s.messages[s.messages.length - 1].blocks.at(-1);
+	check("[approval] 请求带 timeoutMs 时透传到 Block（倒计时数据源）", block.timeoutMs, 4000);
+
+	// 不带 timeoutMs 的请求（既有 mock 形态）→ 字段不落块，卡片不渲染倒计时
+	let s2 = createDraft();
+	s2 = applyEvent(s2, { type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "x" }] } });
+	s2 = applyEvent(s2, { type: "approval_request", requestId: "r3", method: "confirm", title: "t", options: ["允许", "拒绝"] });
+	const block2 = s2.messages[s2.messages.length - 1].blocks.at(-1);
+	check("[approval] 未带 timeoutMs 时不写字段（mock 行为不变）", block2.timeoutMs, undefined);
+
+	// 结算 → resolution 乐观写入，且 timeoutMs 保留（已决卡片停表）
+	s = applyEvent(s, { type: "approval_settled", requestId: "r2", resolution: "cancelled" });
+	const settled2 = s.messages[s.messages.length - 1].blocks.at(-1);
+	check("[approval] 超时结算写 resolved=cancelled 且保留 timeoutMs", [settled2.resolved, settled2.timeoutMs], ["cancelled", 4000]);
+}
+
 /* ---------------------------------------------------------------------- */
 if (fails.length > 0) {
 	console.error(`\n适配层断言失败 ${fails.length} 项：`);

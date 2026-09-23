@@ -131,6 +131,8 @@ export class HttpAgentTransport implements AgentTransport {
   }
 
   cancelApproval(requestId: string): Promise<void> {
-    return this.post("/approve", { requestId, choice: "__cancel__" }) as Promise<void>;
+    // C3：独立端点（不再借用 /approve 的保留值）—— core 侧分辨「取消」与「拒绝」两种语义：
+    // 取消会让扩展读到「用户取消」（select → undefined / confirm → false），与选某个选项不同。
+    return this.post("/cancel-approval", { requestId }) as Promise<void>;
   }
 }
