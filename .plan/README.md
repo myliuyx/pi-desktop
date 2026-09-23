@@ -1,7 +1,9 @@
 # 文档索引（唯一入口）
 
-> 最后更新：2026-09-22
+> 最后更新：2026-09-23
 > **当前阶段**：纯 UI 原型 M0–M5 已全部完成并通过验收（8 屏六路由可演示），进入 **Pi 对接阶段**。
+> **部署形态已裁决（2026-09-23）**：**本地起一个服务 + 浏览器访问，不涉及云端**；默认只绑 `127.0.0.1`，
+> `0.0.0.0`（内网可访问）作为显式开关另议。**Electron 降级为可选外壳**（保留与否暂缓，不阻塞任何当前工作）。
 > 本文件是文档的唯一入口。**新增文档必须登记到这里，否则视为不存在。**
 
 ---
@@ -19,6 +21,11 @@
 
 | 文档 | 什么时候读 |
 |---|---|
+| [`survey/S6-integration-design.md`](./survey/S6-integration-design.md) | **动 `packages/core` 的实现蓝图（S6 汇总，唯一开工入口）**——总体架构、core 模块规划、AgentTransport/AgentEvent 契约定稿（含三条实测修订）、mock 去留统一裁决（全保留+URL 参数惯例）、安全五条、C0–C6 落地顺序（~24h，建议立项 M6，**预算待拍板**）、开工前置与未验清单 |
+| [`decision-rulings-2026-09-23.md`](./decision-rulings-2026-09-23.md) | **core 的信任门与授权中断设计前必读（两条均已裁决 2026-09-23）**——A 扩展信任门：**A3 跟随 Pi**（归因已实证：信任门是 `reload({resolveProjectTrust})` 显式两段式，SDK 默认绕过）；B 拒绝后重试：**暂不做**，Pi 有公开 `abort()`、后期扩展零障碍；B2 拒绝理由明示随 core 顺手带上 |
+| [`spike-core-2026-09-23.md`](./spike-core-2026-09-23.md) | **动 core 实现前必读**——纯 Node + SDK + `uiContext` + HTTP/SSE 已实测跑通；含**两条必须裁决项**（项目本地扩展的信任门⚠️安全、拒绝授权后的重试循环）与三处被推翻的判断 |
+| [`survey/S2-sessions.md`](./survey/S2-sessions.md) | **动会话列表 / `loadSession` / Sidebar 前必读**——Pi 的 `SessionManager` 现成 API 清单、`SessionInfo`→`SessionSummary` 映射、**「加载历史 ≠ 重放事件」这条新增工作量**、两个验收入口的去留 |
+| [`survey/S3-tool-approval.md`](./survey/S3-tool-approval.md) | **动 core 的授权/终端链路前必读**——授权通道真实形态（core 实现 `ExtensionUIContext` 而非解析事件）、`hasUI` 陷阱、幂等语义实证、终端卡片字段来源、两个真实缺口 |
 | [`survey/S4-transport-decision.md`](./survey/S4-transport-decision.md) | **动 core 包前必读**——传输层选型结论（独立 core 进程 + HTTP/SSE）、`AgentTransport` 接口草案、四个必做设计点 |
 | [`survey/S1-event-mapping.md`](./survey/S1-event-mapping.md) | **写适配层前必读**——Pi 事件→Block 映射表、实测与文档的三处不一致、对 chat-store 的冲击 |
 | [`survey/S0-our-contract.md`](./survey/S0-our-contract.md) | 梳理 Pi 的靶子——我们这侧冻结的契约：Block 六型字段、chat-store 五方法语义、92 个 testid 清单 |
@@ -30,6 +37,7 @@
 
 | 文档 | 什么时候读 |
 |---|---|
+| [`engineering-pitfalls.md`](./engineering-pitfalls.md) | 写/改**验收脚本**时、改**布局与 `cn()` 工具类**时、要**从上游类型推断字段形状**时——9 条教训 + 7 条脚本规则（2026-09-23 从 MEMORY.md 迁出，因 MEMORY 有注入体积上限） |
 | [`ui-rulings.md`](./ui-rulings.md) | 改布局或交互前——**防回退台账**，记录 R1–R10 逐条裁决 |
 | [`screens.md`](./screens.md) | 需要 8 屏定义、组件清单、mock 数据结构时 |
 | [`design-tokens.md`](./design-tokens.md) | 动颜色/令牌时。颜色唯一来源仍是 `packages/ui/src/styles/tokens.css` |
@@ -58,17 +66,46 @@
 - **原型**：M0–M5 全部完成并通过验收；8 屏六路由（00 令牌 / 01 工作台含源码态 / 03 运行详情 /
   04 技能与工具 / 05 设置 / 06 窗口壳）全部可演示
 - **工时**：净工时 69.5h 用尽，**14h 缓冲未动用**
-- **Pi 侧**：依赖已装、构建已通、POC 四步全过（Electron 44.4.3 内真实会话跑通）
+- **Pi 侧**：依赖已装、构建已通、POC 四步全过（Electron 44.4.3 内真实会话跑通）；
+  **部署形态已定为「本地服务 + 浏览器」**，故 POC 的 asar 打包风险已移出关键路径
 - **适配层已落地**：`packages/ui/src/adapter/`（`pi-events` / `from-pi` / `reduce`），
   带状态纯 reducer；`npm run check:adapter` = 24 项断言（真实会话 dump 回放）
-- **已完成的梳理**：S0 我方契约 / S1 事件映射 / S4 传输层选型（均见 `survey/`）；
-  剩 S2 会话持久化、S3 授权闭环、S5 自建能力、S6 汇总
-- **下一个建议做 S3**：授权应答是唯一需要在 transport 上开**反向通道**的能力，
-  而 S4 的接口草案尚未包含它，早做可避免 core 接口返工
+- **已完成的梳理**：S0 契约 / S1 事件映射 / S2 会话持久化 / S3 授权闭环 / S4 传输层选型
+  / **S6 汇总**（`survey/` 六份）；**只剩 S5 自建能力（已降级为产品决策，不阻塞）**
+- **S2 已结**（`survey/S2-sessions.md`）：Pi 的 `SessionManager` 把持久化全做好了
+  （`list` / `listAll` / `open` / `continueRecent` / `findById` 全部公开），
+  `SessionInfo` → `SessionSummary` 四字段全有来源、**不用改类型**；
+  但**「加载历史会话」与「重放实时事件」是两条不同路径**，需独立写
+  `SessionEntry[] → Message[]` 映射（**原估里没有的新增工作量**）
+- **S3 已结**（`survey/S3-tool-approval.md`）：① 授权通道是「core 实现 `ExtensionUIContext`
+  接口」，**不是**消费 `extension_ui_request` 事件（后者只是 RPC 模式的序列化形式）；
+  ② `hasUI` 由「是否注入 uiContext」推导，**漏注入 ⇒ 危险命令静默 block 且 UI 无感知**；
+  ③ 工具授权是 Pi 扩展的事，我们只接界面。⚠️ 该阶段**未跑真实 dump**，补验清单见其 §八
+- **⏸ MCP 已裁决暂缓，门控已落地**：默认不渲染、`?mcp=1` 开启（`src/lib/feature-flags.ts`），
+  **恢复只需改一个返回值**。⚠️ `accept:m2`（2-11 / 2-12）与 `accept:m4`（4-4）**须带 `?mcp=1` 跑**；
+  关闭态由 `scripts/probe-mcp-gate.mjs` 守卫。处置记录见 `pi-survey-plan.md` S5
+- **★ 「自建能力」定义已收紧**：本项目是**给 Pi 套壳** —— 能力层归 Pi 的扩展生态（我们不写），
+  呈现层归我们（读 Pi 的清单画界面 + 接 Pi 的提问）。
+  04 屏「扩展 / 技能 / 提示词」三类数据 Pi 全都提供，**只有 MCP 区块没有数据源**
+- **★ core 骨架 spike 已通过（2026-09-23）**，见 `spike-core-2026-09-23.md`：
+  「纯 Node 进程 + Pi SDK + 注入 `uiContext` + HTTP/SSE」**实测跑通**（授权往返 4 次全闭环），
+  S4 选型不再是纸面结论。顺带补掉 S3 两条待验、**推翻 S3 三处判断**（`exitCode`/`output` 取值路径
+  全错，源于"从内部类型推事件形状"）。
+  **新增两条必须裁决项 → 已裁决（2026-09-23，决策单 [`decision-rulings-2026-09-23.md`](./decision-rulings-2026-09-23.md)）**：
+  ① **扩展信任门 = A3 跟随 Pi**：归因实证——信任门是 `resource-loader.ts:388-400`
+  `reload({ resolveProjectTrust })` 显式两段式，CLI 入口传了、SDK 默认绕过；
+  ⇒ core 必须显式传回调：`ask`（默认）→ 经 UI 提问、`never` → 忽略、`always` → 直接加载；
+  ② **拒绝后重试循环：暂不做**。Pi 有公开 `abort()`（`agent-session.ts:1786`），
+  「拒绝并停止」后期扩展零障碍；B2 拒绝理由明示随 core 顺手带上
+- **下一步：按 [`survey/S6-integration-design.md`](./survey/S6-integration-design.md) 动 `packages/core`**
+  —— 梳理期 S0–S4、S6 全部完成（S5 已降级为产品决策）；开工顺序 C0→C6、预算 ~24h
+  建议**立项 M6（Pi 对接）**，**预算需用户拍板**；开工前置已清零（`shellPath` 与「工具成功执行」dump
+  均于 2026-09-23 spike-tools 销账：事件无 `exitCode`/`truncated`，TerminalBlock 按 `isError` 表达成败）
 - **下一步（大方向）**：按 `pi-integration-points.md` 把 mock 换成真实数据链路；
   `chat-store` 五方法签名冻结，只换内部实现
-- **开工前必读**：`survey/S0-our-contract.md` → `survey/S1-event-mapping.md` → `survey/S4-transport-decision.md`
-  （三份加起来就能动手，不必通读 `.plan/`）
+- **开工前必读**：`survey/S0-our-contract.md` → `survey/S1-event-mapping.md` →
+  `survey/S4-transport-decision.md` → **`survey/S3-tool-approval.md`**（若动授权/终端链路）
+  （四份加起来就能动手，不必通读 `.plan/`）
 - **遗留（非阻断）**：06 屏缩略窗口文字不可读（有单壳全尺寸替代）、主包 520 kB、
   DEV 下 `window.__chatStore` 桩（接 Pi 时改回真实 UI 驱动）
 

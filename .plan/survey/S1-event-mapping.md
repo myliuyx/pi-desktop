@@ -148,12 +148,21 @@ export function applyEvent(state: DraftState, event: PiEvent): DraftState;
 
 ## 八、本阶段未覆盖
 
-- **授权闭环**（ApprovalBlock 的来源）：`rpc.md` 事件表里没有 `extension_ui_request`，
-  需查 `docs/extensions.md` 的 Extension UI Protocol → **S3**
+- ~~**授权闭环**（ApprovalBlock 的来源）~~ → **S3 已完成**，见 `survey/S3-tool-approval.md`。
+  **本条原表述需修正两处**：
+  ① 「`rpc.md` 事件表里没有 `extension_ui_request`」不够准确——它在 `rpc.md` **L1186-1340
+  的独立小节**「Extension UI Requests (stdout)」（`rpc-types.ts:241-291` 有完整类型），
+  只是不在**基础**事件表内；
+  ② 更关键的是：**core 走 SDK 时不消费这个事件，而是实现 `ExtensionUIContext` 接口**
+  （`types.ts:130-133`「每个 mode 提供自己的实现」；注入点 `agent-session.ts:2610-2614`）。
+  换句话说 `extension_ui_request` 是 **RPC 模式**的序列化形式，与我们无关。
 - **PlanBlock**：Pi 不内置 plan mode，需自建 → **S5**
 - **TokenUsage.contextWindow**：Pi 的 `message.usage` 无此字段（只有 input/output/cacheRead/cacheWrite/reasoning/totalTokens/cost），
   需从 `get_session_stats.contextUsage.contextWindow`（rpc.md L584-588）或 model 取 → 待定
 - **bash 在 Windows 不可用**：实测 `No bash shell found`（缺 Git Bash / MSYS2 / Cygwin，可用 `shellPath` 配置）。
   我们的桌面 app 若在 Windows 上要跑终端工具，**必须显式处理 shellPath**——否则终端卡片永远返回错误
-- `exitCode` / `truncated` / `hiddenLineCount` 的 Pi 侧来源未验
+- ~~`exitCode` / `truncated` / `hiddenLineCount` 的 Pi 侧来源未验~~ → **已验（S3 §四）**：
+  `exitCode` 与 `truncated` 在 `core/bash-executor.ts:29-40` 的 `BashResult` 里
+  （`exitCode: number | undefined`、`truncated: boolean`，另有 `cancelled` 与 `fullOutputPath`）；
+  **`hiddenLineCount` Pi 不提供**，需 core 自算或改用别的文案
 - 工具流式输出（partialResult 非空的情况）未观察到

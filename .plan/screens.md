@@ -79,7 +79,7 @@
 | 终端步骤 | `TerminalCard` | 命令 + 输出（等宽字体），可折叠，长输出截断 |
 | 授权卡片 | `ApprovalCard` | 标题 + 说明 +「允许 / 拒绝」，突出显示 |
 | 输入区 | `Composer` | 多行输入；右下角内嵌圆形发送按钮 |
-| 工具条 | `ComposerToolbar` | 模型 → 思考强度 → MCP → 弹性 → `TokenStats`（靠右） |
+| 工具条 | `ComposerToolbar` | 模型 → 思考强度 → MCP → 弹性 → `TokenStats`（靠右）。⚠️ MCP 芯片受 **MCP 暂缓**牵连，见 04 屏说明 |
 | 预览区 | `PreviewPane` | 双 Tab：预览效果 / 预览源码 |
 
 **TokenStats 规格**（设计稿第 5 轮定稿）：`bg_subtle` 圆角容器，四段用细分隔线隔开 —— `输入 12.4k` · `输出 6.2k` · `消耗 18.6k`（用 `text-primary` 高亮）· `上下文 128k`。
@@ -106,9 +106,16 @@
 
 ### 04 · 技能与工具
 
-- 技能列表（对应 Pi 的 `get_commands` 三类：extension / prompt / skill）
-- 工具列表与开关（对应 Pi 的 `tools` allowlist：read / bash / edit / write）
-- MCP 服务器列表（**Pi 不内置 MCP，此屏为自建能力的展示位**）
+- 技能列表（对应 Pi 的 `get_commands` 三类：extension / prompt / skill）。
+  **数据源已实测**（SDK 侧）：`resourceLoader.getExtensions()` / `getSkills().skills` /
+  `getPrompts().prompts` —— 见 `pi-survey-plan.md` S5
+- 工具列表与开关（对应 Pi 的 `tools` allowlist：read / bash / edit / write）。
+  实测口径：Pi 有 **8 个内置实现**、**默认只启用这 4 个**
+  （`docs/usage.md:218`、`core/agent-session.ts:2972-2974`）
+- MCP 服务器列表（**Pi 不内置 MCP，此屏为自建能力的展示位**）。
+  ⏸ **2026-09-23 裁决暂缓**：Pi 无 MCP 概念 ⇒ 该清单无数据源，继续展示 mock 数据属误导。
+  牵连面（含会打破 `accept:m2` 2-11 / `accept:m4` 4-4）与三个处置方案
+  见 `pi-survey-plan.md` S5「MCP 暂缓处置」
 
 ### 05 · 设置
 
@@ -302,7 +309,7 @@ const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 - [ ] 侧边栏底部条带**通底贴边**，左右与底部无留白、无圆角、无缝隙
 - [ ] 发送按钮在输入框**内部**右下角，圆形 28×28
 - [ ] TokenStats 靠右，四段之间细分隔线，「消耗」用 `text-primary` 高亮
-- [ ] 工具条顺序：模型 → 思考强度 → MCP → 弹性占位 → TokenStats
+- [ ] 工具条顺序：模型 → 思考强度 → MCP → 弹性占位 → TokenStats ⚠️ 对应验收 2-11，受 MCP 暂缓牵连
 - [ ] 图标在所有背景下可见（固定中性色）
 
 ### 代码质量

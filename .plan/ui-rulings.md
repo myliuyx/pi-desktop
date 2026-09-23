@@ -17,7 +17,7 @@
 
 | 轮次 | 裁决 | 落点 | 锁定 / 防回退 |
 | --- | --- | --- | --- |
-| R1 | Composer 工具条「模型 / 思考」改为**上拉菜单选择**（非循环切换）；MCP 暂不动 | 新原语 `primitives/ChipMenu.tsx` + `ComposerToolbar` 重写；真相源 `ui-store` 的 modelId/thinkingLevel | testid 兼容口径：定位 wrapper 持原 chip testid，按钮 `*-trigger` / 面板 `*-menu` |
+| R1 | Composer 工具条「模型 / 思考」改为**上拉菜单选择**（非循环切换）；MCP 暂不动（**2026-09-23 已裁决整体暂缓**，见 `pi-survey-plan.md` S5「MCP 暂缓处置」） | 新原语 `primitives/ChipMenu.tsx` + `ComposerToolbar` 重写；真相源 `ui-store` 的 modelId/thinkingLevel | testid 兼容口径：定位 wrapper 持原 chip testid，按钮 `*-trigger` / 面板 `*-menu` |
 | R2 | 菜单按供应商**分组**（组标题大写灰字 + 分隔线）；chip 箭头不裁切；思考档位带说明 | ChipMenu `groups` 形态 + Chip `trailing` 插槽；工具条溢出根治三层（`min-w-0` / `shrink-0` / 容器查询 `@min-[690px]`） | M2 2-16 口径 delta=0；TokenStats 不许被压扁——断言盯「不溢出」也盯「不被压扁」 |
 | R3 | 思考菜单选项**单行**（主文案 + 说明同基线一行） | ChipMenu 选项层 `flex items-baseline` | 选项高 ~29px 单行 |
 | R4 | **勾在行首（左）+ 中文说明右对齐** | ChipMenu 选项层勾列 invisible 占位 + `ml-auto` 说明；组标题 `pl-8` 对齐文字 | 量「文字在哪」必须 盒缘 + paddingLeft 或文本 Range，别拿盒缘对盒缘 |

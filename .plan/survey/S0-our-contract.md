@@ -29,6 +29,11 @@
 - `TokenUsage { input, output, total, contextWindow }`（L147，注释指向 `get_session_stats`）
 - `ModelOption { id, label, provider, supportsXhigh? }`（L159，注释指向 `get_available_models`）
 - `McpServer { id, name, status, toolCount }`（L168，Pi 不内置 MCP）
+  ⏸ **2026-09-23 裁决暂缓** —— Pi 无 MCP 概念（`docs/usage.md:310`），该清单在 Pi 侧无任何来源；
+  见 `pi-survey-plan.md` S5「MCP 暂缓处置」。
+  ★ 同日记：**「自建能力」的定义已收紧** —— 本项目是给 Pi 套壳，**能力层归 Pi 扩展生态（我们不写）、
+  呈现层归我们**。故 PlanBlock 这类「Pi 不内置」的 Block，我们只做**界面呈现**，
+  不实现其能力引擎。
 
 ---
 
