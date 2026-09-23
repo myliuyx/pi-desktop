@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5350",
-  "startedAt": "2026-09-23T14:28:22.310Z",
+  "startedAt": "2026-09-23T15:09:15.637Z",
   "steps": [
     {
       "name": "L1_弹窗数据源",
@@ -26,7 +26,8 @@
       "name": "L2_保存写回",
       "value": {
         "输入框现值": "ark-coding-renamed",
-        "弹窗已关闭": true,
+        "状态条": "success",
+        "保存后弹窗仍打开": true,
         "api": {
           "ok": true,
           "providers": [
@@ -151,7 +152,8 @@
           "ark-coding",
           "probe-spare"
         ],
-        "弹窗已关闭": true,
+        "状态条": "success",
+        "弹窗已关闭": false,
         "文件": {
           "providers": {
             "ark-coding": {
@@ -187,6 +189,16 @@
         "sidecar": {
           "providers": {}
         }
+      }
+    },
+    {
+      "name": "L6_模型测试",
+      "value": {
+        "结果已出现": true,
+        "text": "连接成功 · 791ms",
+        "ok": true,
+        "resultLeft": 1016.08,
+        "removeRight": 1008.08
       }
     },
     {
@@ -231,7 +243,8 @@
       "failed": [],
       "detail": {
         "输入框改到了新名字": true,
-        "保存后弹窗关闭": true,
+        "状态条为成功或警告": true,
+        "保存后弹窗保持打开": true,
         "响应ok": true,
         "API复读一致": true,
         "文件里名字同步": true,
@@ -243,11 +256,24 @@
       "pass": true,
       "failed": [],
       "detail": {
-        "保存后弹窗关闭": true,
+        "状态条为成功或警告": true,
+        "保存后弹窗保持打开": true,
         "models_json里已消失": true,
         "sidecar里也没有": true,
         "API不再列出": true,
         "剩下的那个还在": true
+      }
+    },
+    {
+      "name": "L6 「测试」发真实最小请求，且反馈显示在按钮组**右侧**（不在按钮中间）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "有反馈出现": true,
+        "真实连通成功": true,
+        "文案含连接成功": true,
+        "带延迟ms": true,
+        "结果在移除按钮右侧": true
       }
     },
     {
@@ -272,8 +298,8 @@
     }
   ],
   "summary": {
-    "assertions": 5,
-    "passed": 5,
+    "assertions": 6,
+    "passed": 6,
     "failed": 0,
     "failedNames": []
   }
