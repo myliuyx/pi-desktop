@@ -106,29 +106,29 @@ export function ModelForm({ model, providerName, onChange, onRemove, onTest }: M
           <p className="min-w-0 truncate text-xs text-text-tertiary" title={providerName}>
             {providerName}
           </p>
-          {/* 测试结果放在**左侧**（标题下方）：不进右侧按钮组，也就不会挤位、不会跑到中间 */}
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {/* 测试反馈紧贴「测试」按钮左侧（不进左栏标题区，也不越过按钮跑到中间） */}
           {testState === "success" ? (
-            <p
-              className="mt-1 flex min-w-0 items-center gap-1 text-xs text-success"
+            <span
+              className="flex min-w-0 max-w-[240px] items-center gap-1 text-xs text-success"
               data-testid="model-test-result"
             >
               <Icon icon={CheckCircle2} size={14} />
               <span className="min-w-0 truncate">
                 连接成功{testNote ? ` · ${testNote}` : ""}
               </span>
-            </p>
+            </span>
           ) : null}
           {testState === "error" ? (
-            <p
-              className="mt-1 min-w-0 truncate text-xs text-danger"
+            <span
+              className="min-w-0 max-w-[240px] truncate text-xs text-danger"
               data-testid="model-test-error"
               title={testNote}
             >
               {testNote || "连接失败"}
-            </p>
+            </span>
           ) : null}
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <Button
             size="sm"
             variant="secondary"

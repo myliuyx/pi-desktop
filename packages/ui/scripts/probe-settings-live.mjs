@@ -354,7 +354,7 @@ try {
 			? 0
 			: 1;
 
-		/* ================ L6 模型连通性测试：真实最小请求 + 结果显示在按钮组右侧 */
+		/* ================ L6 模型连通性测试：真实最小请求 + 反馈紧贴「测试」按钮左侧 */
 		// 保存不再关弹窗 ⇒ 直接接着操作：选中 ark-coding 下的真实模型行 → 点「测试」
 		await cdp.eval(
 			`(() => { const row = window.__L.q('[data-testid="model-row"][data-model-id="deepseek-v4-flash"]'); if (row) row.click(); return !!row; })()`,
@@ -387,15 +387,16 @@ try {
 			};
 		})()`);
 		ctx.record("L6_模型测试", { 结果已出现: appeared, ...testInfo });
-		failures += ctx.assert("L6 「测试」发真实最小请求，且反馈显示在**左侧**（不在按钮组里、不在中间）", {
+		failures += ctx.assert("L6 「测试」发真实最小请求，且反馈紧贴「测试」按钮左侧", {
 			有反馈出现: appeared === true,
 			真实连通成功: testInfo.ok === true,
 			文案含连接成功: (testInfo.text ?? "").includes("连接成功"),
 			带延迟ms: /\d+ms/.test(testInfo.text ?? ""),
-			结果在测试按钮左侧:
+			结果紧贴测试按钮左侧:
 				testInfo.resultRight !== null &&
 				testInfo.testBtnLeft !== null &&
-				testInfo.resultRight <= testInfo.testBtnLeft,
+				testInfo.testBtnLeft - testInfo.resultRight >= 0 &&
+				testInfo.testBtnLeft - testInfo.resultRight <= 24,
 		})
 			? 0
 			: 1;
