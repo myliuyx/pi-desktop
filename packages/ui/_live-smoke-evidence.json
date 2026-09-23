@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5188",
-  "startedAt": "2026-09-23T06:34:33.534Z",
+  "startedAt": "2026-09-23T07:44:30.657Z",
   "steps": [
     {
       "name": "live_store_已挂载",
@@ -9,41 +9,33 @@
     {
       "name": "初始消息数 / 初始 DOM assistant 条目",
       "value": {
-        "initialCount": 7,
+        "initialCount": 2,
         "initialAssistantIds": [
-          "m2",
-          "m3",
-          "m4",
-          "m5",
-          "m7"
+          "m-fb63bb27"
         ]
       }
     },
     {
       "name": "DOM 快照",
       "value": {
-        "总条目": 9,
+        "总条目": 4,
         "新增assistant条目": [
-          "a-8"
+          "a-3"
         ],
-        "新增assistant文本": "思考过程\n\nPi 是一个开源的可编程 AI 编码代理（coding agent），它运行在终端中，能自主读写文件、执行命令、调用工具，并通过可扩展的扩展系统、SDK 和提示词模板让用户深度定制自己的自动化开发工作流。",
-        "列表data-total-count": "9"
+        "新增assistant文本": "思考过程\n\nPi 是一个开源的终端 AI 编码代理（coding agent），能在终端界面中自主读取文件、执行命令、编辑代码并调用工具来帮你完成编程任务。",
+        "列表data-total-count": "4"
       }
     },
     {
       "name": "live_结果快照",
       "value": {
-        "initialCount": 7,
-        "末消息数": 9,
+        "initialCount": 2,
+        "末消息数": 4,
         "assistantIds": [
-          "m2",
-          "m3",
-          "m4",
-          "m5",
-          "m7",
-          "a-8"
+          "m-fb63bb27",
+          "a-3"
         ],
-        "assistantText": "Pi 是一个开源的可编程 AI 编码代理（coding agent），它运行在终端中，能自主读写文件、执行命令、调用工具，并通过可扩展的扩展系统、SDK 和提示词模板让用户深度定制自己的自动化开发工作流。",
+        "assistantText": "Pi 是一个开源的终端 AI 编码代理（coding agent），能在终端界面中自主读取文件、执行命令、编辑代码并调用工具来帮你完成编程任务。",
         "streamingSeen": true,
         "streamingResolved": true,
         "newAssistantCount": 1
@@ -149,14 +141,14 @@
       "turn_start": 1,
       "message_start": 3,
       "message_end": 3,
-      "message_update": 24,
+      "message_update": 19,
       "turn_end": 1,
       "agent_settled": 1
     },
-    "sse观测_总帧数": 34,
-    "原始dump_message_update": 109,
-    "sse_message_update": 24,
-    "合并率": 0.78,
+    "sse观测_总帧数": 29,
+    "原始dump_message_update": 79,
+    "sse_message_update": 19,
+    "合并率": 0.759,
     "末帧类型": "agent_settled",
     "agent_settled之后仍有message_update": 0
   }
