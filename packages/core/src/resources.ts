@@ -24,15 +24,12 @@
 
 import { hasTrustRequiringProjectResources, type Extension, type PromptTemplate, type ResourceLoader, type Skill } from "@earendil-works/pi-coding-agent";
 import type { ResourceEntry, ResourcesPayload } from "./contract.ts";
+import { isRecord } from "./guards.ts";
 
 /** 信任结论（只用得到这两个字段，避免把 trust.ts 的类型绑死在这里） */
 export interface TrustHint {
   trusted: boolean;
   reason: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object";
 }
 
 /** `SourceInfo.scope` → 04 屏的「来源」标签 */

@@ -43,14 +43,11 @@ import type {
   SessionSummary,
   TokenUsage,
 } from "./contract.ts";
+import { isRecord, num } from "./guards.ts";
 
 /* ---------------------------------------------------------------------------
  * 通用小工具
  * ------------------------------------------------------------------------- */
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object";
-}
 
 /** entry.timestamp / SessionInfo 的 Date → epoch ms（HTTP 过不了 Date 对象，core 侧统一转换） */
 function toEpochMs(value: unknown): number {
@@ -107,11 +104,6 @@ function commandOf(toolName: string, args: Record<string, unknown> | undefined):
   if (args && typeof args.command === "string") return args.command;
   const detail = args && Object.keys(args).length > 0 ? JSON.stringify(args).slice(0, 200) : "";
   return detail ? `${toolName} ${detail}` : toolName;
-}
-
-/** usage 数字取整（Pi 的 Usage 全为 number，但旧文件可能是 null/undefined） */
-function num(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 /**

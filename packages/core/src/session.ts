@@ -43,6 +43,7 @@ import type {
 	SessionSummary,
 	ToolsPayload,
 } from "./contract.ts";
+import { isRecord, num } from "./guards.ts";
 import { createModelsController, type ModelsController } from "./models.ts";
 import { createProvidersController, type ProvidersController } from "./providers.ts";
 import { collectResources } from "./resources.ts";
@@ -157,15 +158,6 @@ function mergeShellPath(agentDir: string, shellPath: string): void {
 		settings.shellPath = shellPath;
 		fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 	}
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return !!value && typeof value === "object";
-}
-
-/** 数值归一：非有限数一律记 0（Pi 的 usage 全为 number，但旧事件可能缺字段） */
-function num(value: unknown): number {
-	return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function resolveModelsPath(agentDir: string, envModelsPath?: string): string {

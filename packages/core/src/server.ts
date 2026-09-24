@@ -19,6 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { toAgentEvent } from "./adapt.ts";
 import type { AgentEvent, ModelTestRequest, PutProvidersRequest } from "./contract.ts";
+import { isRecord } from "./guards.ts";
 import type { CoreRuntime } from "./session.ts";
 
 export interface ServerHandle {
@@ -61,10 +62,6 @@ const API_ROUTES = new Set([
 	// C6 · 04 屏工具开关接 Pi
 	"/tools/active",
 ]);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return !!value && typeof value === "object";
-}
 
 /** 从 Host 头取主机名：`1.2.3.4:5190` → `1.2.3.4`；`[::1]:5190` → `::1`；`localhost` → `localhost` */
 function hostnameOf(hostHeader: string): string {

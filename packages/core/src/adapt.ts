@@ -10,12 +10,9 @@
  */
 
 import type { AgentContentPart, AgentEvent, AgentMessage, AgentMessageRole } from "./contract.ts";
+import { isRecord } from "./guards.ts";
 
 type Raw = Record<string, unknown>;
-
-function isRecord(value: unknown): value is Raw {
-	return !!value && typeof value === "object";
-}
 
 function asContent(value: unknown): AgentContentPart[] {
 	if (!Array.isArray(value)) return [];
@@ -30,7 +27,7 @@ function asContent(value: unknown): AgentContentPart[] {
 				type: "toolCall",
 				id: part.id,
 				name: part.name,
-				arguments: isRecord(part.arguments) ? (part.arguments as Record<string, unknown>) : {},
+				arguments: isRecord(part.arguments) ? (part.arguments as Raw) : {},
 			});
 	}
 	return out;
@@ -77,7 +74,7 @@ export function toAgentEvent(raw: unknown): AgentEvent | null {
 				type: "tool_execution_start",
 				toolCallId: raw.toolCallId,
 				toolName: typeof raw.toolName === "string" ? raw.toolName : "",
-				args: isRecord(raw.args) ? (raw.args as Record<string, unknown>) : {},
+				args: isRecord(raw.args) ? (raw.args as Raw) : {},
 			};
 		case "tool_execution_update":
 			if (typeof raw.toolCallId !== "string") return null;
