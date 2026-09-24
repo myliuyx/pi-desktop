@@ -206,15 +206,20 @@ export interface TokenUsage {
   input: number;
   /** 最近一次 assistant 请求的输出 tokens */
   output: number;
-  /** 会话累计 token 消耗（Σ(input+output)，即 ΣtotalTokens） */
+  /**
+   * 会话累计 token 消耗（ΣPi `totalTokens` —— **含 `cacheRead` / `cacheWrite`**）。
+   * 注意：它 ≥ `input + output`（后两者是最近一次 API 计量的输入/输出，不含 cache）。
+   */
   total: number;
   /** 当前模型上下文窗口大小 */
   contextWindow: number;
   /**
    * 当前**已用**上下文 tokens（Pi `AgentSession.getContextUsage().tokens`，随对话增长）。
    *
-   * 可选：mock 数据与历史会话加载都不填 → TokenStats 回落 `contextWindow`（验收 2-14
-   * 行为不变）；Pi 侧未知时（刚压缩完、下一次 LLM 回复前）也不写该键，避免下发 0 的假数据。
+   * 可选；缺失时 `TokenStats` 回落显示 `contextWindow`（验收 2-14 的 `128k`）。
+   * 两个来源都会填：① `usage` 事件的实时快照；② 历史会话加载时由 `foldUsage`
+   * 按 Pi `calculateContextTokens` 同式（`totalTokens || input+output+cacheRead+cacheWrite`）算出。
+   * **仅当两侧都未知**（mock 数据、刚压缩完的下一次回复前）才缺省 —— 避免下发 0 的假数据。
    */
   contextTokens?: number;
 }

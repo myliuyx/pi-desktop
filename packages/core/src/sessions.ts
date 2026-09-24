@@ -119,7 +119,7 @@ function num(value: unknown): number {
  * `cacheRead/cacheWrite` **不并入 input** —— 它们已在 `totalTokens` 里，再叠加会重复计。
  *
  * 口径（2026-09-24 用户裁定）：`input`/`output` 取**最近一次**（`input` 已含历史上下文，
- * 累加会重复计）；`total` **历史累加**（ΣtotalTokens = Σ(input+output)）。
+ * 累加会重复计）；`total` **历史累加** = ΣPi `totalTokens`（含 cache，故 ≥ Σ(input+output)）。
  */
 function foldUsage(target: TokenUsage, usage: unknown): void {
   if (!isRecord(usage)) return;

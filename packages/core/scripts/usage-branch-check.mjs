@@ -62,6 +62,14 @@ const check = (name, actual, expected) => {
 const branchUsage = entriesToMessages(manager.getBranch(), { contextWindow: 1000 }).tokenUsage;
 check("主干汇总 total=15（不含旁支 9999）", branchUsage.total, 15);
 
+// ①b 口径锁定（#3/#4）：total=ΣPi totalTokens（含 cache）；contextTokens 由 foldUsage
+//     按 calculateContextTokens 同式算出 ⇒ 15（历史会话也填）。
+check(
+  "TokenUsage 口径：total=ΣtotalTokens（15）、contextTokens=15（历史会话也填）",
+  { total: branchUsage.total, contextTokens: branchUsage.contextTokens },
+  { total: 15, contextTokens: 15 },
+);
+
 // ② 反例：全量口径会污染（复现修复前的 resetUsageFromSession）
 //    total 历史累加，故污染值 = 主干 15 + 旁支 9999 = 10014
 const allUsage = entriesToMessages(manager.getEntries(), { contextWindow: 1000 }).tokenUsage;

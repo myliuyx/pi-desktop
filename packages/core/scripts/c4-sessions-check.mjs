@@ -337,6 +337,16 @@ try {
 			loadSynth.json?.tokenUsage?.contextWindow > 0,
 		loadSynth.json?.tokenUsage,
 	);
+	/*
+	 * 口径锁定（#3/#4）：
+	 * - total 是 ΣPi totalTokens（含 cacheRead/cacheWrite），合成 usage 的 totalTokens=15 ⇒ total=15；
+	 * - contextTokens 由 foldUsage 按 calculateContextTokens 同式算出 ⇒ 15。
+	 */
+	check(
+		"③TokenUsage 口径：total=ΣtotalTokens、contextTokens=15（历史会话也填）",
+		loadSynth.json?.tokenUsage?.total === 15 && loadSynth.json?.tokenUsage?.contextTokens === 15,
+		loadSynth.json?.tokenUsage,
+	);
 	check(
 		"③映射统计如实记账（usageSource=usage-entries，skipped 里 custom_message:hidden / usage / model_change 各 1）",
 		loadSynth.json?.stats?.usageSource === "usage-entries" &&
