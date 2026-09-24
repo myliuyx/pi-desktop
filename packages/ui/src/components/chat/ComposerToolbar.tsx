@@ -106,13 +106,42 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
     const modelGroups: ReadonlyArray<ChipMenuGroup<string>> =
       live && liveModels ? groupModelsByProvider(liveModels.models) : COMPOSER_MODEL_GROUPS;
 
+    /*
+     * ★ 无可用模型态的显式降级（2026-09-24）：core 的 `current` 为 null 表示
+     * 「一个可用模型都没有」，此时**不能**再回落到 ui-store 的 mock `modelId` ——
+     * 那会让芯片显示一个并不存在、却很像真的模型名（如「Claude Sonnet 4.5」），
+     * 把「还没配模型」这件事藏起来。原先显示 `unknown` 虽然难看，但至少诚实；
+     * 本批把 core 的诊断口径统一成「有 warning 就报 warning」，显示层同理：
+     * **没有就说没有，并指出去哪儿配**。
+     *
+     * 两种降级分开说清（都是可达状态）：
+     * - 清单为空 ⇒ 没配好（首次运行，或 Provider 被 Pi 判非法/无凭证而摘掉）；
+     * - 清单非空但未选中 ⇒ 保存时自动选型失败（core 的 warning 已明说「请手动选择一个模型」）。
+     */
+    const noModelDegrade = (() => {
+      if (!live || !liveModels) return null;
+      if (liveModels.current !== null) return null;
+      return liveModels.models.length === 0
+        ? {
+            label: "未配置模型",
+            reason: "尚未配置可用模型：请在「设置 → 模型」添加并启用一个 Provider",
+          }
+        : {
+            label: "未选择模型",
+            reason: "尚未选择模型：请在下方列表中选择一个（自动选型未生效）",
+          };
+    })();
+
     const activeModelKey =
       live && liveModels?.current
         ? `${liveModels.current.provider}:${liveModels.current.modelId}`
-        : modelId;
+        : noModelDegrade
+          ? ""
+          : modelId;
 
     const activeModelLabel = (() => {
       if (live && liveModels) {
+        if (noModelDegrade) return noModelDegrade.label;
         const cur = liveModels.current;
         const found = cur
           ? liveModels.models.find((m) => m.provider === cur.provider && m.id === cur.modelId)
@@ -170,6 +199,8 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
           groups={modelGroups}
           value={activeModelKey}
           onChange={selectModel}
+          /* 无可用模型时不挂菜单（空菜单点了没反应），改渲染禁用态芯片并说明去处 */
+          disabledReason={noModelDegrade?.reason}
         />
 
         <ChipMenu
@@ -220,14 +251,20 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
 );
 
 /**
- * live：把 core 的可用模型按 provider 分组，value 用 `provider:id` 保证跨 provider 唯一
+ * live：把 core 的可用模型按 provider 分组，value 用 `provider:id` 保证跨 provider 唯一。
+ *
+ * ★ 分组标题用 `providerLabel`（展示名，如 `opencodex`），**不是** `provider`（内部 key，
+ * 形如 `provider-1790227472338`）—— 后者是给请求用的，摆到菜单上就是乱码
+ * （2026-09-24 用户反馈）。core 取不到展示名时才回落 key。
+ * 分组**按 label 归并**：同一展示名下的模型合成一组（key 仍是 `provider:id`，不丢唯一性）。
  */
 function groupModelsByProvider(models: readonly ModelInfo[]): ChipMenuGroup<string>[] {
-  const byProvider = new Map<string, { value: string; label: string }[]>();
+  const byProvider = new Map<string, { label: string; options: { value: string; label: string }[] }>();
   for (const m of models) {
-    const options = byProvider.get(m.provider) ?? [];
-    options.push({ value: `${m.provider}:${m.id}`, label: m.label || m.id });
-    byProvider.set(m.provider, options);
+    const groupLabel = m.providerLabel?.trim() || m.provider;
+    const group = byProvider.get(groupLabel) ?? { label: groupLabel, options: [] };
+    group.options.push({ value: `${m.provider}:${m.id}`, label: m.label || m.id });
+    byProvider.set(groupLabel, group);
   }
-  return [...byProvider.entries()].map(([label, options]) => ({ label, options }));
+  return [...byProvider.values()];
 }

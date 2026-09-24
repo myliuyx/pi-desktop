@@ -12,7 +12,8 @@
  *   L5 全程无 console error 泄漏、状态条终态不为 danger。
  *
  * ⚠️ 前置：`packages/ui` **必须已 build**（core 同源托管 `packages/ui/dist`）。
- *     core 用 `--env-file` 读 `pi/_poc/.env.local` 的 ARK_API_KEY（和 smoke 同口径）。
+ *     凭证由 `../../core/scripts/lib/credentials.mjs` 注入（shell 的 ARK_API_KEY 优先，
+ *     否则回落本机遗留文件 `pi/_poc/.env.local`；core 侧已不读任何 .env）。
  *
  * 端口：core 5350（服 + API）、CDP 9346（避开 probe:settings 的 9345）。
  * 证据：`packages/ui/_settings-live-evidence.json`
@@ -23,12 +24,12 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { withBrowser, sleep, SET_TEXT_HELPER } from "./cdp.mjs";
+import { childEnv } from "../../core/scripts/lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..", "..");
 const coreDir = path.join(repoRoot, "packages", "core");
 const uiDist = path.join(repoRoot, "packages", "ui", "dist");
-const envLocal = path.join(repoRoot, "pi", "_poc", ".env.local");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 const mainPath = path.join(coreDir, "src", "main.ts");
 
@@ -44,9 +45,10 @@ const sleepMs = sleep;
  * ------------------------------------------------------------------------- */
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "settings-live-"));
-const modelsPath = path.join(tmpRoot, "models.json");
 const agentDir = path.join(tmpRoot, "agentdir");
 fs.mkdirSync(agentDir, { recursive: true });
+/* 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 夹具清单只能落在 agentDir（Pi 的约定位置） */
+const modelsPath = path.join(agentDir, "models.json");
 
 /** 两个 provider：一个真可用（有凭证插值），一个纯占位（用来验证删除） */
 const FIXTURE_PROVIDERS = ["ark-coding", "probe-spare"];
@@ -87,16 +89,14 @@ function launchCore() {
 	// 日志落固定路径（不随 tmpRoot 清理）—— core 起不来时必须能看见原因
 	const logPath = path.join(repoRoot, "packages", "ui", "_settings-live-core.log");
 	const logFd = fs.openSync(logPath, "w");
-	const child = spawn(process.execPath, ["--env-file=" + envLocal, tsxPath, mainPath], {
+	const child = spawn(process.execPath, [tsxPath, mainPath], {
 		cwd: coreDir,
-		env: {
-			...process.env,
+		env: childEnv({
 			CORE_TOKEN: TOKEN,
 			CORE_PORT: String(PORT),
-			CORE_MODELS_PATH: modelsPath,
 			CORE_AGENT_DIR: agentDir,
 			CORE_UI_DIST: uiDist,
-		},
+		}),
 		stdio: ["ignore", logFd, logFd],
 	});
 	return {

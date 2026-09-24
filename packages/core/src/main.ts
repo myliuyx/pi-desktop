@@ -1,13 +1,20 @@
 /**
  * core 入口 —— 装配会话 + 起 HTTP/SSE 服务。
  *
- * 安全：随机 token 启动生成，写入 packages/core/run/core.json（run/ 已 gitignore）。
- * 模型 key 仅从环境变量注入（ARK_API_KEY，来源 pi/_poc/.env.local），绝不写进任何被提交文件。
+ * 配置位置（2026-09-24 起**回归 Pi 约定**，不再依赖 pi/_poc 这类 POC 资产）：
+ * - agentDir 默认 `~/.pi/agent`（`CORE_AGENT_DIR` 可覆盖；验收脚本用临时夹具）；
+ * - models.json 取 `<agentDir>/models.json` —— **唯一位置**，没有覆盖口
+ *   （原 `CORE_MODELS_PATH` 已于 2026-09-24 删除，见 session.ts resolveModelsPath）。
+ *   **文件缺失会自动创建空清单**，由用户在设置页添加 Provider。
+ * - **无可用模型也能启动**（首次运行就是这个状态）：服务与设置页可用，
+ *   配好 Provider 后会保存时自动选中第一个模型，随即可以对话（见 session.ts ready 注释）。
  *
- * 启动（env 注入 key，执行方自定）：
- *   node --env-file=../../pi/_poc/.env.local \
- *        --env-file-if-exists=packages/core/run/core.local.env \
- *        node_modules/tsx/dist/cli.mjs src/main.ts
+ * 安全：随机 token 启动生成，写入 packages/core/run/core.json（run/ 已 gitignore）。
+ * 需要 `$VAR` 插值凭据（如 `$ARK_API_KEY`）时，**在启动 core 的 shell 里 export** 即可
+ * （`ARK_API_KEY=… npm run smoke`），或把密钥字面量直接写进 models.json。
+ * core **不读任何 .env 文件**（原 `--env-file` 用法已于 2026-09-24 删除）。
+ *
+ * 启动：`npm run smoke`，等价于 `node node_modules/tsx/dist/cli.mjs src/main.ts`
  */
 
 import { randomUUID } from "node:crypto";
@@ -45,7 +52,6 @@ const allowedHosts = ["127.0.0.1", "localhost", ...extraHosts];
  */
 const boot = createCoreRuntime({
   agentDir: process.env.CORE_AGENT_DIR,
-  modelsPath: process.env.CORE_MODELS_PATH,
   shellPath: process.env.CORE_SHELL_PATH,
   modelProvider: process.env.CORE_MODEL_PROVIDER,
   modelId: process.env.PI_MODEL,

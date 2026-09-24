@@ -43,12 +43,19 @@ export function normalizeThinkingLevel(value: unknown): ThinkingLevelName | null
 }
 
 /** `Model` → UI 的 `ModelOption` 同形对象（`supportsXhigh` 用 `Model.reasoning` 代理） */
-export function toModelInfo(model: { id: string; name?: string; provider: string; reasoning?: boolean }): ModelInfo {
+export function toModelInfo(
+  model: { id: string; name?: string; provider: string; reasoning?: boolean },
+  providerLabel?: string,
+): ModelInfo {
   const info: ModelInfo = {
     id: model.id,
     label: model.name && model.name.trim() ? model.name : model.id,
     provider: model.provider,
   };
+  // 展示名与内部 key 是两个东西：key 是 `provider-1790227472338` 这类，不该出现在 UI 上
+  if (providerLabel && providerLabel.trim() && providerLabel !== model.provider) {
+    info.providerLabel = providerLabel;
+  }
   // 「支持 Max」标记：reasoning 为真的是支持思考的模型（Pi 的档位开关本就以它为前提）
   if (model.reasoning === true) info.supportsXhigh = true;
   return info;
@@ -66,7 +73,7 @@ export interface SessionLike {
 export interface ModelsControllerDeps {
   /** 会话未就绪时为 null（payload.ready=false，UI 回落 mock） */
   getSession(): SessionLike | null;
-  getRuntime(): Pick<ModelRuntime, "getAvailableSnapshot" | "getModel"> | null;
+  getRuntime(): Pick<ModelRuntime, "getAvailableSnapshot" | "getModel" | "getProvider"> | null;
   getSettings(): Pick<
     SettingsManager,
     "getDefaultProvider" | "getDefaultModel" | "getDefaultThinkingLevel"
@@ -93,12 +100,23 @@ export function createModelsController(deps: ModelsControllerDeps): ModelsContro
       const key = `${model.provider}:${model.id}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      models.push(toModelInfo(model));
+      // 展示名取 Pi 侧的 provider 定义（models.json 的 name / 内置 provider 名），取不到就留给 UI 回落 id
+      models.push(toModelInfo(model, runtime?.getProvider(model.provider)?.name));
     }
 
+    /*
+     * ★ 无模型启动时的占位值（2026-09-24 实查）：SDK 在「没有任何可用模型」时不会让
+     * `session.model` 为 undefined，而是挂一个 `provider="unknown", id="unknown"` 的
+     * 占位模型 —— 直接透出会让 05 屏显示一个并不存在的模型。
+     * 判据改成「runtime 认得它」：`getModel()` 对占位值返回 undefined。
+     * settings 的 default* 由下方 `settings` 字段单独暴露，这里不再拿它兜底
+     * （兜底会把「已选但不可用」误报成当前模型）。
+     * （与 `session.ts` 的 `usableModel()` 同一口径，改一处记得改另一处。）
+     */
     const sessionModel = session?.model;
-    const provider = sessionModel?.provider ?? settings?.getDefaultProvider() ?? null;
-    const modelId = sessionModel?.id ?? settings?.getDefaultModel() ?? null;
+    const usable = sessionModel && runtime?.getModel(sessionModel.provider, sessionModel.id) ? sessionModel : undefined;
+    const provider = usable?.provider ?? null;
+    const modelId = usable?.id ?? null;
 
     const available = (session?.getAvailableThinkingLevels() ?? [])
       .map(normalizeThinkingLevel)

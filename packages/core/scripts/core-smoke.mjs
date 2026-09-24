@@ -9,22 +9,33 @@
  * 承担，见 `S6 §三·3` 与 `adapter/reduce.ts` 的收尾语义）。故本脚本不再断言 `agent_end`，
  * 仅把它计入 report 作原始层诊断。（C1 时期的该断言属契约之前的写法。）
  *
- * key 仅经 env 注入（--env-file=pi/_poc/.env.local）。模型走 ark-coding/deepseek-v4-flash。
+ * key 由 `./lib/credentials.mjs` 注入（shell 里 export 的 `ARK_API_KEY` 优先，
+ * 否则回落本机遗留文件 `pi/_poc/.env.local`）。模型走 ark-coding/deepseek-v4-flash。
  */
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { childEnv, seedModelsJson } from "./lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
-const modelsPath = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const runDir = path.join(coreDir, "run");
 fs.mkdirSync(runDir, { recursive: true });
+
+/*
+ * 2026-09-24：`CORE_MODELS_PATH` 与 `--env-file` 用法均已删除 ——
+ * 模型清单放在**临时 agentDir** 里（Pi 的约定位置），凭证由 childEnv 注入。
+ * 用临时 agentDir 而非默认 `~/.pi/agent`，保证冒烟不写用户的全局 Pi 配置。
+ */
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "core-smoke-"));
+const agentDir = path.join(tmpRoot, "agentdir");
+seedModelsJson(agentDir);
+fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "never" }, null, 2));
 
 const PORT = 5194;
 const TOKEN = "smoke-token";
@@ -69,10 +80,10 @@ function waitForUp() {
 
 const child = spawn(
   process.execPath,
-  ["--env-file=" + envLocal, tsxPath, "src/main.ts"],
+  [tsxPath, "src/main.ts"],
   {
     cwd: coreDir,
-    env: { ...process.env, CORE_TOKEN: TOKEN, CORE_PORT: String(PORT), CORE_MODELS_PATH: modelsPath },
+    env: childEnv({ CORE_TOKEN: TOKEN, CORE_PORT: String(PORT), CORE_AGENT_DIR: agentDir }),
     stdio: "ignore",
   },
 );

@@ -22,6 +22,8 @@ import type {
   CatalogPayload,
   ModelTestRequest,
   ModelTestResult,
+  ProviderModelsRequest,
+  ProviderModelsResult,
   ProvidersPayload,
   ProvidersSaveResult,
   PutProvidersRequest,
@@ -88,6 +90,8 @@ export interface AgentTransport {
   searchCatalog(query: string): Promise<CatalogPayload>;
   /** 设置弹窗：一次性最小真实请求（max_tokens:1）测连通性；不落盘、不改当前选择 */
   testModel(req: ModelTestRequest): Promise<ModelTestResult>;
+  /** 设置弹窗：拉取该 Provider 的真实模型清单（`GET {baseUrl}/models`）供「导入模型…」勾选 */
+  listProviderModels(req: ProviderModelsRequest): Promise<ProviderModelsResult>;
 }
 
 export interface LiveConfig {
@@ -343,5 +347,10 @@ export class HttpAgentTransport implements AgentTransport {
 
   async testModel(req: ModelTestRequest): Promise<ModelTestResult> {
     return this.unwrap<ModelTestResult>(await this.post("/models/test", req));
+  }
+
+  async listProviderModels(req: ProviderModelsRequest): Promise<ProviderModelsResult> {
+    // 上游失败时 core 回的是 200 + {ok:false,error}（不是抛出），所以这里直接透传
+    return this.unwrap<ProviderModelsResult>(await this.post("/providers/models", req));
   }
 }

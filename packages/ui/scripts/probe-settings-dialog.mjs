@@ -13,6 +13,9 @@
  * - D5 高度恒定：删光全部 Provider（草稿态）后弹窗高度不变。
  * - 钉底：「+ 添加 Provider」固定在左栏底部，列表滚动不影响。
  * - G6 无横向滚动、G7 焦点陷阱（Shift+Tab 不逃出弹窗）。
+ * - P5 附带 Headers 文案（`Add Header` 大小写 + 无多余「Headers」标题，2026-09-24）。
+ * - P11「导入模型…」浮层（mock 演示清单）：筛选 / 全选 / 已添加禁用 / 计数 / 并入草稿（2026-09-24）。
+ *   真实拉取链路见 `probe:onboarding` U9（stub 上游）。
  *
  * 运行前置：packages/ui 起 dev server（默认 :5180）。CDP 端口 9345（m1/m2/m3/m4/m5 =
  * 9333/9337/9341/9342/9343，错开）。
@@ -188,19 +191,29 @@ await withBrowser({ port: 9345, evidencePath: "_settings-evidence.json" }, async
     const r = await cdp.eval(`(() => {
       const q = (s) => window.__S.q('[data-testid="' + s + '"]');
       const key = q('provider-api-key');
+      const pane = q('model-form-pane');
+      /* 「Headers」标题已被移除（2026-09-24 用户要求）：块内不该再有独立成行的该文字 */
+      const headersLabels = [...pane.querySelectorAll('span')].filter(
+        (s) => (s.textContent || '').trim() === 'Headers'
+      ).length;
+      const addBtn = q('add-header');
       return {
         name: !!q('provider-name'), baseUrl: !!q('provider-base-url'),
         apiKeyType: key ? key.type : null,
         apiType: !!q('provider-api-type'), importBtn: !!q('provider-import'),
         enabled: !!q('provider-enabled'), deleteBtn: !!q('provider-delete'),
+        addHeaderText: addBtn ? (addBtn.textContent || '').trim() : null,
+        headersLabelCount: headersLabels,
       };
     })()`);
     ctx.record("P5_Provider表单字段", r);
-    failures += ctx.assert("P5 齿轮进入 Provider 表单，API key 为掩码输入", {
+    failures += ctx.assert("P5 齿轮进入 Provider 表单，API key 为掩码输入；Add Header 文案正确且无多余标题", {
       名称与BaseURL: r.name && r.baseUrl,
       APIkey是password: r.apiKeyType === "password",
       API类型与导入: r.apiType && r.importBtn,
       启用与删除: r.enabled && r.deleteBtn,
+      AddHeader大小写正确: r.addHeaderText === "Add Header",
+      已移除Headers标题: r.headersLabelCount === 0,
     }) ? 0 : 1;
   }
 
@@ -352,6 +365,152 @@ await withBrowser({ port: 9345, evidencePath: "_settings-evidence.json" }, async
     ctx.record("P10_焦点陷阱", { ...trap, afterShiftTabInside: inside });
     failures += ctx.assert("P10 Shift+Tab 在面板首个元素上不逃出弹窗（G7 焦点陷阱）", {
       焦点仍在面板内: inside === true,
+    }) ? 0 : 1;
+  }
+
+  /* ================================= P11 导入模型浮层（mock 演示清单，2026-09-24 新增） */
+  /*
+   * 覆盖用户要求：「点导入模型不该是假的，要能拉取 Provider 的模型清单供勾选」。
+   * mock 形态下没有上游，浮层用 `MOCK_DISCOVERED_MODELS`（11 条，含 3 条已存在于 AliYun 的 id）
+   * 把**交互本身**跑通：筛选 / 全选 / 逐项勾选 / 「已添加」标记 / 计数 / 并入草稿。
+   * 真实拉取链路（core 打上游 GET {baseUrl}/models）由 `probe:onboarding` U9 覆盖。
+   */
+  {
+    const headerCount = `(() => {
+      const spans = window.__S.qa('[data-testid="provider-header"]')[0].querySelectorAll('span');
+      return (spans[2]?.textContent || '').trim();
+    })()`;
+    // 回到 Provider 表单（P10 结束时菜单/表单状态不定，显式点一次组头）
+    await cdp.eval(`(() => { window.__S.qa('[data-testid="provider-header"]')[0].click(); return true; })()`);
+    await sleep(300);
+    const beforeCount = await cdp.eval(headerCount);
+
+    await cdp.eval(`(() => { window.__S.q('[data-testid="provider-import"]').click(); return true; })()`);
+    // 等浮层出现并拉完（mock 走 350ms 定时器）
+    const appeared = await cdp.eval(`new Promise((r) => {
+      const t0 = Date.now();
+      const iv = setInterval(() => {
+        if (window.__S.q('[data-testid="model-import-count"]')?.textContent?.includes('已获取')) {
+          clearInterval(iv); r(true);
+        } else if (Date.now() - t0 > 8000) { clearInterval(iv); r(false); }
+      }, 120);
+    })`, true);
+
+    const panel = await cdp.eval(`(() => {
+      const q = (s) => window.__S.q('[data-testid="' + s + '"]');
+      const rows = window.__S.qa('[data-testid="model-import-row"]');
+      const confirm = q('model-import-confirm');
+      return {
+        visible: !!q('model-import'),
+        countText: (q('model-import-count')?.textContent || '').trim(),
+        rowCount: rows.length,
+        addedCount: window.__S.qa('[data-testid="model-import-added"]').length,
+        addedDisabled: rows
+          .filter((el) => el.dataset.added === 'true')
+          .every((el) => el.querySelector('[data-testid="model-import-row-check"]')?.disabled === true),
+        confirmDisabled: confirm ? confirm.disabled : null,
+        searchPlaceholder: q('model-import-search')?.getAttribute('placeholder') ?? null,
+        searchVisible: !!q('model-import-search'),
+        hasProviderForm: !!q('provider-name'),
+      };
+    })()`);
+
+    // 筛选：输入 "qwen3" 应只剩 qwen3-* 两条
+    await cdp.eval(`(() => {
+      const el = window.__S.q('[data-testid="model-import-search"]');
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      set.call(el, 'qwen3');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()`);
+    await sleep(250);
+    const filteredCount = await cdp.eval(`window.__S.qa('[data-testid="model-import-row"]').length`);
+
+    // 清空筛选 → 全选（只作用于未添加的 9 条）
+    await cdp.eval(`(() => {
+      const el = window.__S.q('[data-testid="model-import-search"]');
+      const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      set.call(el, '');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      window.__S.q('[data-testid="model-import-select-all"]').click();
+      return true;
+    })()`);
+    await sleep(300);
+    const afterSelectAll = await cdp.eval(`(() => {
+      const rows = window.__S.qa('[data-testid="model-import-row"]');
+      const checks = rows
+        .filter((el) => el.dataset.added !== 'true')
+        .map((el) => el.querySelector('[data-testid="model-import-row-check"]'));
+      return {
+        selectableAllChecked: checks.length > 0 && checks.every((c) => c.getAttribute('aria-checked') === 'true'),
+        selectableCount: checks.length,
+        countText: (window.__S.q('[data-testid="model-import-count"]')?.textContent || '').trim(),
+        confirmDisabled: window.__S.q('[data-testid="model-import-confirm"]').disabled,
+      };
+    })()`);
+
+    // 确认 → 浮层收起、草稿里模型数 +9
+    await cdp.eval(`(() => { window.__S.q('[data-testid="model-import-confirm"]').click(); return true; })()`);
+    await sleep(400);
+    const afterConfirm = await cdp.eval(`(() => ({
+      panelGone: !window.__S.q('[data-testid="model-import"]'),
+      modelFormShown: !!window.__S.q('[data-testid="model-id"]'),
+    }))()`);
+    await cdp.eval(`(() => { window.__S.qa('[data-testid="provider-gear"]')[0].click(); return true; })()`);
+    await sleep(300);
+    const afterCount = await cdp.eval(headerCount);
+
+    ctx.record("P11_导入模型浮层", {
+      导入前模型数: beforeCount,
+      浮层出现: appeared,
+      // 初始态（不与下面的 afterSelectAll 混名，否则 record 的键会互相覆盖）
+      初_行数: panel.rowCount,
+      初_计数文案: panel.countText,
+      初_已添加徽标数: panel.addedCount,
+      初_已添加项禁用: panel.addedDisabled,
+      初_确认按钮禁用: panel.confirmDisabled,
+      初_搜索框占位: panel.searchPlaceholder,
+      初_是否仍显示Provider表单: panel.hasProviderForm,
+      浮层可见: panel.visible,
+      筛选qwen3后行数: filteredCount,
+      全选_可选项数: afterSelectAll.selectableCount,
+      全选_全部勾上: afterSelectAll.selectableAllChecked,
+      全选_计数文案: afterSelectAll.countText,
+      全选_确认按钮禁用: afterSelectAll.confirmDisabled,
+      确认_浮层已收起: afterConfirm.panelGone,
+      确认_切到新加模型: afterConfirm.modelFormShown,
+      导入后模型数: afterCount,
+    });
+    /*
+     * 期望值来源：`MOCK_DISCOVERED_MODELS` 共 11 条，其中 `qwen-max` / `qwen-plus` / `qwen2.5-vl`
+     * 三条**已存在于 mock 的 AliYun**（所以应显示「已添加」且勾选框禁用），可勾选的正好 8 条。
+     */
+    failures += ctx.assert("P11 「导入模型…」拉出清单浮层：筛选 / 全选 / 已添加禁用 / 计数 / 并入草稿", {
+      浮层出现: appeared === true,
+      取代了Provider表单: panel.hasProviderForm === false,
+      搜索框在: panel.searchVisible === true,
+      占位含总数: panel.searchPlaceholder === "筛选 11 个模型…",
+      清单11条: panel.rowCount === 11,
+      初始计数文案: panel.countText === "已获取 11 个模型",
+      已添加徽标3条: panel.addedCount === 3,
+      已添加项勾选框禁用: panel.addedDisabled === true,
+      未选时确认禁用: panel.confirmDisabled === true,
+      筛选生效: filteredCount === 2,
+      全选覆盖可选项: afterSelectAll.selectableAllChecked === true,
+      可选项8条: afterSelectAll.selectableCount === 8,
+      计数显示已选: afterSelectAll.countText.includes("已选 8 个"),
+      全选后可确认: afterSelectAll.confirmDisabled === false,
+      确认后浮层收起: afterConfirm.panelGone === true,
+      切到新加的第一个模型: afterConfirm.modelFormShown === true,
+      草稿模型数3变11: beforeCount === "3 模型" && afterCount === "11 模型",
+    }) ? 0 : 1;
+
+    // 保存一次，确认并入草稿的模型能真的落到 store（mock 形态）
+    await cdp.eval(`(() => { window.__S.q('[data-testid="settings-save"]').click(); return true; })()`);
+    await sleep(400);
+    const saveTone = await cdp.eval(`window.__S.q('[data-testid="settings-status"]')?.dataset.tone ?? null`);
+    failures += ctx.assert("P11b 导入结果可正常保存（mock 落 store，状态条非危险）", {
+      状态条为成功: saveTone === "success",
     }) ? 0 : 1;
   }
 

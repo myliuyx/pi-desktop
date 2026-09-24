@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5350",
-  "startedAt": "2026-09-24T04:30:48.284Z",
+  "startedAt": "2026-09-24T06:40:39.806Z",
   "steps": [
     {
       "name": "L1_弹窗数据源",
@@ -26,7 +26,7 @@
       "name": "L2_保存写回",
       "value": {
         "输入框现值": "ark-coding-renamed",
-        "状态条": "success",
+        "状态条": "warning",
         "保存后弹窗仍打开": true,
         "api": {
           "ok": true,
@@ -86,27 +86,23 @@
               ]
             }
           ],
-          "current": null,
+          "current": {
+            "provider": "ark-coding",
+            "modelId": "deepseek-v4-flash"
+          },
           "ready": true
         },
         "文件": {
           "providers": {
             "ark-coding": {
-              "name": "ark-coding-renamed",
-              "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
-              "apiKey": "$ARK_API_KEY",
-              "api": "openai-completions",
               "headers": {},
               "models": [
                 {
                   "id": "deepseek-v4-flash",
-                  "name": "",
                   "reasoning": false,
                   "input": [
                     "text"
                   ],
-                  "contextWindow": 0,
-                  "maxTokens": 0,
                   "cost": {
                     "input": 0,
                     "output": 0,
@@ -114,24 +110,21 @@
                     "cacheWrite": 0
                   }
                 }
-              ]
+              ],
+              "name": "ark-coding-renamed",
+              "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+              "apiKey": "$ARK_API_KEY",
+              "api": "openai-completions"
             },
             "probe-spare": {
-              "name": "Probe Spare",
-              "baseUrl": "http://127.0.0.1:1/v1",
-              "apiKey": "sk-fixture-only",
-              "api": "openai-completions",
               "headers": {},
               "models": [
                 {
                   "id": "spare-mini",
-                  "name": "",
                   "reasoning": false,
                   "input": [
                     "text"
                   ],
-                  "contextWindow": 0,
-                  "maxTokens": 0,
                   "cost": {
                     "input": 0,
                     "output": 0,
@@ -139,7 +132,11 @@
                     "cacheWrite": 0
                   }
                 }
-              ]
+              ],
+              "name": "Probe Spare",
+              "baseUrl": "http://127.0.0.1:1/v1",
+              "apiKey": "sk-fixture-only",
+              "api": "openai-completions"
             }
           }
         }
@@ -157,21 +154,14 @@
         "文件": {
           "providers": {
             "ark-coding": {
-              "name": "ark-coding-renamed",
-              "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
-              "apiKey": "$ARK_API_KEY",
-              "api": "openai-completions",
               "headers": {},
               "models": [
                 {
                   "id": "deepseek-v4-flash",
-                  "name": "",
                   "reasoning": false,
                   "input": [
                     "text"
                   ],
-                  "contextWindow": 0,
-                  "maxTokens": 0,
                   "cost": {
                     "input": 0,
                     "output": 0,
@@ -179,7 +169,11 @@
                     "cacheWrite": 0
                   }
                 }
-              ]
+              ],
+              "name": "ark-coding-renamed",
+              "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+              "apiKey": "$ARK_API_KEY",
+              "api": "openai-completions"
             }
           }
         },
@@ -195,7 +189,7 @@
       "name": "L6_模型测试",
       "value": {
         "结果已出现": true,
-        "text": "连接成功 · 1666ms",
+        "text": "连接成功 · 1812ms",
         "ok": true,
         "resultRight": 1016,
         "testBtnLeft": 1024

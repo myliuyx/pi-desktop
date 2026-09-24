@@ -35,12 +35,12 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { childEnv } from "./lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 const mainPath = path.join(coreDir, "src", "main.ts");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
 const seedModelsPath = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const runDir = path.join(coreDir, "run");
 const evidencePath = path.join(runDir, "providers-evidence.json");
@@ -52,10 +52,11 @@ const HTTP_TIMEOUT_MS = 30_000;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pvd-check-"));
-const modelsPath = path.join(tmpRoot, "models.json");
-const sidecarPath = path.join(tmpRoot, "models-disabled.json");
 const agentDir = path.join(tmpRoot, "agentdir");
 fs.mkdirSync(agentDir, { recursive: true });
+/* 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 清单只能落在 agentDir 里（Pi 的约定位置） */
+const modelsPath = path.join(agentDir, "models.json");
+const sidecarPath = path.join(agentDir, "models-disabled.json");
 
 const checks = [];
 const check = (name, pass, detail) => {
@@ -196,7 +197,11 @@ const readSidecarFile = () => {
 		return { providers: {} };
 	}
 };
-const tmpLeftovers = () => fs.readdirSync(tmpRoot).filter((f) => f.includes(".tmp"));
+/*
+ * 原子写的临时文件与 models.json **同目录** —— 2026-09-24 清单搬进 agentDir 后，
+ * 这里必须跟着改成 agentDir，否则断言变成「扫了个空目录」恒真（假绿）。
+ */
+const tmpLeftovers = () => fs.readdirSync(agentDir).filter((f) => f.includes(".tmp"));
 
 /* ---------------------------------------------------------------------------
  * 端点包装
@@ -220,15 +225,13 @@ const evidence = {
 function launchCore() {
 	const logPath = path.join(runDir, "providers-core.log");
 	const logFd = fs.openSync(logPath, "w");
-	const child = spawn(process.execPath, ["--env-file=" + envLocal, tsxPath, mainPath], {
+	const child = spawn(process.execPath, [tsxPath, mainPath], {
 		cwd: coreDir,
-		env: {
-			...process.env,
+		env: childEnv({
 			CORE_TOKEN: TOKEN,
 			CORE_PORT: String(PORT),
-			CORE_MODELS_PATH: modelsPath,
 			CORE_AGENT_DIR: agentDir,
-		},
+		}),
 		stdio: ["ignore", "ignore", logFd],
 	});
 	return {

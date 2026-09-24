@@ -374,6 +374,14 @@ export interface ModelInfo {
   id: string;
   label: string;
   provider: string;
+  /**
+   * Provider 的**展示名**（models.json 里那条记录的 `name`，缺省回落 id）。
+   *
+   * 为什么要单独给出：`provider` 是**内部 key**（`provider-1790227472338` 这种），
+   * 拿它当分组标题显示给用户是错的（2026-09-24 用户反馈「模型选择的 provider 显示不对」）。
+   * UI 分组/标签一律用本字段，`provider` 只用于跨 provider 去重与请求参数。
+   */
+  providerLabel?: string;
   /** 模型是否支持思考（Pi 的 `Model.reasoning`）—— 05 屏「支持 Max」标记的 live 口径 */
   supportsXhigh?: boolean;
 }
@@ -417,17 +425,30 @@ export interface ModelsPayload {
 
 /** 单个模型的配置（对齐 Pi `models.json` 的 model 节点原生 schema） */
 export interface ProviderModelEntry {
-  /** 模型 id（Provider 内唯一） */
+  /** 模型 id（Provider 内唯一）。**schema 里唯一必填字段**（minLength 1） */
   id: string;
-  name: string;
+  /**
+   * 模型显示名。**可选 = 未填**：Pi 的原生 schema 是
+   * `Optional(String({minLength:1}))` —— 可选，但一旦出现就必须 ≥1 字符。
+   * 空串属于**非法值**且会让整份 models.json 校验失败（所有 Provider 一起消失），
+   * 故「未填」必须表达为**缺省**，由 Pi 回落到 `id`。
+   */
+  name?: string;
   /** 是否支持推理 / 思考 */
   reasoning: boolean;
   /** 输入模态（对齐 models.json 原生 `input: ("text"|"image")[]`） */
   input: ("text" | "image")[];
-  /** 上下文窗口（tokens） */
-  contextWindow: number;
-  /** 最大输出 tokens */
-  maxTokens: number;
+  /**
+   * 上下文窗口（tokens）。
+   *
+   * **可选 = 「未填」**（2026-09-24 实踩后修）：Pi 的 `modelFromJson` 对 `<= 0` 直接 throw
+   * （`invalid contextWindow`），而它自己的默认值（128000 / 16384）**只在字段缺省时**生效。
+   * 所以「用户没填」必须表达为**缺省**，不能表达为 0 —— 否则整个 Provider 会被判非法、
+   * 从可用集合里摘掉，表现为「保存成功但模型全没了」的静默失败。
+   */
+  contextWindow?: number;
+  /** 最大输出 tokens（语义同上：缺省 = 用 Pi 默认值，0 是非法值而非「未填」） */
+  maxTokens?: number;
   /** 每百万 tokens 价格四列（对齐 models.json 原生 `cost`） */
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
   /** 模型级 Headers（对齐 models.json 原生 `headers`） */
@@ -445,12 +466,20 @@ export interface ProviderModelEntry {
 export interface ProviderEntry {
   /** Provider id（= models.json 里 providers 记录的 key） */
   id: string;
-  name: string;
-  baseUrl: string;
-  /** API key 原文（D6：本地单用户 + 127.0.0.1 + Bearer/Host 白名单，不脱敏） */
-  apiKey: string;
-  /** API 类型（openai-completions / openai-responses / anthropic-messages） */
-  api: string;
+  /** 显示名。**可选 = 未填**（同 `ProviderModelEntry.name`：空串会让整份文件非法） */
+  name?: string;
+  /** Base URL。**可选 = 未填**（同上；缺省时 Pi 用该 provider 的默认端点） */
+  baseUrl?: string;
+  /**
+   * API key 原文（D6：本地单用户 + 127.0.0.1 + Bearer/Host 白名单，不脱敏）。
+   *
+   * **可选 = 未填**：schema 为 `Optional(String({minLength:1}))`。空串会让整份 models.json
+   * 校验失败 —— 即「顺手加了个还没配 key 的 Provider，把已配好的全弄没了」（2026-09-24 实踩）。
+   * 另注：Pi 口径下「无凭证 = 未配置」，缺省该项的 Provider 其模型不进可用清单。
+   */
+  apiKey?: string;
+  /** API 类型（openai-completions / openai-responses / anthropic-messages）。可选 = 用默认 */
+  api?: string;
   /** Provider 级 Headers（对齐 models.json 原生 `headers`） */
   headers: Record<string, string>;
   /** 是否启用（禁用 = 存 sidecar，Pi 眼中不存在） */
@@ -512,6 +541,31 @@ export interface ModelTestRequest {
   headers?: Record<string, string>;
   /** 被测模型 id */
   modelId: string;
+}
+
+/**
+ * `POST /providers/models` 请求体 —— 拉取某个 Provider 的**真实模型清单**。
+ *
+ * 与 `ModelTestRequest` 同一套凭证解析（`!` / `$ENV` 由 core 解析，不落盘），
+ * 区别只是发的是 `GET {baseUrl}/models` 而不是一次最小对话请求。
+ */
+export interface ProviderModelsRequest {
+  baseUrl: string;
+  apiKey: string;
+  api: string;
+  /** Provider 级 Headers（逐条透传到上游） */
+  headers?: Record<string, string>;
+}
+
+/** `POST /providers/models` 响应体 */
+export interface ProviderModelsResult {
+  ok: boolean;
+  /** 上游返回的模型 id 清单（已 trim / 去重 / 保序） */
+  models: string[];
+  /** `ok=false` 时的错误文案（带目标 host，口径同 `POST /models/test`） */
+  error?: string;
+  /** 实际请求的地址（自查用：确认打到了哪个 host / 路径） */
+  endpoint?: string;
 }
 
 /** `POST /models/test` 响应体（D7：最小真实请求，max_tokens:1，费用忽略不计） */

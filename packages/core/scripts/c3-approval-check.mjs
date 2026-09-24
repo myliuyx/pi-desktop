@@ -24,13 +24,12 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { childEnv, seedModelsJson } from "./lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 const mainPath = path.join(coreDir, "src", "main.ts");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
-const modelsPath = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const fixtureDir = path.join(coreDir, "test", "fixtures", "agentdir-ext");
 const fixtureExtSrc = path.join(fixtureDir, "extensions", "approval-gate.ts");
 const runDir = path.join(coreDir, "run");
@@ -153,16 +152,14 @@ async function openSse(port, onFrame) {
 function launchCore({ name, cwd, agentDir, port, trustTimeoutMs }) {
 	const logPath = path.join(runDir, `c3-core-${name}.log`);
 	const logFd = fs.openSync(logPath, "w");
-	const child = spawn(process.execPath, ["--env-file=" + envLocal, tsxPath, mainPath], {
+	const child = spawn(process.execPath, [tsxPath, mainPath], {
 		cwd,
-		env: {
-			...process.env,
+		env: childEnv({
 			CORE_TOKEN: TOKEN,
 			CORE_PORT: String(port),
-			CORE_MODELS_PATH: modelsPath,
 			CORE_AGENT_DIR: agentDir,
 			...(trustTimeoutMs ? { CORE_TRUST_TIMEOUT_MS: String(trustTimeoutMs) } : {}),
-		},
+		}),
 		stdio: ["ignore", "ignore", logFd],
 	});
 	return {
@@ -183,6 +180,8 @@ function launchCore({ name, cwd, agentDir, port, trustTimeoutMs }) {
 function makeAgentDir(name, { defaultProjectTrust, globalExtension = false }) {
 	const dir = path.join(tmpRoot, `${name}-agentdir`);
 	fs.mkdirSync(dir, { recursive: true });
+	/* 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 模型清单随 agentDir 走（Pi 的约定位置） */
+	seedModelsJson(dir);
 	fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ defaultProjectTrust }, null, 2));
 	if (globalExtension) {
 		const extDir = path.join(dir, "extensions");

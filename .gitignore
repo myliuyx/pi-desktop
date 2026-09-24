@@ -15,7 +15,8 @@ COMMIT_MSG.txt
 push-result.txt
 packages/ui/run/
 packages/ui/_*.png
-packages/ui/_settings-live-core.log
+# 各探针自起 core 的 stderr 日志（probe:settings:live / probe:onboarding …）
+packages/ui/_*-core.log
 
 # 截图缓存（可随时重新生成，不入库）
 .workbuddy/

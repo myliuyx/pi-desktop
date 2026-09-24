@@ -26,13 +26,12 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { childEnv, seedModelsJson } from "./lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 const mainPath = path.join(coreDir, "src", "main.ts");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
-const modelsPath = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const runDir = path.join(coreDir, "run");
 const evidencePath = path.join(runDir, "c4-evidence.json");
 fs.mkdirSync(runDir, { recursive: true });
@@ -228,17 +227,17 @@ fs.mkdirSync(agentDir, { recursive: true });
 fs.mkdirSync(cwd, { recursive: true });
 // 无项目本地资源 ⇒ 不触发信任门（本脚本只验会话，不重复 C3 的信任门用例）
 fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "never" }, null, 2));
+// 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 模型清单随 agentDir 走（Pi 的约定位置）
+seedModelsJson(agentDir);
 
 const logFd = fs.openSync(path.join(runDir, "c4-core.log"), "w");
-const child = spawn(process.execPath, ["--env-file=" + envLocal, tsxPath, mainPath], {
+const child = spawn(process.execPath, [tsxPath, mainPath], {
 	cwd,
-	env: {
-		...process.env,
+	env: childEnv({
 		CORE_TOKEN: TOKEN,
 		CORE_PORT: String(PORT),
-		CORE_MODELS_PATH: modelsPath,
 		CORE_AGENT_DIR: agentDir,
-	},
+	}),
 	stdio: ["ignore", "ignore", logFd],
 });
 

@@ -25,6 +25,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { withBrowser, sleep } from "./cdp.mjs";
+import { childEnv, seedModelsJson } from "../../core/scripts/lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const uiDir = path.join(here, "..");
@@ -32,8 +33,6 @@ const coreDir = path.join(uiDir, "..", "core");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 /** ⚠️ 必须绝对路径：本脚本把 core 的 cwd 指到临时项目目录，相对路径会解析到临时目录下（首跑实踩） */
 const mainPath = path.join(coreDir, "src", "main.ts");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
-const modelsSrc = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const evidencePath = path.join(uiDir, "_probe-c4-evidence.json");
 
 const CORE_PORT = Number(process.env.PROBE_C4_CORE_PORT ?? 5194);
@@ -55,8 +54,8 @@ fs.mkdirSync(cwd, { recursive: true });
 // 无项目本地资源 ⇒ 不触发信任门（本探针只验会话链路）
 fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "never" }, null, 2));
 // 模型清单用仓库里那份（只有 ark-coding 有凭证）—— 探针只需要模型能跑一轮
-const modelsPath = path.join(tmpRoot, "models.json");
-fs.copyFileSync(modelsSrc, modelsPath);
+// 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 清单只能放 agentDir 里（Pi 的约定位置）
+seedModelsJson(agentDir);
 
 function request(method, p, body) {
 	return new Promise((resolve, reject) => {
@@ -104,15 +103,13 @@ async function waitForHealth(timeoutMs = 60_000) {
 }
 
 const logFd = fs.openSync(path.join(coreDir, "run", "probe-c4-core.log"), "w");
-const child = spawn(process.execPath, ["--env-file=" + envLocal, tsxPath, mainPath], {
+const child = spawn(process.execPath, [tsxPath, mainPath], {
 	cwd,
-	env: {
-		...process.env,
+	env: childEnv({
 		CORE_TOKEN: TOKEN,
 		CORE_PORT: String(CORE_PORT),
-		CORE_MODELS_PATH: modelsPath,
 		CORE_AGENT_DIR: agentDir,
-	},
+	}),
 	stdio: ["ignore", "ignore", logFd],
 });
 

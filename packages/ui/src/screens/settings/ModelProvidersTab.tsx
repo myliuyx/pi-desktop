@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, Cog, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
@@ -7,10 +7,18 @@ import {
   SETTINGS_DIALOG_SPLIT_GAP,
 } from "@/lib/layout";
 import type { ModelConfig, ModelProviderConfig } from "@/mock/model-config";
+import { MOCK_DISCOVERED_MODELS } from "@/mock/model-config";
 import { headersToRecord } from "@/mock/provider-convert";
 import { getLiveTransport } from "@/services/live-transport";
+import { isLiveEnabled } from "@/lib/feature-flags";
 import { ProviderForm } from "./ProviderForm";
 import { ModelForm } from "./ModelForm";
+import { ModelImportPanel } from "./ModelImportPanel";
+import {
+  validateProviders,
+  type ProviderRequiredField,
+  type ProviderValidationIssue,
+} from "./provider-validation";
 
 /**
  * 设置弹窗 · 「模型」Tab（第一批 mock 主体）。
@@ -25,6 +33,30 @@ import { ModelForm } from "./ModelForm";
 export interface ModelProvidersTabProps {
   providers: ModelProviderConfig[];
   onChange: (next: ModelProviderConfig[]) => void;
+  /**
+   * 「保存被拦下」时由上层下发：把选中项切到出问题的 Provider。
+   * `seq` 递增保证同一个 Provider 连点两次「保存」也能重新定位（否则 props 不变、effect 不跑）。
+   */
+  focusRequest?: { id: string; seq: number } | null;
+  /**
+   * 被保存闸门拦下的 Provider id 集合（只记「曾经拦过」）。
+   * 就地红字提示**只在保存被拦之后出现**（必填的 `*` 标记则一直显示），
+   * 避免刚点「添加 Provider」就对着一张空表标红说教。
+   */
+  blockedIds?: ReadonlySet<string>;
+  /**
+   * 需要上层把「被拦」的提示写到状态条并定位。
+   * 「保存」与「导入模型」两道闸门共用同一条通路（判据都是 `validateProviders()`）。
+   */
+  onReportIssues?: (issues: ProviderValidationIssue[]) => void;
+}
+
+/** 「导入模型…」的会话状态（一次只服务一个 Provider） */
+interface ImportSession {
+  providerId: string;
+  loading: boolean;
+  models: string[];
+  error: string | null;
 }
 
 type Selection =
@@ -32,10 +64,11 @@ type Selection =
   | { kind: "model"; providerId: string; modelIndex: number }
   | null;
 
-function emptyModel(): ModelConfig {
+function emptyModel(id = ""): ModelConfig {
   return {
-    id: "",
-    name: "",
+    id,
+    // 导入来的模型直接用 id 当显示名：上游只给 id，留空会在表单里变成「未命名模型」
+    name: id,
     reasoning: false,
     imageInput: false,
     contextWindow: 0,
@@ -52,11 +85,43 @@ function defaultSelection(providers: ModelProviderConfig[]): Selection {
   return { kind: "provider", providerId: first.id };
 }
 
-export function ModelProvidersTab({ providers, onChange }: ModelProvidersTabProps) {
+export function ModelProvidersTab({
+  providers,
+  onChange,
+  focusRequest,
+  blockedIds,
+  onReportIssues,
+}: ModelProvidersTabProps) {
   const [selection, setSelection] = useState<Selection>(() => defaultSelection(providers));
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(providers.map((p) => [p.id, true])),
   );
+
+  /**
+   * 保存校验未过 → 上层下发 focusRequest：切到该 Provider 并展开它。
+   * 只认 `focusRequest` 这个对象标识（每次下发都是新对象），不依赖 `providers`
+   * —— 否则用户正常编辑时（providers 每次都变）会被反复抢走当前选择。
+   */
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (!providers.some((p) => p.id === focusRequest.id)) return;
+    setSelection({ kind: "provider", providerId: focusRequest.id });
+    setExpanded((prev) => ({ ...prev, [focusRequest.id]: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest]);
+
+  /** 校验结果按 provider id 索引，供表单就地标红（判据与保存拦截同源） */
+  const missingByProvider = (p: ModelProviderConfig): ProviderRequiredField[] | undefined => {
+    if (!blockedIds?.has(p.id)) return undefined;
+    // 复用同一个判据：用户一填上，红字立刻消失（不必再点一次保存）
+    return validateProviders([p])[0]?.missing;
+  };
+
+  /* -------------------------------------------------------------------------
+   * 「导入模型…」：拉取该 Provider 的真实清单 → 浮层勾选 → 并入草稿
+   * （实现见下方 `startImport` / `confirmImport`，放在 `updateProvider` 之后：
+   *  它们会回写草稿，声明的先后顺序与阅读顺序保持一致，避免「用了后面才定义的函数」的错觉）
+   * ----------------------------------------------------------------------- */
 
   const updateProvider = (id: string, patch: Partial<ModelProviderConfig>) =>
     onChange(providers.map((p) => (p.id === id ? { ...p, ...patch } : p)));
@@ -114,7 +179,12 @@ export function ModelProvidersTab({ providers, onChange }: ModelProvidersTabProp
       apiKey: "",
       api: "openai-completions",
       headers: [],
-      enabled: false,
+      /*
+       * 默认**启用**（2026-09-24 用户裁决）：原先默认 false ⇒ 用户刚添加的 Provider 被存进
+       * sidecar `models-disabled.json`（Pi 眼中并不存在），设置页看起来"加了却没生效"。
+       * 添加动作本身就表达了"我要用它"，默认启用才符合直觉。
+       */
+      enabled: true,
       models: [],
     };
     onChange([...providers, created]);
@@ -154,6 +224,80 @@ export function ModelProvidersTab({ providers, onChange }: ModelProvidersTabProp
   const selectedModel =
     selection?.kind === "model" && selectedProvider
       ? selectedProvider.models[selection.modelIndex] ?? null
+      : null;
+
+  /* -------------------------------------------------------------------------
+   * 「导入模型…」：拉取该 Provider 的真实清单 → 浮层勾选 → 并入草稿
+   * ----------------------------------------------------------------------- */
+
+  const [importSession, setImportSession] = useState<ImportSession | null>(null);
+
+  /**
+   * 点「导入模型…」。先把必填项过一遍闸门（与保存同一判据）：
+   * 没填 Base URL / API key 就没法拉清单，此时**不发请求**，直接交给上层提示并定位。
+   */
+  const startImport = (p: ModelProviderConfig) => {
+    const issues = validateProviders([p]);
+    if (issues.length > 0) {
+      onReportIssues?.(issues);
+      return;
+    }
+    setImportSession({ providerId: p.id, loading: true, models: [], error: null });
+
+    const fail = (message: string) =>
+      setImportSession({ providerId: p.id, loading: false, models: [], error: message });
+
+    const transport = isLiveEnabled() ? getLiveTransport() : null;
+    if (!transport) {
+      /*
+       * mock 形态（默认）：没有上游可拉，用固定演示清单把**交互本身**跑通 ——
+       * 筛选 / 全选 / 逐项勾选 / 「已添加」标记 / 计数，一样都不少（探针据此可在不起 core 时验完）。
+       */
+      window.setTimeout(() => {
+        setImportSession({
+          providerId: p.id,
+          loading: false,
+          models: [...MOCK_DISCOVERED_MODELS],
+          error: null,
+        });
+      }, 350);
+      return;
+    }
+
+    void transport
+      .listProviderModels({
+        baseUrl: p.baseUrl,
+        apiKey: p.apiKey,
+        api: p.api,
+        headers: headersToRecord(p.headers),
+      })
+      .then((res) => {
+        if (!res.ok) {
+          // core 把上游失败包成 200 + {ok:false,error}：原文照显，别吞
+          fail(res.error ?? "拉取模型清单失败");
+          return;
+        }
+        setImportSession({ providerId: p.id, loading: false, models: res.models, error: null });
+      })
+      .catch((e) => fail(e instanceof Error ? e.message : String(e)));
+  };
+
+  /** 确认导入：按 id 去重并入草稿，并把选中项切到第一个新加的模型 */
+  const confirmImport = (p: ModelProviderConfig, ids: readonly string[]) => {
+    const have = new Set(p.models.map((m) => m.id));
+    const fresh = ids.filter((id) => !have.has(id));
+    setImportSession(null);
+    if (fresh.length === 0) return;
+    const appended = fresh.map((id) => emptyModel(id));
+    const baseIndex = p.models.length;
+    updateProvider(p.id, { models: [...p.models, ...appended] });
+    setSelection({ kind: "model", providerId: p.id, modelIndex: baseIndex });
+  };
+
+  /** 当前是否正在为选中的 Provider 导入（浮层取代右栏表单） */
+  const activeImport =
+    importSession && selectedProvider && importSession.providerId === selectedProvider.id
+      ? importSession
       : null;
 
   return (
@@ -295,13 +439,26 @@ export function ModelProvidersTab({ providers, onChange }: ModelProvidersTabProp
 
       {/* 右栏：表单 */}
       <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden" data-testid="model-form-pane">
-        {selection?.kind === "provider" && selectedProvider ? (
+        {activeImport && selectedProvider ? (
+          /* 导入浮层**取代**右栏表单（不叠一层新弹窗）：左栏仍可点，用户随时能看自己在配哪个 Provider */
+          <ModelImportPanel
+            providerName={selectedProvider.name || selectedProvider.id}
+            models={activeImport.models}
+            existingIds={selectedProvider.models.map((m) => m.id)}
+            loading={activeImport.loading}
+            error={activeImport.error}
+            onCancel={() => setImportSession(null)}
+            onConfirm={(ids) => confirmImport(selectedProvider, ids)}
+          />
+        ) : selection?.kind === "provider" && selectedProvider ? (
           <ProviderForm
             /* key：切换 Provider 时重建表单，避免上一项的「确认删除」等局部态残留 */
             key={selectedProvider.id}
             provider={selectedProvider}
             onChange={(next) => updateProvider(selectedProvider.id, next)}
             onDelete={() => deleteProvider(selectedProvider.id)}
+            onImport={() => startImport(selectedProvider)}
+            invalidFields={missingByProvider(selectedProvider)}
           />
         ) : selection?.kind === "model" && selectedProvider && selectedModel ? (
           <ModelForm

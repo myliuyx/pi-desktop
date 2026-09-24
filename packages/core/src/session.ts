@@ -35,6 +35,8 @@ import type {
 	ModelTestRequest,
 	ModelTestResult,
 	ModelsPayload,
+	ProviderModelsRequest,
+	ProviderModelsResult,
 	ProvidersPayload,
 	ProvidersSaveResult,
 	PutProvidersRequest,
@@ -73,6 +75,11 @@ export interface CoreRuntime {
 	getExtensionCount(): number | null;
 	/** 会话工作目录（`/sessions` 响应里带上，便于复核「列的是哪个目录的会话」） */
 	getCwd(): string;
+	/**
+	 * 当前生效模型；**无可用模型时为 null**（2026-09-24 起服务允许无模型启动，
+	 * 此时服务可用、可进设置页配置，只是还不能对话）。`/health` 用它做运维可见性。
+	 */
+	getActiveModel(): { provider: string; modelId: string } | null;
 
 	/* -------------------------------------------------------------------------
 	 * C4 · 会话持久化（`sessions.ts` 的转发；均先等 ready，与 `prompt` 同口径）
@@ -112,6 +119,8 @@ export interface CoreRuntime {
 	searchCatalog(query: string): CatalogPayload;
 	/** `POST /models/test`：一次性最小真实请求（不落盘、不改当前选择） */
 	testModel(req: ModelTestRequest): Promise<ModelTestResult>;
+	/** `POST /providers/models`：拉取该 Provider 的真实模型清单（不落盘、不改当前选择） */
+	listProviderModels(req: ProviderModelsRequest): Promise<ProviderModelsResult>;
 
 	/* -------------------------------------------------------------------------
 	 * C6 · 04 屏工具开关（`tools.ts` 的转发）
@@ -132,7 +141,6 @@ export interface CoreBootstrap {
 
 export interface CreateRuntimeOptions {
 	agentDir?: string;
-	modelsPath?: string;
 	apiKey?: string;
 	shellPath?: string;
 	modelProvider?: string;
@@ -160,13 +168,42 @@ function mergeShellPath(agentDir: string, shellPath: string): void {
 	}
 }
 
-function resolveModelsPath(agentDir: string, envModelsPath?: string): string {
-	if (envModelsPath) return envModelsPath;
+/**
+ * 空清单模板 —— 形状与 `PUT /providers` 写回的一致（`providers` 是 **Record**，不是数组）。
+ * 单独立常量是为了让「首次运行自动创建」与「写入」两处不会各自漂移。
+ */
+const EMPTY_MODELS_JSON = `${JSON.stringify({ providers: {} }, null, 2)}\n`;
+
+/**
+ * models.json 路径解析（**只认 Pi 的约定位置**）。
+ *
+ * `<agentDir>/models.json`，其中 agentDir = `CORE_AGENT_DIR` / `~/.pi/agent`
+ * —— 与 Pi 自己 `config.ts:541 getModelsPath()` 的口径完全一致。
+ *
+ * **不再有 `CORE_MODELS_PATH` 覆盖口**（2026-09-24 删除）：它是早期开发时为了把清单
+ * 指到 `pi/_poc/` 才加的，属于历史包袱。验收脚本要隔离夹具时，把 `CORE_AGENT_DIR`
+ * 指向临时目录即可（清单就在那个目录里），少一个入口就少一种「到底读的哪个文件」。
+ *
+ * 文件缺失时**创建空清单**而非抛错：正式形态下用户不该被迫手工建文件，
+ * 服务照常起来、由设置页「添加 Provider」填内容（见 ready 的无模型分支）。
+ * 用 `flag: "wx"` 独占创建 ⇒ 与用户手工建文件并发时不会覆盖对方。
+ */
+function resolveModelsPath(agentDir: string): string {
 	const inAgent = path.join(agentDir, "models.json");
-	if (fs.existsSync(inAgent)) return inAgent;
-	throw new Error(
-		"未找到 models.json：请在 agentDir 放置 models.json，或经环境变量 CORE_MODELS_PATH 注入（core 只读、不复制）",
-	);
+	if (!fs.existsSync(inAgent)) {
+		try {
+			fs.mkdirSync(path.dirname(inAgent), { recursive: true });
+			fs.writeFileSync(inAgent, EMPTY_MODELS_JSON, { flag: "wx" });
+			console.log(`[core] 已创建空的 models.json：${inAgent}（请在设置页添加 Provider）`);
+		} catch (e) {
+			// 并发下别人先建了 → 直接用；其他错误（权限等）不在文件系统层吞掉，
+			// 交给后续 readProviderRecordMap 按「读取失败」抛出（GET /providers 回结构化 error）。
+			if ((e as NodeJS.ErrnoException)?.code !== "EEXIST") {
+				console.error(`[core] 创建 models.json 失败：${e instanceof Error ? e.message : String(e)}`);
+			}
+		}
+	}
+	return inAgent;
 }
 
 /** 读 settings.json 的 defaultProvider/defaultModel（Pi 既有字段）；缺失/损坏返回 null */
@@ -190,14 +227,15 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	const cwd = opts.cwd ?? process.cwd();
 
 	/*
-	 * C2：models.json 路径解析（CORE_MODELS_PATH 或 agentDir 内默认）提前到外层，
-	 * 这样 `GET /providers` 即使会话尚未就绪也能读到文件（文件读不依赖 Pi 会话）。
-	 * 解析失败（env 未设且 agentDir 内无 models.json）→ 记为 null，端点返回结构化 {error}。
+	 * models.json 路径解析提前到外层，这样 `GET /providers` 即使会话尚未就绪也能读到文件
+	 * （文件读不依赖 Pi 会话）。正式形态下该文件**缺失会被自动创建**（见 resolveModelsPath），
+	 * 所以正常路径不再落到 null；保留 try/catch 只为兜住 mkdir/权限这类极端失败，
+	 * 此时端点回结构化 {error} 而不是崩掉服务。
 	 */
 	let resolvedModelsPath: string | null = null;
 	let resolvedSidecarPath: string | null = null;
 	try {
-		resolvedModelsPath = resolveModelsPath(agentDir, opts.modelsPath);
+		resolvedModelsPath = resolveModelsPath(agentDir);
 		resolvedSidecarPath = path.join(path.dirname(resolvedModelsPath), "models-disabled.json");
 	} catch {
 		resolvedModelsPath = null;
@@ -233,8 +271,23 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	 */
 	const sessionRef = (): SessionRef => ({ cwd, sessionDir: session?.sessionManager.getSessionDir() });
 
+	/**
+	 * 当前**真正可用**的模型 —— 无可用模型时归一成 null。
+	 *
+	 * 为什么需要它（2026-09-24 实查）：SDK 在「没有任何可用模型」时并不会让
+	 * `session.model` 为 undefined，而是挂一个 `provider="unknown", id="unknown"`
+	 * 的**占位模型**；直接透出去会让 `/health`、`/models` 报出一个并不存在的模型。
+	 * 判据用「runtime 是否认得它」：`getModel(provider,id)` 对占位值返回 undefined。
+	 * （与 `models.ts` 的 `list()` 同一口径，改一处记得改另一处。）
+	 */
+	const usableModel = (): AgentSession["model"] | null => {
+		const m = session?.model;
+		if (!m) return null;
+		return modelRuntime?.getModel(m.provider, m.id) ? m : null;
+	};
+
 	/** 当前模型的上下文窗口（`TokenUsage.contextWindow` 的唯一来源；取不到记 0） */
-	const contextWindow = (): number => session?.model?.contextWindow ?? 0;
+	const contextWindow = (): number => usableModel()?.contextWindow ?? 0;
 
 	/*
 	 * 会话用量（TokenStats 数据源）：`input`/`output` 取最近一次 assistant 请求，
@@ -309,7 +362,7 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	});
 
 	const ready = (async (): Promise<void> => {
-		const modelsPath = resolvedModelsPath ?? resolveModelsPath(agentDir, opts.modelsPath);
+		const modelsPath = resolvedModelsPath ?? resolveModelsPath(agentDir);
 		const runtime = await ModelRuntime.create({ modelsPath });
 
 		/*
@@ -327,17 +380,30 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		let model = provider && modelId ? runtime.getModel(provider, modelId) : undefined;
 		if (!model && modelId) model = snapshot.find((m) => m.id === modelId);
 		if (!model) model = snapshot[0];
+
+		/*
+		 * ★ 无可用模型**不中止启动**（2026-09-24 改）：
+		 * 首次运行的用户 models.json 是空的，若这里 throw，main.ts 会 exit(1) ——
+		 * 用户连设置页都打不开，等于死锁（想配也得先有服务）。
+		 * 现在改为：服务照常起，会话照样建（只是没有模型），由用户在设置页添加 Provider。
+		 *
+		 * 依据（published 包实查）：`createAgentSession` 的 `model` 是**可选**的
+		 * （`core/sdk.d.ts:18 model?: Model<any>`）；无模型时 `core/sdk.js:107-113`
+		 * 走 `findInitialModel` → 拿不到就只置 `modelFallbackMessage`、**不抛错**，
+		 * 该分支 `thinkingLevel` 落 "off"、`agent.state.model` 为 undefined、
+		 * 且 `appendModelChange` 有 `model &&` 守卫。
+		 */
 		if (!model) {
-			throw new Error(
-				"没有可用模型：请在 models.json 配置至少一个带凭证的 Provider（或在 settings.json 设 defaultProvider/defaultModel）",
+			console.warn(
+				"[core] 当前没有可用模型：请到设置页「模型」添加并启用一个 Provider（服务照常启动，配好后即可对话）",
 			);
 		}
 
 		const apiKey = opts.apiKey ?? process.env.ARK_API_KEY;
-		if (apiKey) await runtime.setRuntimeApiKey(model.provider, apiKey);
+		if (apiKey && model) await runtime.setRuntimeApiKey(model.provider, apiKey);
 
 		modelRuntime = runtime;
-		activeModel = model;
+		activeModel = model ?? null;
 
 		if (process.platform === "win32" && opts.shellPath) mergeShellPath(agentDir, opts.shellPath);
 
@@ -366,7 +432,9 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		resourceLoader = loader;
 
 		const created = await createAgentSession({
-			model,
+			// 无模型时**整个字段省略**（贴合 d.ts 的 `model?` 可选语义），SDK 自行走
+			// findInitialModel → 拿不到就只给 modelFallbackMessage
+			...(model ? { model } : {}),
 			modelRuntime: runtime,
 			agentDir,
 			cwd,
@@ -375,6 +443,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		});
 		session = created.session;
 		extensionCount = created.extensionsResult.extensions?.length ?? 0;
+		// SDK 的提示（如 "No models available. ..."）原样转出，便于运维定位
+		if (created.modelFallbackMessage) console.warn(`[core] ${created.modelFallbackMessage}`);
 
 		if (disposed) {
 			session.dispose();
@@ -389,7 +459,10 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			trackUsage(event);
 			emitRaw(event);
 		});
-		console.log(`[core] 会话就绪：加载到扩展 ${extensionCount} 个`);
+		console.log(
+			`[core] 会话就绪：加载到扩展 ${extensionCount} 个` +
+				(model ? `；当前模型 ${model.provider}/${model.id}` : "；当前无模型（待设置页配置）"),
+		);
 	})();
 
 	// ready 的 rejection 由 main.ts 显式处理；这里吞掉一份，避免「无人 await 时 unhandledRejection」
@@ -459,6 +532,11 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		getTrust: () => trust,
 		getExtensionCount: () => extensionCount,
 		getCwd: () => cwd,
+		getActiveModel: () => {
+			// 与 contextWindow 同口径：占位模型（provider="unknown"）归一成 null
+			const m = usableModel() ?? (activeModel && modelRuntime?.getModel(activeModel.provider, activeModel.id) ? activeModel : null);
+			return m ? { provider: m.provider, modelId: m.id } : null;
+		},
 
 		/* ------------------------------------------------------------ C4 */
 		listSessions: async (options = {}) => {
@@ -522,6 +600,10 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		testModel: (req) => {
 			// 真实最小请求，不依赖会话就绪、不落盘
 			return providers.test(req);
+		},
+		listProviderModels: (req) => {
+			// 拉上游 /models 清单，同样不依赖会话就绪、不落盘
+			return providers.listModels(req);
 		},
 
 		/* ------------------------------------------------------------ C6 */

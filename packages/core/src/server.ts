@@ -18,7 +18,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { toAgentEvent } from "./adapt.ts";
-import type { AgentEvent, ModelTestRequest, PutProvidersRequest } from "./contract.ts";
+import type { AgentEvent, ModelTestRequest, ProviderModelsRequest, PutProvidersRequest } from "./contract.ts";
 import { isRecord } from "./guards.ts";
 import type { CoreRuntime } from "./session.ts";
 
@@ -59,6 +59,8 @@ const API_ROUTES = new Set([
 	"/providers",
 	"/models/catalog",
 	"/models/test",
+	// 拉取 Provider 真实模型清单（设置页「导入模型…」）
+	"/providers/models",
 	// C6 · 04 屏工具开关接 Pi
 	"/tools/active",
 ]);
@@ -247,12 +249,15 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		if (req.method === "GET" && urlPath === "/health") {
 			// C3：补发信任门结论与扩展数 —— 信任门三态（never/always/ask）的直接证据来源。
 			// 会话就绪前 trust / extensions 为 null（服务已可用，只是会话还在初始化）。
+			// model：2026-09-24 起服务允许「无模型」启动（首启 models.json 为空），
+			// 这里显式暴露 null，运维一眼能看出「服务活着但还没配模型」。
 			return json(200, {
 				ok: true,
 				sseClients: sseClients.size,
 				port: actualPort,
 				extensions: runtime.getExtensionCount(),
 				trust: runtime.getTrust(),
+				model: runtime.getActiveModel(),
 			});
 		}
 
@@ -471,6 +476,20 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				return json(200, result);
 			} catch (e) {
 				return json(200, { error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		// 拉取该 Provider 的真实模型清单（GET {baseUrl}/models），不落盘、不改当前选择
+		if (req.method === "POST" && urlPath === "/providers/models") {
+			const body = (await readBody(req)) as ProviderModelsRequest;
+			if (!body || typeof body.baseUrl !== "string") {
+				return json(400, { error: "请求体缺少 baseUrl" });
+			}
+			try {
+				const result = await runtime.listProviderModels(body);
+				return json(200, result);
+			} catch (e) {
+				return json(200, { ok: false, models: [], error: e instanceof Error ? e.message : String(e) });
 			}
 		}
 

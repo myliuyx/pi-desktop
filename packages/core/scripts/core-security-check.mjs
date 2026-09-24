@@ -1,22 +1,31 @@
 /**
  * core 安全三件套自检 —— node 直跑（不引框架）。
  *
- * 流程：spawn 起 core 服务（固定 token/port，ARK_API_KEY 经 --env-file 注入），
+ * 流程：spawn 起 core 服务（固定 token/port，凭证经 `childEnv` 注入），
  * 然后分别验证：无 token → 401、错 token → 401、错 Host → 403、带 token 正确 Host → 200 且 ok:true。
  * 验证完 kill 子进程并退出（EXIT 0=全绿，1=有失败）。
+ *
+ * 2026-09-24：`CORE_MODELS_PATH` 与 `--env-file` 用法均已删除 ——
+ * 模型清单放在**临时 agentDir** 里（Pi 的约定位置），凭证由 `./lib/credentials.mjs` 注入。
+ * 用临时 agentDir 而不是默认的 `~/.pi/agent`，顺带保证自检不会写用户的全局 Pi 配置。
  */
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { childEnv, seedModelsJson } from "./lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
-const modelsPath = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
+
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "core-security-"));
+const agentDir = path.join(tmpRoot, "agentdir");
+seedModelsJson(agentDir);
+fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultProjectTrust: "never" }, null, 2));
 
 const PORT = 5191;
 const TOKEN = "test-token";
@@ -67,10 +76,10 @@ function check(label, cond, detail) {
 
 const child = spawn(
   process.execPath,
-  ["--env-file=" + envLocal, tsxPath, "src/main.ts"],
+  [tsxPath, "src/main.ts"],
   {
     cwd: coreDir,
-    env: { ...process.env, CORE_TOKEN: TOKEN, CORE_PORT: String(PORT), CORE_MODELS_PATH: modelsPath },
+    env: childEnv({ CORE_TOKEN: TOKEN, CORE_PORT: String(PORT), CORE_AGENT_DIR: agentDir }),
     stdio: "ignore",
   },
 );

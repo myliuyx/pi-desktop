@@ -24,6 +24,7 @@ import { useUiStore } from "@/store/ui-store";
 import { useModelsStore } from "@/store/models-store";
 import { SettingsGeneralTab } from "./settings/SettingsGeneralTab";
 import { ModelProvidersTab } from "./settings/ModelProvidersTab";
+import { describeProviderIssues, validateProviders, type ProviderValidationIssue } from "./settings/provider-validation";
 
 /**
  * 设置弹窗骨架（D1：全局 Dialog，替代原 05 屏路由）。
@@ -63,6 +64,10 @@ export function SettingsDialog() {
   const [draft, setDraft] = useState<ModelProviderConfig[]>(providers);
   /** 底部状态条：live 读取/写入的进度与失败原因（mock 形态恒 “保存后应用于新的会话”） */
   const [status, setStatus] = useState<{ tone: StatusTone; text: string }>({ ...IDLE_STATUS });
+  /** 保存被校验拦下时，指示 ModelProvidersTab 定位到出问题的那一项（seq 递增以支持连点） */
+  const [focus, setFocus] = useState<{ id: string; seq: number } | null>(null);
+  /** 被保存闸门拦过的 Provider id（下发下去，让对应表单就地标红缺哪一项） */
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(() => new Set());
 
   const live = isLiveEnabled();
 
@@ -73,6 +78,8 @@ export function SettingsDialog() {
     setDraft(initial);
     setActiveTab("models");
     setStatus({ ...IDLE_STATUS });
+    setFocus(null);
+    setBlockedIds(new Set());
 
     if (!live) return;
     const transport = getLiveTransport();
@@ -105,11 +112,38 @@ export function SettingsDialog() {
   const close = () => setSettingsOpen(false);
 
   /**
+   * 「被校验拦下」的统一出口（保存闸门与「导入模型…」闸门共用）：
+   * 切到模型 Tab、把出问题的 Provider 选中并展开、就地标红、状态条写原因。
+   */
+  const reportIssues = (issues: ProviderValidationIssue[]) => {
+    const first = issues[0];
+    if (!first) return;
+    setActiveTab("models");
+    setFocus((prev) => ({ id: first.id, seq: (prev?.seq ?? 0) + 1 }));
+    setBlockedIds(new Set(issues.map((i) => i.id)));
+    setStatus({ tone: "danger", text: describeProviderIssues(issues) });
+  };
+
+  /**
    * 保存：**不关闭弹窗**（2026-09-23 用户裁决）—— 底部状态条给结果反馈，
    * 让用户能接着改、也能看见 core 的回退提示；关闭动作交给 ✕ / 取消 / 遮罩。
+   *
+   * 前置闸门（2026-09-24 用户要求）：启用的 Provider 必须填 Base URL 与 API key，
+   * 否则**直接拦下不发请求**，并把用户带到出问题的那一项。
+   * 为什么拦在前面：空 baseUrl/apiKey 在 Pi 那边是**非法值**（不是「没填」），
+   * 会让整份 models.json 校验失败、所有 Provider 一起消失 —— 与其保存完再报错，
+   * 不如在保存前就说清楚缺什么。
    */
   const onSave = async () => {
     const snapshot = draft.map((p) => structuredClone(p));
+
+    const issues = validateProviders(snapshot);
+    if (issues.length > 0) {
+      reportIssues(issues);
+      return;
+    }
+    setBlockedIds(new Set());
+
     saveModelProviders(snapshot);
 
     const transport = getLiveTransport();
@@ -125,9 +159,15 @@ export function SettingsDialog() {
       // 保存会改变可选模型 / 当前模型 —— 通知所有 models-store 消费者重取，
       // 否则 Composer 的模型菜单仍是旧快照（#2）。
       void useModelsStore.getState().refresh();
+      /*
+       * 状态条口径（2026-09-24 修正）：只要 core 回了 `warning` 就按 warning 显示。
+       * 原实现只在 `fallbackApplied` 时才显示 warning ⇒ 「保存成功、但没有任何可用模型」
+       * 这类诊断（warning 有值但没触发回退）会被吞掉，用户只看到一行绿字，
+       * 完全不知道模型为什么不见了。
+       */
       setStatus(
-        res.fallbackApplied
-          ? { tone: "warning", text: res.warning ?? "当前生效模型已失效，已自动回退" }
+        res.warning
+          ? { tone: "warning", text: res.warning }
           : { tone: "success", text: "保存成功（已写入 core，应用于新的会话）" },
       );
     } catch (e) {
@@ -176,6 +216,8 @@ export function SettingsDialog() {
               status.tone === "warning" && "text-warning",
               status.tone === "danger" && "text-danger",
             )}
+            /* 长文案会被 truncate 截断 —— 补 title 让悬停能看到全文（就地标红才是主提示） */
+            title={status.text}
             data-testid="settings-status"
             data-tone={status.tone}
           >
@@ -204,7 +246,13 @@ export function SettingsDialog() {
           </div>
         ) : null}
         {activeTab === "models" ? (
-          <ModelProvidersTab providers={draft} onChange={setDraft} />
+          <ModelProvidersTab
+            providers={draft}
+            onChange={setDraft}
+            focusRequest={focus}
+            blockedIds={blockedIds}
+            onReportIssues={reportIssues}
+          />
         ) : null}
         {activeTab === "skills" ? <PlaceholderTab title="技能" /> : null}
         {activeTab === "subagents" ? <PlaceholderTab title="子代理" /> : null}

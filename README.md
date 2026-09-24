@@ -40,10 +40,10 @@ cd ../core
 npm install
 
 # 提供模型配置与 Key（示例）
-#   models.json 中可用 "apiKey": "$ARK_API_KEY" 插值
+#   models.json 固定取 <agentDir>/models.json（缺省 ~/.pi/agent/models.json，首次运行自动创建空清单）
+#   其中可用 "apiKey": "$ARK_API_KEY" 插值 ⇒ 变量要在**启动 core 的 shell** 里 export
 export ARK_API_KEY=<你的 key>
-export CORE_MODELS_PATH=<models.json 路径>       # 模型清单
-export CORE_AGENT_DIR=<agent 目录>               # 可选，缺省用默认 agentdir
+export CORE_AGENT_DIR=<agent 目录>               # 可选，缺省用默认 agentdir（清单就在它下面）
 export CORE_SHELL_PATH=<bash 路径>               # Windows 建议指向 PortableGit bash（有完整 coreutils）
 export CORE_PORT=5190                            # 可选，缺省随机端口
 
@@ -60,6 +60,7 @@ token 落盘在 `packages/core/run/core.json`（已 gitignore，绝不提交）�
 | 位置 | 脚本 | 说明 |
 |---|---|---|
 | `packages/ui` | `npm run typecheck` | 类型检查（必须带 `-p`，裸 `tsc` 会假绿） |
+| `packages/ui` | `npm run check:contract` | UI 契约镜像与 core `contract.ts` 齐平检查（字段级） |
 | `packages/ui` | `npm run build` | 构建生产 dist |
 | `packages/ui` | `npm run accept:m1`~`m5` | 里程碑验收（CDP 驱动，需系统 Chrome） |
 | `packages/ui` | `npm run live:smoke` | 真实链路冒烟（12 项断言） |
@@ -72,8 +73,7 @@ token 落盘在 `packages/core/run/core.json`（已 gitignore，绝不提交）�
 | 变量 | 说明 |
 |---|---|
 | `ARK_API_KEY` | 模型 API Key（仅经环境变量注入，不落任何被提交文件） |
-| `CORE_MODELS_PATH` | 模型清单 JSON 路径 |
-| `CORE_AGENT_DIR` | Pi agent 目录（扩展、settings.json 等） |
+| `CORE_AGENT_DIR` | Pi agent 目录（models.json / settings.json / 扩展等，缺省 `~/.pi/agent`） |
 | `CORE_SHELL_PATH` | shell 可执行文件路径（Windows 建议 PortableGit bash） |
 | `CORE_PORT` | 监听端口（缺省随机） |
 | `CORE_TOKEN` | 固定 token（缺省每次启动随机生成） |

@@ -58,6 +58,20 @@ export interface ChipMenuProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   className?: string;
+  /**
+   * 降级态（2026-09-24）：没有任何可选项时**不挂菜单**，改为渲染一枚禁用态 Chip。
+   *
+   * 为什么不能只把 `groups` 传空：空菜单点开是一片空白，「点了没反应」是本项目明令避免的陷阱
+   * （C3 记过）；为什么不能回落到调用方的默认值：那会显示一个**并不存在但很像真的**选项
+   * （模型芯片原先把 mock 模型名当成当前模型显示，实踩）。
+   * 传了就忽略 `groups` / `value` / `onChange`，文案由调用方给（`label`）+
+   * 这里用 `disabledReason` 作 `title`/`aria-label` 补充说明「为什么没有、去哪儿配」。
+   *
+   * DOM 契约：降级态沿用**同一个 wrapper + 同一个 testid**（M2 2-11 枚举
+   * `composer-toolbar` 直接子节点的 testid 序列、2-12 量该节点高 = 32）——
+   * 只是把 ChipMenu 换成同高同位的 Chip，结构和高度断言都不受影响。
+   */
+  disabledReason?: string;
 }
 
 export function ChipMenu<T extends string>({
@@ -71,6 +85,7 @@ export function ChipMenu<T extends string>({
   value,
   onChange,
   className,
+  disabledReason,
 }: ChipMenuProps<T>) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -93,6 +108,27 @@ export function ChipMenu<T extends string>({
       document.removeEventListener("pointerdown", onPointerDown);
     };
   }, [open, value]);
+
+  /*
+   * 降级态：**必须放在所有 hooks 之后**（hooks 顺序不能随 props 变化）。
+   * 用 `disabled` 而非「可点但不动」：后者正是「点了没反应」；`title` 给出原因与去处，
+   * `aria-label` 补一句「不可用」，键盘用户即便跳过禁用元素也能从可访问名读出状态。
+   */
+  if (disabledReason !== undefined) {
+    return (
+      <div data-testid={testId} className={cn("relative inline-flex min-w-0", className)}>
+        <Chip
+          disabled
+          data-testid={`${testId}-trigger`}
+          icon={icon}
+          aria-label={`${ariaLabel}（当前不可用）`}
+          title={disabledReason}
+        >
+          {label}
+        </Chip>
+      </div>
+    );
+  }
 
   function select(next: T) {
     onChange(next);

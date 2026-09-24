@@ -10,7 +10,8 @@
  *    检查 block 之后的 toolResult 消息内容是否包含标记串。
  *
  * 运行：cd packages/core && node run/_spike-block-reason.mjs
- * key 仅经 env 注入（--env-file=pi/_poc/.env.local，node 子进程自带）。
+ * key 由 `scripts/lib/credentials.mjs` 注入（shell 的 ARK_API_KEY 优先，否则回落
+ * `pi/_poc/.env.local`；core 侧已不读任何 .env）。
  */
 
 import { spawn } from "node:child_process";
@@ -18,15 +19,17 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { childEnv, seedModelsJson } from "../scripts/lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const repoDir = path.resolve(coreDir, "..", "..");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
-const envLocal = path.join(repoDir, "pi", "_poc", ".env.local");
-const modelsPath = path.join(repoDir, "pi", "_poc", "models.json");
 const agentDir = path.join(repoDir, "pi", "_poc", "spike-core", "agentdir-block-reason");
 const sessionsDir = path.join(agentDir, "sessions");
+
+/* 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 清单随 agentDir 走（Pi 的约定位置） */
+seedModelsJson(agentDir);
 
 const MARKER = "BLOCKED-REASON-PROBE-20260923";
 const PORT = 5196;
@@ -86,17 +89,15 @@ function listSessionFiles() {
 
 const child = spawn(
   process.execPath,
-  ["--env-file=" + envLocal, tsxPath, "src/main.ts"],
+  [tsxPath, "src/main.ts"],
   {
     cwd: coreDir,
-    env: {
-      ...process.env,
+    env: childEnv({
       CORE_TOKEN: TOKEN,
       CORE_PORT: String(PORT),
-      CORE_MODELS_PATH: modelsPath,
       CORE_AGENT_DIR: agentDir,
       CORE_SHELL_PATH: "C:/Users/myliu/.workbuddy/binaries/PortableGit/versions/1.2.0/bin/bash.exe",
-    },
+    }),
     stdio: ["ignore", "pipe", "pipe"],
   },
 );

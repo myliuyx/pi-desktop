@@ -22,6 +22,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { withBrowser, sleep } from "./cdp.mjs";
+import { childEnv } from "../../core/scripts/lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const uiDir = path.join(here, "..");
@@ -29,7 +30,6 @@ const coreDir = path.join(uiDir, "..", "core");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 /** ⚠️ 必须绝对路径：本脚本把 core 的 cwd 指到临时项目目录，相对路径会解析到临时目录下（首跑实踩） */
 const mainPath = path.join(coreDir, "src", "main.ts");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
 const modelsSrc = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const fixtureDir = path.join(coreDir, "test", "fixtures", "resources");
 const evidencePath = path.join(uiDir, "_probe-c5-evidence.json");
@@ -51,7 +51,8 @@ fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultP
 for (const kind of ["extensions", "skills", "prompts"]) {
 	fs.cpSync(path.join(fixtureDir, kind), path.join(agentDir, kind), { recursive: true });
 }
-const modelsPath = path.join(tmpRoot, "models.json");
+/* 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 合成清单直接写进 agentDir（Pi 的约定位置） */
+const modelsPath = path.join(agentDir, "models.json");
 {
 	const src = JSON.parse(fs.readFileSync(modelsSrc, "utf8"));
 	const base = src.providers["ark-coding"];
@@ -128,15 +129,13 @@ const waitCount = (selector, n, timeout = 20000) => `new Promise((r) => {
 })`;
 
 const logFd = fs.openSync(path.join(coreDir, "run", "probe-c5-core.log"), "w");
-const child = spawn(process.execPath, ["--env-file=" + envLocal, tsxPath, mainPath], {
+const child = spawn(process.execPath, [tsxPath, mainPath], {
 	cwd,
-	env: {
-		...process.env,
+	env: childEnv({
 		CORE_TOKEN: TOKEN,
 		CORE_PORT: String(CORE_PORT),
-		CORE_MODELS_PATH: modelsPath,
 		CORE_AGENT_DIR: agentDir,
-	},
+	}),
 	stdio: ["ignore", "ignore", logFd],
 });
 

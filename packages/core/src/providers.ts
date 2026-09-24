@@ -34,6 +34,8 @@ import type { ModelRuntime } from "@earendil-works/pi-coding-agent";import type 
 	CatalogPayload,
 	ModelTestRequest,
 	ModelTestResult,
+	ProviderModelsRequest,
+	ProviderModelsResult,
 	ProvidersPayload,
 	ProviderEntry,
 	ProviderModelEntry,
@@ -46,7 +48,7 @@ import type { ModelRuntime } from "@earendil-works/pi-coding-agent";import type 
  * ------------------------------------------------------------------------- */
 
 export interface ProvidersControllerDeps {
-	/** 解析到的 models.json 绝对路径（CORE_MODELS_PATH 或 agentDir 内默认）；未解析为 null */
+	/** 解析到的 models.json 绝对路径（= `<agentDir>/models.json`）；解析异常时为 null */
 	getModelsPath(): string | null;
 	/** 同目录 sidecar（禁用 provider 完整配置原文）路径；未解析 models 路径时为 null */
 	getSidecarPath(): string | null;
@@ -277,28 +279,34 @@ function nativeModelToEntry(rec: NativeModelRecord): ProviderModelEntry {
  * **只产出契约字段**——非契约字段无法经 UI 往返，由 `mergeExtras` 在保存时从磁盘并回。
  */
 function entryToNativeProvider(p: ProviderEntry): NativeProviderRecord {
-	return {
-		name: p.name,
-		baseUrl: p.baseUrl,
-		apiKey: p.apiKey,
-		api: p.api,
-		headers: p.headers,
-		models: p.models.map((m) => {
-			const rec: NativeModelRecord = {
-				id: m.id,
-				name: m.name,
-				reasoning: m.reasoning,
-				input: m.input,
-				contextWindow: m.contextWindow,
-				maxTokens: m.maxTokens,
-				cost: m.cost,
-			};
-			if (m.headers && Object.keys(m.headers).length) rec.headers = m.headers;
-			if (m.compat) rec.compat = m.compat;
-			if (m.endpointOverride) rec.endpointOverride = m.endpointOverride;
-			return rec;
-		}),
+	/*
+	 * 空串 / 缺省一律**不落键**：Pi 的 models.json schema 里 name / baseUrl / apiKey / api
+	 * 都是 `Optional(String({minLength:1}))` —— 可选，但只要出现就必须 ≥1 字符。写空串 =
+	 * 让**整份文件**校验失败（`ModelConfig.load` 返回空 Map ⇒ 所有 Provider 集体消失）。
+	 */
+	const rec: NativeProviderRecord = { headers: p.headers, models: p.models.map(modelToNative) };
+	if (p.name) rec.name = p.name;
+	if (p.baseUrl) rec.baseUrl = p.baseUrl;
+	if (p.apiKey) rec.apiKey = p.apiKey;
+	if (p.api) rec.api = p.api;
+	return rec;
+}
+
+function modelToNative(m: ProviderModelEntry): NativeModelRecord {
+	const rec: NativeModelRecord = {
+		id: m.id,
+		reasoning: m.reasoning,
+		input: m.input,
+		cost: m.cost,
 	};
+	if (m.name) rec.name = m.name;
+	// 缺省 = 未填（交给 Pi 默认值）；写了 0 反而会被 Pi 判非法 —— 见契约注释
+	if (m.contextWindow !== undefined) rec.contextWindow = m.contextWindow;
+	if (m.maxTokens !== undefined) rec.maxTokens = m.maxTokens;
+	if (m.headers && Object.keys(m.headers).length) rec.headers = m.headers;
+	if (m.compat) rec.compat = m.compat;
+	if (m.endpointOverride) rec.endpointOverride = m.endpointOverride;
+	return rec;
 }
 
 /* ---------------------------------------------------------------------------
@@ -460,21 +468,64 @@ function modelToCatalogEntry(m: {
  * 模型测试（一次性最小真实请求）
  * ------------------------------------------------------------------------- */
 
+/**
+ * 凭证解析结果。
+ *
+ * `missingEnvVars` 非空意味着**必然鉴权失败**：`$VAR` 写法已明确表达了「用这个环境变量」，
+ * 而它不存在 ⇒ 解析出来是空串。原先这种情况会被静默替换成空串、连 Authorization 头都不发，
+ * 上游回一个光秃秃的 `HTTP 401 Unauthorized`，用户根本猜不到是环境变量没设
+ * （2026-09-24 实踩）。所以把缺失项显式带回给调用方，在发请求前就报清楚。
+ *
+ * 两个入口：`resolveCredential`（可执行 `!` 命令，发请求用）与 `inspectCredential`
+ * （只做 `$VAR` 插值，保存诊断用 —— 保存不该有跑 shell 的副作用）。
+ */
+interface ResolvedCredential {
+	key: string;
+	missingEnvVars: string[];
+}
+
+/**
+ * `$VAR` / `${VAR}` 插值：返回替换后的字符串 + 其中**未设置**的变量名。
+ *
+ * **纯函数**：不执行命令、不落盘、不发起请求 —— 保存前的诊断也要用它，
+ * 而保存路径绝不能为了「看看凭证能不能用」去跑用户写在 `!` 后面的 shell 命令。
+ */
+function interpolateEnvRefs(raw: string): { key: string; missingEnvVars: string[] } {
+	const missing: string[] = [];
+	const key = raw.replace(/\$\{(\w+)\}|\$(\w+)/g, (_m, a, b) => {
+		const name = String(a ?? b);
+		const value = process.env[name];
+		if (value === undefined) missing.push(name);
+		return value ?? "";
+	});
+	return { key, missingEnvVars: [...new Set(missing)] };
+}
+
 /** 解析 `!` / `$ENV` 插值（S2：凭证层语义，仅测试时按需解析，不落盘） */
-function resolveCredential(raw: string): string {
-	if (!raw) return raw;
-		if (raw.startsWith("!")) {
-			try {
-				const shell = process.platform === "win32" ? "cmd.exe" : "/bin/sh";
-				return execSync(raw.slice(1), { shell, timeout: 8000, encoding: "utf8" }).trim();
-			} catch {
-				return raw; // 解析失败则原样返回（测试结果自然反映鉴权失败）
-			}
+function resolveCredential(raw: string): ResolvedCredential {
+	if (!raw) return { key: "", missingEnvVars: [] };
+	if (raw.startsWith("!")) {
+		try {
+			const shell = process.platform === "win32" ? "cmd.exe" : "/bin/sh";
+			const out = execSync(raw.slice(1), { shell, timeout: 8000, encoding: "utf8" }).trim();
+			return { key: out, missingEnvVars: [] };
+		} catch {
+			return { key: raw, missingEnvVars: [] }; // 解析失败则原样返回（测试结果自然反映鉴权失败）
 		}
-	if (raw.startsWith("$")) {
-		return raw.replace(/\$\{(\w+)\}|\$(\w+)/g, (_m, a, b) => process.env[a ?? b] ?? "");
 	}
-	return raw;
+	if (raw.startsWith("$")) return interpolateEnvRefs(raw);
+	return { key: raw, missingEnvVars: [] };
+}
+
+/**
+ * **诊断用**凭证视图（2026-09-24）：只做 `$VAR` 插值，**不执行 `!` 命令**。
+ *
+ * 与 `resolveCredential` 的唯一差别就是这一条 —— 发请求（`/models/test`、`/providers/models`）
+ * 时跑一次取数命令是合理的；保存 providers 时跑就纯粹是副作用（阻塞 8s、执行用户命令）。
+ * `!cmd` 一律当作「已配置」（跑不跑得通只有真发请求才知道，保存不该猜）。
+ */
+function inspectCredential(raw: string): ResolvedCredential {
+	return raw.startsWith("!") ? { key: raw, missingEnvVars: [] } : resolveCredential(raw);
 }
 
 function buildTestEndpoint(baseUrl: string, api: string): string | null {
@@ -486,16 +537,87 @@ function buildTestEndpoint(baseUrl: string, api: string): string | null {
 	return `${base}/chat/completions`;
 }
 
-function buildTestHeaders(req: ModelTestRequest): Record<string, string> {
+/**
+ * 鉴权/自定义头构造。参数收窄成 `{api, headers}`：`/models/test` 与 `/providers/models`
+ * 两种请求共用同一口径（空 key 不发鉴权头；anthropic 走 `x-api-key` + 版本头）。
+ */
+function buildTestHeaders(
+	req: { api: string; headers?: Record<string, string> },
+	key: string,
+): Record<string, string> {
 	const headers: Record<string, string> = { "Content-Type": "application/json" };
 	for (const [k, v] of Object.entries(req.headers ?? {})) headers[k] = v;
-	const key = resolveCredential(req.apiKey);
+	// key 为空时**不发鉴权头**：本地无鉴权服务（llama.cpp / ollama 等）本就合法
 	if (key) {
 		if (req.api === "anthropic-messages") headers["x-api-key"] = key;
 		else headers["Authorization"] = `Bearer ${key}`;
 	}
 	if (req.api === "anthropic-messages") headers["anthropic-version"] = "2023-06-01";
 	return headers;
+}
+
+/** 目标主机名（用于把「上游拒绝」与「core 自身 401」区分开，取不到就回原始串） */
+function endpointHost(endpoint: string): string {
+	try {
+		return new URL(endpoint).host;
+	} catch {
+		return endpoint;
+	}
+}
+
+/**
+ * 模型清单端点：`GET {baseUrl}/models`（OpenAI 兼容约定）。
+ *
+ * 三种 api 都走这条路：`openai-completions` / `openai-responses` 是 OpenAI 兼容网关的标准约定；
+ * `anthropic-messages` 的 `GET /v1/models` 路径形状也一致（baseUrl 自带 `/v1`）。
+ * 上游没实现该端点时会回 404 —— 这本身就是要告诉用户的信息，不做兜底猜测。
+ */
+function buildModelsEndpoint(baseUrl: string): string | null {
+	const base = (baseUrl || "").replace(/\/+$/, "");
+	if (!base) return null;
+	return `${base}/models`;
+}
+
+/**
+ * 上游 `/models` 的响应形状容错：OpenAI 用 `{data:[{id}]}`，也有实现回 `{models:[...]}`
+ * 或裸数组（元素可能是字符串，也可能是 `{id}`）。取不到任何字符串 id 就当空清单。
+ */
+function extractModelIds(payload: unknown): string[] {
+	const rawList = (() => {
+		if (Array.isArray(payload)) return payload;
+		if (payload && typeof payload === "object") {
+			const rec = payload as Record<string, unknown>;
+			if (Array.isArray(rec.data)) return rec.data;
+			if (Array.isArray(rec.models)) return rec.models;
+		}
+		return [];
+	})();
+	const out: string[] = [];
+	const seen = new Set<string>();
+	for (const item of rawList) {
+		const id =
+			typeof item === "string"
+				? item
+				: item && typeof item === "object" && typeof (item as Record<string, unknown>).id === "string"
+					? ((item as Record<string, unknown>).id as string)
+					: "";
+		const trimmed = id.trim();
+		if (!trimmed || seen.has(trimmed)) continue;
+		seen.add(trimmed);
+		out.push(trimmed);
+	}
+	return out;
+}
+
+/** 读上游错误响应体片段（最多 300 字符）：401/403 的真实原因通常只在 body 里 */
+async function readErrorSnippet(res: Response): Promise<string> {
+	try {
+		const text = (await res.text()).trim();
+		if (!text) return "";
+		return `：${text.replace(/\s+/g, " ").slice(0, 300)}`;
+	} catch {
+		return "";
+	}
 }
 
 function buildTestBody(api: string, modelId: string): unknown {
@@ -522,6 +644,8 @@ export interface ProvidersController {
 	catalog(query: string): CatalogPayload;
 	/** `POST /models/test`：一次性最小真实请求（不落盘、不改当前选择） */
 	test(req: ModelTestRequest): Promise<ModelTestResult>;
+	/** `POST /providers/models`：拉取该 Provider 的真实模型清单（不落盘、不改当前选择） */
+	listModels(req: ProviderModelsRequest): Promise<ProviderModelsResult>;
 }
 
 export function createProvidersController(deps: ProvidersControllerDeps): ProvidersController {
@@ -535,7 +659,7 @@ export function createProvidersController(deps: ProvidersControllerDeps): Provid
 
 	const list = (): ProvidersPayload => {
 		const modelsPath = deps.getModelsPath();
-		if (!modelsPath) throw new Error("未解析到 models.json（CORE_MODELS_PATH 未设置或 agentDir 内不存在）");
+		if (!modelsPath) throw new Error("未解析到 models.json（无法读取）");
 		const entries = readMergedProviders(modelsPath, deps.getSidecarPath());
 		return {
 			providers: entries,
@@ -607,6 +731,82 @@ export function createProvidersController(deps: ProvidersControllerDeps): Provid
 					warning = `当前生效模型 ${before.provider}/${before.modelId} 已被删除，且无任何可用模型，请先添加并启用一个 Provider`;
 				}
 			}
+		} else if (!before && runtime && snapshot.length > 0) {
+			/*
+			 * 首次配置（2026-09-24 新增）：启动时 models.json 为空 ⇒ settings 里没有 current，
+			 * 用户此刻刚添加好 Provider —— 自动选中第一个可用模型，加完即可对话。
+			 * 可行性：无模型启动时会话实例**已经建好**（session.ts ready 不再 throw），
+			 * 所以 deps.selectCurrent 这条路可用（session.setModel persist:true）。
+			 */
+			const first = snapshot[0];
+			const applied = await deps.selectCurrent(first.provider, first.id);
+			if (applied) {
+				current = { provider: first.provider, modelId: first.id };
+				fallbackApplied = true;
+				warning = `首次配置：已自动选中 ${first.provider}/${first.id}，可直接开始对话`;
+			} else {
+				warning = "Provider 已保存，但自动选型失败，请在模型列表中手动选择一个模型";
+			}
+		}
+
+		/*
+		 * 诊断兜底（2026-09-24 实踩）：「保存成功」但可用清单为空是最难自查的一类失败 ——
+		 * 用户看到的是绿字，模型却整批不见了。两种真实成因：
+		 *   ① 组合错误：Pi 的 `modelFromJson` 判 provider/model 定义非法并 throw
+		 *      （`invalid contextWindow` / `invalid maxTokens` / 缺 api / 缺 baseUrl），
+		 *      该 provider 被从可用集合摘掉。Pi 把它收在 `runtime.getError()` 里，此前没透出。
+		 *   ② 无凭证：Pi 口径 `configuredRequestAuthStatus().configured` 为假 ⇒ 不进可用快照。
+		 * 两者都必须在响应里说清楚，而不是让用户对着一份「保存成功」发呆。
+		 */
+		if (snapshot.length === 0 && runtime) {
+			const candidates = req.providers.filter((p) => p.enabled && p.models.length > 0);
+			if (candidates.length > 0) {
+				const reasons: string[] = [];
+				/*
+				 * 凭证诊断与 `/models/test`、`/providers/models` **同一口径**（2026-09-24 补）：
+				 * 只判 `apiKey` 字面量是否为空是不够的 —— 写 `"$ARK_API_KEY"` 同样是非空字符串，
+				 * 但环境变量没设时它插值出来是空串，Pi 照样视作**无凭证**、该 Provider 的模型
+				 * 整批不进可用清单。原先这种情况会掉进兜底句「凭证无效或 Provider 定义不完整」，
+				 * 用户根本猜不到该去看环境变量（本批 `/models/test` 已修，保存路径漏了）。
+				 * 用 `inspectCredential`（不执行 `!` 命令）—— 保存不该有跑 shell 的副作用。
+				 */
+				const noKey: string[] = [];
+				const missingEnv: string[] = [];
+				const keyLooksLikeUrl: string[] = [];
+				for (const p of candidates) {
+					const { key, missingEnvVars } = inspectCredential(p.apiKey ?? "");
+					if (missingEnvVars.length > 0) {
+						missingEnv.push(`${p.id} 的 API key 引用了未设置的环境变量：${missingEnvVars.join("、")}`);
+						continue;
+					}
+					if (!key.trim()) {
+						noKey.push(p.id);
+						continue;
+					}
+					// 明显填错位置：密钥字段里装的是 URL（与 test() 的提示同一判据）
+					if (/^https?:\/\//i.test(key.trim())) keyLooksLikeUrl.push(p.id);
+				}
+				if (noKey.length > 0) {
+					reasons.push(
+						`${noKey.join("、")} 未填写 API key（Pi 口径：无凭证 = 未配置，其模型不进可用清单）`,
+					);
+				}
+				if (missingEnv.length > 0) {
+					reasons.push(
+						`${missingEnv.join("；")}（插值为空 ⇒ Pi 视作无凭证，其模型不进可用清单；请设置该变量后重试，或直接把密钥字面量填进表单）`,
+					);
+				}
+				if (keyLooksLikeUrl.length > 0) {
+					reasons.push(
+						`${keyLooksLikeUrl.join("、")} 的 API key 看起来是一段 URL，检查是否把 Base URL 填错了位置`,
+					);
+				}
+				const compositionError = runtime.getError?.();
+				if (compositionError) reasons.push(`Provider 定义非法：${compositionError}`);
+				if (reasons.length === 0) reasons.push("凭证无效或 Provider 定义不完整");
+				const diag = `已启用但没有任何可用模型 —— ${reasons.join("；")}`;
+				warning = warning ? `${warning}；${diag}` : diag;
+			}
 		}
 
 		const providers = readMergedProviders(modelsPath, sidecarPath);
@@ -644,23 +844,100 @@ export function createProvidersController(deps: ProvidersControllerDeps): Provid
 		if (!endpoint) {
 			return { ok: false, latencyMs: Date.now() - start, error: "缺少有效的 Base URL" };
 		}
+		const host = endpointHost(endpoint);
+
+		/*
+		 * 凭证先解析再发请求（2026-09-24 实踩）：
+		 * ① `$VAR` 引用的环境变量不存在 ⇒ 解析结果是空串，原先会「不发 Authorization 直接请求」，
+		 *    上游回一个光秃秃的 `HTTP 401 Unauthorized`，用户完全看不出是环境变量没设。
+		 *    这种情况**在发请求前就报清楚**（不消耗一次往返，也不会被误读成密钥错）。
+		 * ② apiKey 为空**不拦**：本地无鉴权服务（llama.cpp / ollama）本就合法。
+		 */
+		const { key, missingEnvVars } = resolveCredential(req.apiKey);
+		if (missingEnvVars.length > 0) {
+			return {
+				ok: false,
+				latencyMs: Date.now() - start,
+				error: `API key 引用了未设置的环境变量：${missingEnvVars.join("、")}（请设置该变量后重试，或直接把密钥字面量填进表单）`,
+			};
+		}
+		// 明显填错位置：密钥字段里装的是 URL（本次实踩：把 Base URL 填进了 API key）
+		const keyLooksLikeUrl = /^https?:\/\//i.test(key.trim());
+
 		try {
 			const res = await fetch(endpoint, {
 				method: "POST",
-				headers: buildTestHeaders(req),
+				headers: buildTestHeaders(req, key),
 				body: JSON.stringify(buildTestBody(req.api, req.modelId)),
 				// D7：最小请求，长超时也无妨；给一个合理上限避免挂死
 				signal: AbortSignal.timeout(20000),
 			});
 			const latencyMs = Date.now() - start;
 			if (!res.ok) {
-				return { ok: false, latencyMs, error: `HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""}` };
+				/*
+				 * 错误文案必须能一眼区分「上游拒绝」与「core 自身 401」——上层响应是 200+ok=false，
+				 * 但光看 "HTTP 401 Unauthorized" 会误以为是自己没带 token（本次实踩）。
+				 * 故：带上目标 host + 上游响应体片段（401/403 的真实原因通常只在 body 里）。
+				 */
+				const snippet = await readErrorSnippet(res);
+				const hint = keyLooksLikeUrl ? "；另外 API key 字段看起来是一段 URL，检查是否把 Base URL 填错了位置" : "";
+				return {
+					ok: false,
+					latencyMs,
+					error: `${host} 返回 HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""}${snippet}${hint}`,
+				};
 			}
 			return { ok: true, latencyMs };
 		} catch (e) {
-			return { ok: false, latencyMs: Date.now() - start, error: e instanceof Error ? e.message : String(e) };
+			// 网络层异常同样带上 host，否则 "fetch failed" 也不知道连的是谁
+			return { ok: false, latencyMs: Date.now() - start, error: `${host}：${e instanceof Error ? e.message : String(e)}` };
 		}
 	};
 
-	return { list, save, catalog, test };
+	/**
+	 * 拉取某个 Provider 的**真实模型清单**（`GET {baseUrl}/models`），供设置页「导入模型…」勾选。
+	 *
+	 * 与 `test()` 同一套凭证解析与错误口径（**不改当前选择、不落盘**）：
+	 * 环境变量缺失提前点名、失败带目标 host + 上游响应体、apiKey 填成 URL 时给出提示。
+	 */
+	const listModels = async (req: ProviderModelsRequest): Promise<ProviderModelsResult> => {
+		const endpoint = buildModelsEndpoint(req.baseUrl);
+		if (!endpoint) return { ok: false, models: [], error: "缺少有效的 Base URL" };
+		const host = endpointHost(endpoint);
+
+		const { key, missingEnvVars } = resolveCredential(req.apiKey);
+		if (missingEnvVars.length > 0) {
+			return {
+				ok: false,
+				models: [],
+				endpoint,
+				error: `API key 引用了未设置的环境变量：${missingEnvVars.join("、")}（请设置该变量后重试，或直接把密钥字面量填进表单）`,
+			};
+		}
+		const keyLooksLikeUrl = /^https?:\/\//i.test(key.trim());
+
+		try {
+			const res = await fetch(endpoint, {
+				method: "GET",
+				headers: buildTestHeaders(req, key),
+				signal: AbortSignal.timeout(20000),
+			});
+			if (!res.ok) {
+				const snippet = await readErrorSnippet(res);
+				const hint = keyLooksLikeUrl ? "；另外 API key 字段看起来是一段 URL，检查是否把 Base URL 填错了位置" : "";
+				return {
+					ok: false,
+					models: [],
+					endpoint,
+					error: `${host} 返回 HTTP ${res.status}${res.statusText ? ` ${res.statusText}` : ""}${snippet}${hint}`,
+				};
+			}
+			const models = extractModelIds(await res.json().catch(() => null));
+			return { ok: true, models, endpoint };
+		} catch (e) {
+			return { ok: false, models: [], endpoint, error: `${host}：${e instanceof Error ? e.message : String(e)}` };
+		}
+	};
+
+	return { list, save, catalog, test, listModels };
 }

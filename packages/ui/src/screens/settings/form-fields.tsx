@@ -28,21 +28,38 @@ export function Field({
   label,
   hint,
   required,
+  invalid,
+  error,
   children,
 }: {
   label: string;
   hint?: string;
   required?: boolean;
+  /** 校验未过：提示改用 danger 令牌，并把 `*` 视为必填强调 */
+  invalid?: boolean;
+  /** 校验未过的提示文案；给了就替代 `hint` 显示（一句话说清「缺什么」） */
+  error?: string;
   children: ReactNode;
 }) {
+  const showError = invalid === true && error !== undefined;
   return (
     <label className="flex min-w-0 flex-col gap-1">
       <span className="flex items-center gap-1 text-sm font-medium text-text-primary">
         {label}
-        {required ? <span className="text-danger" aria-hidden="true">*</span> : null}
+        {required || invalid ? (
+          <span className="text-danger" aria-hidden="true">
+            *
+          </span>
+        ) : null}
       </span>
       {children}
-      {hint ? <span className="text-xs text-text-tertiary">{hint}</span> : null}
+      {showError ? (
+        <span className="text-xs text-danger" data-testid="field-error">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="text-xs text-text-tertiary">{hint}</span>
+      ) : null}
     </label>
   );
 }
@@ -89,7 +106,7 @@ export function HeadersEditor({
         className="self-start"
         data-testid="add-header"
       >
-        Add header
+        Add Header
       </Button>
     </div>
   );

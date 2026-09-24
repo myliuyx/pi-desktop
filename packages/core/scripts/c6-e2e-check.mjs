@@ -26,14 +26,13 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { childEnv, seedModelsJson } from "./lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const uiDir = path.join(coreDir, "..", "ui");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 const mainPath = path.join(coreDir, "src", "main.ts");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
-const modelsPath = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const fixtureExtSrc = path.join(coreDir, "test", "fixtures", "agentdir-ext", "extensions", "approval-gate.ts");
 const fixtureResources = path.join(coreDir, "test", "fixtures", "resources");
 const runDir = path.join(coreDir, "run");
@@ -191,6 +190,8 @@ const agentDir = path.join(tmpRoot, "agentdir");
 const projectCwd = path.join(tmpRoot, "project");
 fs.mkdirSync(agentDir, { recursive: true });
 fs.mkdirSync(projectCwd, { recursive: true });
+// 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 模型清单随 agentDir 走（Pi 的约定位置）
+seedModelsJson(agentDir);
 
 /**
  * Windows 下给 Pi 找一个可用的 bash（S6 §九·1：shellPath 写进 <agentDir>/settings.json 实测生效）。
@@ -232,15 +233,13 @@ fs.copyFileSync(path.join(fixtureResources, "prompts", "demo-prompt.md"), path.j
 fs.cpSync(path.join(fixtureResources, "skills", "demo-skill"), path.join(agentDir, "skills", "demo-skill"), { recursive: true });
 
 const logFd = fs.openSync(path.join(runDir, "c6-core.log"), "w");
-const child = spawn(process.execPath, ["--env-file=" + envLocal, tsxPath, mainPath], {
+const child = spawn(process.execPath, [tsxPath, mainPath], {
 	cwd: projectCwd,
-	env: {
-		...process.env,
+	env: childEnv({
 		CORE_TOKEN: TOKEN,
 		CORE_PORT: String(PORT),
-		CORE_MODELS_PATH: modelsPath,
 		CORE_AGENT_DIR: agentDir,
-	},
+	}),
 	stdio: ["ignore", "ignore", logFd],
 });
 

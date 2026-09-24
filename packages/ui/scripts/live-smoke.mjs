@@ -1,7 +1,7 @@
 /**
  * C2 live 烟测 —— CDP 驱动真实链路（?live=1）。
  *
- * 流程：起 core（真实模型，ARK_API_KEY 经 --env-file 注入）→ core 同源托管 UI dist
+ * 流程：起 core（真实模型，凭证经 `./lib/credentials.mjs` 注入）→ core 同源托管 UI dist
  * → 浏览器打开 `http://127.0.0.1:<port>/?live=1&token=<token>` → 在 composer 输入并发送
  * → 断言「出现 assistant 消息块且 streaming 态最终解除」。证据写入 `_live-smoke-evidence.json`。
  *
@@ -24,16 +24,16 @@
 
 import { spawn } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { withBrowser, sleep } from "./cdp.mjs";
+import { childEnv, seedModelsJson } from "../../core/scripts/lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const uiDir = path.join(here, "..");
 const coreDir = path.join(uiDir, "..", "core");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
-const envLocal = path.resolve(coreDir, "..", "..", "pi", "_poc", ".env.local");
-const modelsPath = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const coreJsonPath = path.join(coreDir, "run", "core.json");
 const rawDumpPath = path.join(coreDir, "run", "events.jsonl");
 const coreLogPath = path.join(coreDir, "run", "live-smoke-core.log");
@@ -155,11 +155,19 @@ const fails = [];
 console.log(`[live-smoke] 起 core（端口 ${CORE_PORT}，真实模型）…`);
 
 // 1) 起 core（key 只走 env；stderr 落 run/ 便于排查）
+/* 2026-09-24：CORE_MODELS_PATH 与 --env-file 用法均已删除 —— 清单放临时 agentDir（Pi 约定位置），
+   凭证由 childEnv 注入；用临时 agentDir 也保证冒烟不写用户的全局 ~/.pi/agent。 */
+const smokeAgentDir = fs.mkdtempSync(path.join(os.tmpdir(), "live-smoke-agent-"));
+seedModelsJson(smokeAgentDir);
+fs.writeFileSync(
+  path.join(smokeAgentDir, "settings.json"),
+  JSON.stringify({ defaultProjectTrust: "never" }, null, 2),
+);
 fs.mkdirSync(path.dirname(coreLogPath), { recursive: true });
 const logFd = fs.openSync(coreLogPath, "w");
-const child = spawn(process.execPath, ["--env-file=" + envLocal, tsxPath, "src/main.ts"], {
+const child = spawn(process.execPath, [tsxPath, "src/main.ts"], {
   cwd: coreDir,
-  env: { ...process.env, CORE_TOKEN, CORE_PORT: String(CORE_PORT), CORE_MODELS_PATH: modelsPath },
+  env: childEnv({ CORE_TOKEN, CORE_PORT: String(CORE_PORT), CORE_AGENT_DIR: smokeAgentDir }),
   stdio: ["ignore", "ignore", logFd],
 });
 

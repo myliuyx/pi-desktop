@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5188",
-  "startedAt": "2026-09-24T04:30:24.506Z",
+  "startedAt": "2026-09-24T07:24:32.148Z",
   "steps": [
     {
       "name": "live_store_已挂载",
@@ -9,33 +9,30 @@
     {
       "name": "初始消息数 / 初始 DOM assistant 条目",
       "value": {
-        "initialCount": 2,
-        "initialAssistantIds": [
-          "m-f6bc8fab"
-        ]
+        "initialCount": 0,
+        "initialAssistantIds": []
       }
     },
     {
       "name": "DOM 快照",
       "value": {
-        "总条目": 4,
+        "总条目": 2,
         "新增assistant条目": [
-          "a-3"
+          "a-1"
         ],
-        "新增assistant文本": "思考过程\n\nPi 是一个由 Earendil Works 开发的开源编码智能体（coding agent），它基于 Anthropic 的 Claude 模型构建，提供 TUI（终端界面）和 CLI 工具，可在本地运行、自主读写代码和调用工具来帮助完成编程任务。",
-        "列表data-total-count": "4"
+        "新增assistant文本": "思考过程\n\nPi 是一个基于终端（TUI）运行的 AI 编程助手（coding agent），能帮你阅读、编写和修改代码、执行命令，并通过可扩展的主题、技能、扩展与 SDK 深度融入开发工作流。",
+        "列表data-total-count": "2"
       }
     },
     {
       "name": "live_结果快照",
       "value": {
-        "initialCount": 2,
-        "末消息数": 4,
+        "initialCount": 0,
+        "末消息数": 2,
         "assistantIds": [
-          "m-f6bc8fab",
-          "a-3"
+          "a-1"
         ],
-        "assistantText": "Pi 是一个由 Earendil Works 开发的开源编码智能体（coding agent），它基于 Anthropic 的 Claude 模型构建，提供 TUI（终端界面）和 CLI 工具，可在本地运行、自主读写代码和调用工具来帮助完成编程任务。",
+        "assistantText": "Pi 是一个基于终端（TUI）运行的 AI 编程助手（coding agent），能帮你阅读、编写和修改代码、执行命令，并通过可扩展的主题、技能、扩展与 SDK 深度融入开发工作流。",
         "streamingSeen": true,
         "streamingResolved": true,
         "newAssistantCount": 1
@@ -141,15 +138,15 @@
       "turn_start": 1,
       "message_start": 3,
       "message_end": 3,
-      "message_update": 26,
+      "message_update": 17,
       "usage": 1,
       "turn_end": 1,
       "agent_settled": 1
     },
-    "sse观测_总帧数": 37,
-    "原始dump_message_update": 122,
-    "sse_message_update": 26,
-    "合并率": 0.787,
+    "sse观测_总帧数": 28,
+    "原始dump_message_update": 90,
+    "sse_message_update": 17,
+    "合并率": 0.811,
     "末帧类型": "agent_settled",
     "agent_settled之后仍有message_update": 0
   }

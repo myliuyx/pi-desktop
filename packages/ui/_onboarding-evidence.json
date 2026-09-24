@@ -1,0 +1,348 @@
+{
+  "origin": "http://127.0.0.1:5360",
+  "startedAt": "2026-09-24T07:21:57.004Z",
+  "steps": [
+    {
+      "name": "U1_新增Provider默认状态",
+      "value": {
+        "打开时条目数": 0,
+        "providerCount": 1,
+        "newProviderId": "provider-1790234518168",
+        "switchExists": true,
+        "switchEnabled": "true",
+        "switchAriaChecked": "true",
+        "dotClass": "h-1.5 w-1.5 shrink-0 rounded-full bg-success",
+        "formShown": true
+      }
+    },
+    {
+      "name": "U1b_未填拦截",
+      "value": {
+        "状态条": "danger",
+        "状态文案": "无法保存：「新 Provider」缺少 Base URL 与 API key（可先停用该 Provider 跳过）",
+        "就地红字": [
+          "必填：请填写服务地址，保存前不允许为空",
+          "必填：请填写密钥（或 $环境变量名），保存前不允许为空"
+        ],
+        "弹窗仍打开": true,
+        "左栏条目数": 1,
+        "表单已定位": true,
+        "core侧provider数": 0,
+        "models_json未变动": true
+      }
+    },
+    {
+      "name": "U2_开关即时性",
+      "value": {
+        "初始": "true",
+        "关闭后": {
+          "enabled": "false",
+          "confirmTestId": false,
+          "confirmWords": [],
+          "dotClass": "h-1.5 w-1.5 shrink-0 rounded-full bg-border-strong"
+        },
+        "再开": "true"
+      }
+    },
+    {
+      "name": "U3_删除两步确认",
+      "value": {
+        "出现确认按钮": true,
+        "confirmGone": true,
+        "deleteBtnBack": true
+      }
+    },
+    {
+      "name": "U4_保存落盘",
+      "value": {
+        "模型表单出现": true,
+        "状态条": "warning",
+        "状态文案": "首次配置：已自动选中 provider-1790234518168/probe-model-mini，可直接开始对话",
+        "models_json的key": [
+          "provider-1790234518168"
+        ],
+        "models_json内容": {
+          "headers": {},
+          "models": [
+            {
+              "id": "probe-model-mini",
+              "reasoning": false,
+              "input": [
+                "text"
+              ],
+              "cost": {
+                "input": 0,
+                "output": 0,
+                "cacheRead": 0,
+                "cacheWrite": 0
+              }
+            }
+          ],
+          "name": "probe-provider",
+          "baseUrl": "http://127.0.0.1:1/v1",
+          "apiKey": "sk-probe-only",
+          "api": "openai-completions"
+        },
+        "sidecar的key": [],
+        "api": [
+          {
+            "id": "provider-1790234518168",
+            "enabled": true,
+            "models": 1
+          }
+        ],
+        "api_current": {
+          "provider": "provider-1790234518168",
+          "modelId": "probe-model-mini"
+        },
+        "health_model": {
+          "provider": "provider-1790234518168",
+          "modelId": "probe-model-mini"
+        }
+      }
+    },
+    {
+      "name": "U8_模型选择分组名",
+      "value": {
+        "menuOpen": true,
+        "labels": [
+          "probe-provider"
+        ],
+        "optionCount": 1,
+        "夹具里的providerKey": [
+          "provider-1790234518168"
+        ]
+      }
+    },
+    {
+      "name": "U6_清空凭证",
+      "value": {
+        "回写的provider数": 1,
+        "状态码": 200,
+        "响应current": null,
+        "响应warning": "当前生效模型 provider-1790234518168/probe-model-mini 已被删除，且无任何可用模型，请先添加并启用一个 Provider；已启用但没有任何可用模型 —— provider-1790234518168 未填写 API key（Pi 口径：无凭证 = 未配置，其模型不进可用清单）；Provider 定义非法：Provider \"provider-1790234518168\": Provider provider-1790234518168, model probe-model-mini: invalid contextWindow",
+        "文件里仍有该provider": true
+      }
+    },
+    {
+      "name": "U7_非法规格",
+      "value": {
+        "状态码": 200,
+        "响应current": null,
+        "响应warning": "已启用但没有任何可用模型 —— Provider 定义非法：Provider \"provider-1790234518168\": Provider provider-1790234518168, model probe-model-mini: invalid contextWindow",
+        "落盘contextWindow": 0
+      }
+    },
+    {
+      "name": "U9_拉取模型清单",
+      "value": {
+        "成功响应": {
+          "ok": true,
+          "models": [
+            "probe-alpha",
+            "probe-beta"
+          ],
+          "endpoint": "http://127.0.0.1:5370/v1/models"
+        },
+        "错key响应": {
+          "ok": false,
+          "models": [],
+          "endpoint": "http://127.0.0.1:5370/v1/models",
+          "error": "127.0.0.1:5370 返回 HTTP 401 Unauthorized：{\"error\":{\"message\":\"stub api key required\"}}"
+        },
+        "不可达响应": {
+          "ok": false,
+          "models": [],
+          "endpoint": "http://127.0.0.1:1/v1/models",
+          "error": "127.0.0.1:1：fetch failed"
+        },
+        "stub收到的鉴权头": "Bearer sk-probe-only",
+        "stub请求记录": [
+          {
+            "url": "/v1/models",
+            "auth": "Bearer sk-probe-only"
+          },
+          {
+            "url": "/v1/models",
+            "auth": "Bearer sk-wrong"
+          }
+        ]
+      }
+    },
+    {
+      "name": "U10_无可用模型态的模型芯片",
+      "value": {
+        "core侧模型数": 0,
+        "core侧current": null,
+        "芯片已降级": true,
+        "firstChildTestid": "composer-chip-model",
+        "triggerThere": true,
+        "disabled": true,
+        "text": "未配置模型",
+        "title": "尚未配置可用模型：请在「设置 → 模型」添加并启用一个 Provider",
+        "menuThere": false
+      }
+    },
+    {
+      "name": "U5_console",
+      "value": {
+        "exceptions": []
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "U1 新增 Provider 默认「启用」（开关 aria/data 双源一致，左栏状态点为 success）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "打开时无条目": true,
+        "新增后出现一条": true,
+        "开关存在": true,
+        "data_enabled为true": true,
+        "aria_checked为true": true,
+        "左栏状态点为success": true,
+        "表单已切到新Provider": true
+      }
+    },
+    {
+      "name": "U1b 未填 Base URL / API key ⇒ 保存被拦下、就地提示必填、且 core 侧一字未写",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "状态条为危险态": true,
+        "文案是明确拒绝": true,
+        "文案点名缺什么": true,
+        "文案点名是哪个Provider": true,
+        "文案提到可停用跳过": true,
+        "悬停可见全文": true,
+        "弹窗未关闭": true,
+        "草稿未丢": true,
+        "就地红字两处": true,
+        "就地红字写明必填": true,
+        "已定位到出问题的表单": true,
+        "core侧没有写入": true,
+        "models_json逐字节未变": true
+      }
+    },
+    {
+      "name": "U2 点开关即时翻转（关闭/开启各一次），全程无任何「确认停用/启用」按钮",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "初始为启用": true,
+        "点击后立即停用": true,
+        "无enable_confirm元素": true,
+        "无确认停用文案按钮": true,
+        "停用后状态点非success": true,
+        "再点立即恢复启用": true
+      }
+    },
+    {
+      "name": "U3 「删除」仍需二次确认（本轮只删启用确认，未连带删掉删除确认）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "第一步点击后出现确认": true,
+        "取消后确认消失": true,
+        "第一步按钮回到「删除」": true
+      }
+    },
+    {
+      "name": "U4 保存后进 models.json（不进 sidecar），且首次配置自动选中模型",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "模型表单已出现": true,
+        "状态条非危险": true,
+        "落models_json": true,
+        "sidecar为空": true,
+        "条目enabled为true": true,
+        "清单含一个模型": true,
+        "首次配置提示": true,
+        "current已选中": true,
+        "health_model已可用": true,
+        "规格0未落盘": true
+      }
+    },
+    {
+      "name": "U8 模型选择菜单的分组标题是 Provider 展示名（不是内部 key）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "菜单已展开": true,
+        "有分组标题": true,
+        "标题含展示名": true,
+        "标题不含内部key": true,
+        "可用模型都列出来了": true
+      }
+    },
+    {
+      "name": "U6 清空 apiKey ⇒ core 明确告知「无可用模型」并点名「未填 API key」（不静默）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "请求未报错": true,
+        "current被置空": true,
+        "warning含无可用模型": true,
+        "warning点名未填凭证": true,
+        "provider仍在文件里": true
+      }
+    },
+    {
+      "name": "U7 模型 contextWindow 显式写 0 ⇒ warning 透出 Pi 的组合错误（invalid contextWindow）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "请求未报错": true,
+        "warning含无可用模型": true,
+        "warning含组合错误": true,
+        "0被如实落盘": true
+      }
+    },
+    {
+      "name": "U9 POST /providers/models 真链路：带 key 拉清单 / 去重保序 / 失败可定位",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "成功请求未报错": true,
+        "成功ok": true,
+        "清单去重保序": true,
+        "请求地址正确": true,
+        "鉴权头确实带上": true,
+        "错key为失败": true,
+        "错key带目标host": true,
+        "错key带状态码": true,
+        "不可达可定位": true
+      }
+    },
+    {
+      "name": "U10 无可用模型时模型芯片显式降级为「未配置模型」（禁用 + 无菜单，不回落 mock 名）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "core侧确实无可用模型": true,
+        "芯片已降级": true,
+        "芯片仍在工具条原位": true,
+        "芯片已禁用": true,
+        "文案是未配置模型": true,
+        "提示指向设置页": true,
+        "没有菜单": true
+      }
+    },
+    {
+      "name": "U5 全程无未捕获页面异常",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "无未捕获异常": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 11,
+    "passed": 11,
+    "failed": 0,
+    "failedNames": []
+  }
+}

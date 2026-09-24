@@ -203,7 +203,12 @@ export const INITIAL_MODEL_PROVIDERS: ModelProviderConfig[] = [
     id: "setfun",
     name: "SetFun",
     baseUrl: "https://api.setfun.ai/v1",
-    apiKey: "",
+    /*
+     * 演示数据要自洽：`validateProviders()` 的规则是「**启用的** Provider 必须有 Base URL 与 API key」，
+     * 这条是 enabled 的，就得有 key；否则 mock 形态下点「保存」会被自己的校验拦下
+     * （probe:settings 的草稿/保存用例会因此假红）。空 key 只应出现在**停用**的项上（见下面两条）。
+     */
+    apiKey: "sk-********************",
     api: "openai-completions",
     headers: [{ key: hk("setfun", 0), name: "X-SetFun-Source", value: "desktop-agent" }],
     enabled: true,
@@ -229,4 +234,29 @@ export const INITIAL_MODEL_PROVIDERS: ModelProviderConfig[] = [
     enabled: false,
     models: arkPlanModels,
   },
+];
+
+/**
+ * 「导入模型…」在 **mock 形态**下的演示清单。
+ *
+ * 真实形态走 `POST /providers/models`（core 拉上游 `GET {baseUrl}/models`）。
+ * mock 没有上游，但浮层的交互（筛选 / 全选 / 逐项勾选 / 「已添加」标记 / 计数）**不该因此测不到** ——
+ * 所以给一份固定清单，让 `probe:settings` 能在不起 core 的前提下验完这条交互。
+ *
+ * 刻意包含 `qwen-max` / `qwen-plus` / `qwen2.5-vl` 三个**已存在于 AliYun** 的 id，
+ * 这样 mock 下也能看到「已添加」徽标与禁用态勾选框（否则那条分支永远没人走）。
+ * 全表 11 条 ⇒ 可勾选 8 条 —— 探针 P11 的期望值据此而来，改这张表记得同步。
+ */
+export const MOCK_DISCOVERED_MODELS: string[] = [
+  "qwen-max",
+  "qwen-plus",
+  "qwen2.5-vl",
+  "qwen3-coder-480b-a35b-instruct",
+  "qwen3-max-preview",
+  "deepseek-v3.2",
+  "deepseek-r1-distill-qwen-32b",
+  "kimi-k2-instruct",
+  "glm-4.6",
+  "minimax-m2",
+  "doubao-seed-1.6",
 ];
