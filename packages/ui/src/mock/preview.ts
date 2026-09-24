@@ -5,20 +5,81 @@
  * - 自包含、纯静态：内联 <style>，**不写 <script>**（srcDoc 沙箱不需要，模板字符串里
  *   嵌脚本标签既没必要也危险，M2 教训：mock 里别出现 script 闭合标签）；
  * - 内容像一个真实的小报告页：含中文标题 / 表格 / 列表，80~150 行；
- * - 源码态与效果态共用这一份数据（效果态 srcDoc 渲染它，源码态高亮它）；
- * - 独立文档不随应用主题换肤 —— 预览的是「生成物」本身，这是有意的。
+ * - 源码态与效果态共用这一份数据（效果态 srcDoc 渲染它，源码态高亮它）。
  *
- * 为什么颜色全用 rgb() 而不写 #hex：这份 HTML 是独立文档，不参与应用换肤、
- * 用不了 tokens.css 的令牌；同时 G1 的检查模式是全局搜索 #hex 字面量
+ * 主题：iframe 是独立文档，用不了 tokens.css 的令牌，所以这里按主题各给一套
+ * 调色板，由 buildPreviewHtml(theme) 生成对应配色的文档 —— 否则应用切到深色后
+ * 预览效果仍是一片白，观感割裂。
+ *
+ * 为什么颜色全用 rgb() 而不写 #hex：G1 的检查模式是全局搜索 #hex 字面量
  * （范围含 src/ 下全部 .ts 文件），mock 里的样式值用 rgb() 记法即可两全 ——
  * 视觉不变，也不产生「应用组件硬编码色值」的误报。
  */
+
+import type { Theme } from "@/store/ui-store";
 
 export const previewTitle = "Atlas Agent · Pi 工具链接入调研报告";
 
 export const previewLanguage = "html";
 
-export const previewHtml = `<!DOCTYPE html>
+interface PreviewPalette {
+  bg: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  accent: string;
+  cardBg: string;
+  border: string;
+  badgeBg: string;
+  badgeText: string;
+  thBg: string;
+  thText: string;
+  rowEvenBg: string;
+  codeBg: string;
+  pass: string;
+  warn: string;
+}
+
+const LIGHT_PALETTE: PreviewPalette = {
+  bg: "rgb(246, 247, 249)",
+  text: "rgb(31, 35, 41)",
+  textSecondary: "rgb(107, 114, 128)",
+  textMuted: "rgb(138, 145, 158)",
+  accent: "rgb(53, 99, 232)",
+  cardBg: "rgb(255, 255, 255)",
+  border: "rgb(224, 227, 232)",
+  badgeBg: "rgb(225, 245, 238)",
+  badgeText: "rgb(15, 122, 88)",
+  thBg: "rgb(238, 242, 254)",
+  thText: "rgb(39, 74, 158)",
+  rowEvenBg: "rgb(250, 251, 252)",
+  codeBg: "rgb(238, 240, 243)",
+  pass: "rgb(15, 122, 88)",
+  warn: "rgb(143, 91, 14)",
+};
+
+const DARK_PALETTE: PreviewPalette = {
+  bg: "rgb(22, 25, 29)",
+  text: "rgb(224, 228, 234)",
+  textSecondary: "rgb(150, 157, 170)",
+  textMuted: "rgb(120, 127, 140)",
+  accent: "rgb(101, 140, 245)",
+  cardBg: "rgb(28, 31, 36)",
+  border: "rgb(52, 58, 66)",
+  badgeBg: "rgb(23, 58, 46)",
+  badgeText: "rgb(87, 199, 152)",
+  thBg: "rgb(36, 46, 72)",
+  thText: "rgb(148, 176, 245)",
+  rowEvenBg: "rgb(25, 28, 33)",
+  codeBg: "rgb(40, 44, 51)",
+  pass: "rgb(87, 199, 152)",
+  warn: "rgb(228, 176, 92)",
+};
+
+export function buildPreviewHtml(theme: Theme): string {
+  const c = theme === "dark" ? DARK_PALETTE : LIGHT_PALETTE;
+
+  return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -28,51 +89,51 @@ export const previewHtml = `<!DOCTYPE html>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
-      background: rgb(246, 247, 249); color: rgb(31, 35, 41);
+      background: ${c.bg}; color: ${c.text};
       line-height: 1.7; padding: 32px 40px;
     }
     .page { max-width: 720px; margin: 0 auto; }
     header {
-      border-bottom: 2px solid rgb(53, 99, 232);
+      border-bottom: 2px solid ${c.accent};
       padding-bottom: 16px; margin-bottom: 24px;
     }
     h1 { font-size: 22px; letter-spacing: 0.5px; }
     .meta {
-      margin-top: 8px; font-size: 12px; color: rgb(107, 114, 128);
+      margin-top: 8px; font-size: 12px; color: ${c.textSecondary};
       display: flex; gap: 16px;
     }
     .badge {
       display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
-      background: rgb(225, 245, 238); color: rgb(15, 122, 88);
+      background: ${c.badgeBg}; color: ${c.badgeText};
     }
     h2 {
       font-size: 16px; margin: 24px 0 12px; padding-left: 10px;
-      border-left: 4px solid rgb(53, 99, 232);
+      border-left: 4px solid ${c.accent};
     }
     p { margin-bottom: 10px; }
     ul, ol { padding-left: 22px; margin-bottom: 10px; }
     li { margin-bottom: 6px; }
     table {
       width: 100%; border-collapse: collapse; margin: 12px 0 16px;
-      background: rgb(255, 255, 255); font-size: 13px;
+      background: ${c.cardBg}; font-size: 13px;
     }
     caption {
       caption-side: top; text-align: left; font-size: 12px;
-      color: rgb(107, 114, 128); padding-bottom: 6px;
+      color: ${c.textSecondary}; padding-bottom: 6px;
     }
-    th, td { border: 1px solid rgb(224, 227, 232); padding: 8px 12px; text-align: left; }
-    th { background: rgb(238, 242, 254); color: rgb(39, 74, 158); font-weight: 600; }
-    tr:nth-child(even) td { background: rgb(250, 251, 252); }
+    th, td { border: 1px solid ${c.border}; padding: 8px 12px; text-align: left; }
+    th { background: ${c.thBg}; color: ${c.thText}; font-weight: 600; }
+    tr:nth-child(even) td { background: ${c.rowEvenBg}; }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .pass { color: rgb(15, 122, 88); }
-    .warn { color: rgb(143, 91, 14); }
+    .pass { color: ${c.pass}; }
+    .warn { color: ${c.warn}; }
     footer {
-      margin-top: 32px; padding-top: 12px; font-size: 12px; color: rgb(138, 145, 158);
-      border-top: 1px solid rgb(224, 227, 232);
+      margin-top: 32px; padding-top: 12px; font-size: 12px; color: ${c.textMuted};
+      border-top: 1px solid ${c.border};
     }
     code {
       font-family: "JetBrains Mono", Consolas, monospace; font-size: 12px;
-      background: rgb(238, 240, 243); padding: 1px 5px; border-radius: 4px;
+      background: ${c.codeBg}; padding: 1px 5px; border-radius: 4px;
     }
   </style>
 </head>
@@ -155,3 +216,4 @@ export const previewHtml = `<!DOCTYPE html>
 </body>
 </html>
 `;
+}

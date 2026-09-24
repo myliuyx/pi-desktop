@@ -20,7 +20,7 @@ import {
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { useUiStore } from "@/store/ui-store";
 import { highlightCode } from "@/lib/highlight";
-import { previewHtml, previewLanguage } from "@/mock/preview";
+import { buildPreviewHtml, previewLanguage } from "@/mock/preview";
 import { Icon } from "@/components/common/icons";
 import { Tabs, tabPanelProps } from "@/components/primitives/Tabs";
 
@@ -37,7 +37,8 @@ const PREVIEW_TABS = [
  *
  * 折叠实现与 Sidebar 一致：宽度过渡 + overflow:hidden，不用 display:none。
  * Tab：顶部 Tab 条 + 下方内容区随 Tab 互斥渲染 ——
- * - 效果态：iframe sandbox 渲染 mock 产物（独立文档，不随应用主题换肤，有意为之）；
+ * - 效果态：iframe sandbox 渲染 mock 产物。iframe 是独立文档用不了应用令牌，
+ *   所以按当前主题生成对应配色的 HTML，切主题时随 srcDoc 重载换肤；
  * - 源码态：Shiki 高亮（--shiki-* 双主题变量，切主题无需重高亮）+ CSS counter 行号 + 复制。
  * 折叠时整个 aside 照旧收 0 宽，Tab 内容随 overflow-hidden 裁掉，无需特殊处理。
  */
@@ -48,7 +49,10 @@ export const PreviewPane = forwardRef<HTMLElement, PreviewPaneProps>(function Pr
   const collapsed = useUiStore((state) => state.previewCollapsed);
   const previewTab = useUiStore((state) => state.previewTab);
   const setPreviewTab = useUiStore((state) => state.setPreviewTab);
+  const theme = useUiStore((state) => state.theme);
   const prefersReducedMotion = usePrefersReducedMotion();
+
+  const previewHtml = useMemo(() => buildPreviewHtml(theme), [theme]);
 
   return (
     <aside
@@ -97,11 +101,11 @@ export const PreviewPane = forwardRef<HTMLElement, PreviewPaneProps>(function Pr
         />
         {/* 弹性占位：把源码态的复制按钮推到右端（效果态此处为空） */}
         <div className="min-w-0 flex-1" />
-        {previewTab === "code" ? <CopySourceButton /> : null}
+        {previewTab === "code" ? <CopySourceButton source={previewHtml} /> : null}
       </div>
 
       {previewTab === "code" ? (
-        <PreviewSource {...tabPanelProps("preview", "code")} />
+        <PreviewSource {...tabPanelProps("preview", "code")} source={previewHtml} />
       ) : (
         <div
           {...tabPanelProps("preview", "effect")}
@@ -145,25 +149,25 @@ function withLineData(html: string): string {
  * 面板端 aria 属性（`role="tabpanel"` / `aria-labelledby`）由调用方通过
  * `tabPanelProps("preview", "code")` 透传进来（G7 收尾，见 primitives/Tabs.tsx）。
  */
-function PreviewSource(props: ReturnType<typeof tabPanelProps>) {
+function PreviewSource(props: ReturnType<typeof tabPanelProps> & { source: string }) {
+  const { source, ...rest } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const [html, setHtml] = useState<string | null>(null);
 
   const fallbackHtml = useMemo(
-    () =>
-      `<pre class="shiki"><code>${escapeHtml(previewHtml)}</code></pre>`,
-    [],
+    () => `<pre class="shiki"><code>${escapeHtml(source)}</code></pre>`,
+    [source],
   );
 
   useEffect(() => {
     let active = true;
-    highlightCode(previewHtml, previewLanguage).then((result) => {
+    highlightCode(source, previewLanguage).then((result) => {
       if (active) setHtml(withLineData(result));
     });
     return () => {
       active = false;
     };
-  }, []);
+  }, [source]);
 
   // 高亮渲染完成后从 DOM 数行数写入 data-line-count：
   // 保证该值与真实渲染行数一致（而不是从源字符串猜，尾随换行会差一行）。
@@ -176,7 +180,7 @@ function PreviewSource(props: ReturnType<typeof tabPanelProps>) {
   return (
     <div
       ref={containerRef}
-      {...props}
+      {...rest}
       data-testid="preview-source"
       className="preview-source min-h-0 flex-1 overflow-auto font-mono"
       dangerouslySetInnerHTML={{ __html: html ?? fallbackHtml }}
@@ -207,7 +211,7 @@ async function copyTextToClipboard(text: string): Promise<void> {
   }
 }
 
-function CopySourceButton() {
+function CopySourceButton({ source }: { source: string }) {
   const [copied, setCopied] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -218,7 +222,7 @@ function CopySourceButton() {
   }, []);
 
   const onCopy = () => {
-    void copyTextToClipboard(previewHtml);
+    void copyTextToClipboard(source);
     // 「静默成功」策略：无论剪贴板是否真的可用都进入已复制态（headless 下也能走查到该态）
     setCopied(true);
     if (timerRef.current !== null) window.clearTimeout(timerRef.current);
