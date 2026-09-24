@@ -46,7 +46,7 @@ import type {
 import { createModelsController, type ModelsController } from "./models.ts";
 import { createProvidersController, type ProvidersController } from "./providers.ts";
 import { collectResources } from "./resources.ts";
-import { continueRecentSession, entriesToMessages, listSessions, loadSessionById, type SessionRef } from "./sessions.ts";
+import { continueRecentSession, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
 import { getToolsState, setToolsState } from "./tools.ts";
@@ -284,8 +284,10 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 
 	/** 切换活动会话后，用新会话的历史汇总重置累计（否则新消息会叠加旧会话的用量） */
 	const resetUsageFromSession = () => {
-		const entries = session?.sessionManager.getEntries() ?? [];
-		const { tokenUsage } = entriesToMessages(entries, { contextWindow: contextWindow() });
+		if (!session || !settingsManager) return;
+		// getBranch 口径，与 POST /sessions/load 的 readSession 同源（不要改用 getEntries：
+		// 那会把被弃旁支的用量折进来，见 sessions.ts 的 usageFromActiveBranch 注释）。
+		const tokenUsage = usageFromActiveBranch(session.sessionManager, contextWindow());
 		usageInput = tokenUsage.input;
 		usageOutput = tokenUsage.output;
 		usageTotal = tokenUsage.total;

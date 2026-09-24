@@ -15,6 +15,7 @@
     "check:c5": "node scripts/c5-resources-models-check.mjs",
     "check:c6": "node scripts/c6-e2e-check.mjs",
     "check:providers": "node scripts/providers-check.mjs",
+    "check:usage-branch": "node --experimental-strip-types scripts/usage-branch-check.mjs",
     "smoke": "node --env-file=../../pi/_poc/.env.local node_modules/tsx/dist/cli.mjs src/main.ts"
   },
   "dependencies": {

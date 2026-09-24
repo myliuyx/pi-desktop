@@ -424,6 +424,18 @@ export function readSession(
   };
 }
 
+/**
+ * 活动分支的用量汇总 —— 供 `rebuildSession` 重置内存累计用。
+ *
+ * 必须与 `readSession` 同源（`getBranch()`，leaf → root 单条活动分支）：
+ * 用 `getEntries()` 会把被弃旁支的 usage 折进来，导致「加载回来的 tokenUsage」
+ * 与「内存里 reset 后的累计」分叉（Pi docs/extensions.md:174 同样要求
+ * branch-sensitive state 从 getBranch 重建）。
+ */
+export function usageFromActiveBranch(manager: SessionManager, contextWindow: number): TokenUsage {
+  return entriesToMessages(manager.getBranch(), { contextWindow }).tokenUsage;
+}
+
 /** 打开指定 id 的会话（找不到返回 null，由调用方决定 404 还是回落） */
 export function loadSessionById(
   ref: SessionRef,
