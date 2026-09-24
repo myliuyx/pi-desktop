@@ -110,11 +110,19 @@ export class HttpAgentTransport implements AgentTransport {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private everConnected = false;
+  private outageNotified = false;
 
   constructor(private readonly cfg: LiveConfig) {}
 
   setHooks(hooks: TransportHooks): void {
     this.hooks = { ...this.hooks, ...hooks };
+  }
+
+  /** 同一断线周期内只通知一次，避免退避重试把提示刷屏；恢复后由成功分支复位 */
+  private notifyOutage(message: string): void {
+    if (this.outageNotified) return;
+    this.outageNotified = true;
+    this.hooks.onConnectionError?.(message);
   }
 
   /** 指数退避重连（1s → 2s → … 上限 30s）；无订阅者或已有定时器时不动 */
@@ -154,7 +162,7 @@ export class HttpAgentTransport implements AgentTransport {
       if (!res.ok || !res.body) {
         console.error("[live] SSE 连接失败:", res.status);
         this.esAbort = null;
-        this.hooks.onConnectionError?.(`与 core 的事件流连接失败（HTTP ${res.status}），正在重连…`);
+        this.notifyOutage(`与 core 的事件流连接失败（HTTP ${res.status}），正在重连…`);
         this.scheduleReconnect();
         return;
       }
@@ -162,6 +170,7 @@ export class HttpAgentTransport implements AgentTransport {
       if (this.everConnected) this.hooks.onConnectionRestored?.();
       this.everConnected = true;
       this.reconnectAttempts = 0;
+      this.outageNotified = false;
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
@@ -185,7 +194,7 @@ export class HttpAgentTransport implements AgentTransport {
     } catch (e) {
       if (!ctrl.signal.aborted) {
         console.error("[live] SSE 异常:", e);
-        this.hooks.onConnectionError?.(`与 core 的事件流中断，正在重连…`);
+        this.notifyOutage(`与 core 的事件流中断，正在重连…`);
       }
     } finally {
       if (this.esAbort === ctrl) this.esAbort = null;
@@ -202,6 +211,8 @@ export class HttpAgentTransport implements AgentTransport {
       this.reconnectTimer = null;
     }
     this.reconnectAttempts = 0;
+    this.everConnected = false;
+    this.outageNotified = false;
   }
 
   private async get<T>(path: string): Promise<T> {
