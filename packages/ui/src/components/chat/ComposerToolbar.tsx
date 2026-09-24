@@ -18,7 +18,7 @@ import {
   THINKING_LABEL,
   THINKING_LEVEL_OPTIONS,
 } from "@/mock/composer";
-import type { ModelInfo, ThinkingLevel } from "@/mock/types";
+import type { ModelInfo, ModelsPayload, ThinkingLevel } from "@/mock/types";
 
 /**
  * Composer 底部工具条。
@@ -67,21 +67,16 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
       if (live) void ensureModels();
     }, [live, ensureModels]);
 
-    /**
-     * live：以 core 返回的 `availableThinkingLevels` 为准（`reasoning:false` 的模型只有
-     * `["off"]`；无 `thinkingLevelMap` 的模型没有 xhigh/max）；尚未就绪（空数组）时用
-     * Pi 全集兜底。mock：设计稿 3 档。
-     */
+    // ThinkingLevelName 与 ThinkingLevel 是同一字面量联合（core 与 UI 各声明一份），
+    // 直接赋值即可 —— 原先的 as 断言在掩盖两者漂移（#7）。
     const availableLevels: readonly ThinkingLevel[] = live
       ? liveModels && liveModels.availableThinkingLevels.length > 0
-        ? (liveModels.availableThinkingLevels as ThinkingLevel[])
+        ? liveModels.availableThinkingLevels
         : THINKING_LEVEL_OPTIONS
       : COMPOSER_THINKING_LEVELS;
 
     const activeThinking: ThinkingLevel =
-      live && liveModels
-        ? ((liveModels.settings.thinkingLevel ?? liveModels.thinkingLevel ?? thinkingLevel) as ThinkingLevel)
-        : thinkingLevel;
+      live && liveModels ? pickActiveThinking(liveModels, thinkingLevel) : thinkingLevel;
 
     const selectThinking = (level: ThinkingLevel) => {
       setThinkingLevel(level);
@@ -215,6 +210,21 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
     );
   },
 );
+
+/**
+ * 当前激活的思考档位。
+ *
+ * 优先「用户所选」`settings.thinkingLevel`；但当该档位**不在**当前模型支持的集合里
+ * （`reasoning:false` 的模型只有 ["off"]，而 Pi 仍把 defaultThinkingLevel 持久化成 "high"），
+ * 显示用户所选会出现「chip 写着 High，菜单里没有任何项被选中」。此时回落**真正生效值**
+ * `payload.thinkingLevel`（Pi 按能力夹取后的结果）。
+ */
+function pickActiveThinking(payload: ModelsPayload, fallback: ThinkingLevel): ThinkingLevel {
+  const chosen = payload.settings.thinkingLevel ?? payload.thinkingLevel ?? fallback;
+  const available = payload.availableThinkingLevels;
+  if (available.length > 0 && !available.includes(chosen)) return payload.thinkingLevel;
+  return chosen;
+}
 
 /** live：把 core 的可用模型按 provider 分组，value 用 `provider:id` 保证跨 provider 唯一 */
 function groupModelsByProvider(models: readonly ModelInfo[]): ChipMenuGroup<string>[] {
