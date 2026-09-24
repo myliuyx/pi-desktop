@@ -40,6 +40,21 @@ export const COMPOSER_MODEL_GROUPS: { label: string; options: { value: string; l
  */
 export const COMPOSER_THINKING_LEVELS: ThinkingLevel[] = ["low", "high", "max"];
 
+/**
+ * 思考强度全集（对齐 Pi 的 `THINKING_LEVEL_OPTIONS`）。
+ * live 形态下若 `GET /models` 尚未就绪（`availableThinkingLevels` 为空）时兜底，
+ * 避免回落到写死的 3 档 —— Pi 在无 model 时同样返回全集。
+ */
+export const THINKING_LEVEL_OPTIONS: ThinkingLevel[] = [
+  "off",
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
+];
+
 /** 思考强度 → 展示文案（芯片里显示为「思考 Low」这类） */
 export const THINKING_LABEL: Record<ThinkingLevel, string> = {
   off: "Off",
@@ -49,6 +64,17 @@ export const THINKING_LABEL: Record<ThinkingLevel, string> = {
   high: "High",
   xhigh: "XHigh",
   max: "Max",
+};
+
+/** 思考强度 → 菜单副行说明（工具条 ChipMenu 用；live 形态下档位动态，故需全集文案） */
+export const THINKING_HINT: Record<ThinkingLevel, string> = {
+  off: "关闭思考，直接回答",
+  minimal: "极简思考，最省用量",
+  low: "快速回答，几乎不思考",
+  medium: "中等推理，平衡速度与深度",
+  high: "均衡模式，日常任务首选",
+  xhigh: "更强推理，处理复杂任务",
+  max: "最强推理，更慢也更耗用量",
 };
 
 /** store 默认选中（ui-store M4 段引用；05 屏与工具条共用同一字段） */

@@ -117,12 +117,24 @@ function num(value: unknown): number {
 /**
  * 汇总一条 usage（助手消息的 `usage` 与 `UsageEntry.usage` 同一形状：pi-ai 的 `Usage`）。
  * `cacheRead/cacheWrite` **不并入 input** —— 它们已在 `totalTokens` 里，再叠加会重复计。
+ *
+ * 口径（2026-09-24 用户裁定）：`input`/`output` 取**最近一次**（`input` 已含历史上下文，
+ * 累加会重复计）；`total` **历史累加**（ΣtotalTokens = Σ(input+output)）。
  */
 function foldUsage(target: TokenUsage, usage: unknown): void {
   if (!isRecord(usage)) return;
-  target.input += num(usage.input);
-  target.output += num(usage.output);
+  target.input = num(usage.input);
+  target.output = num(usage.output);
   target.total += num(usage.totalTokens);
+  /*
+   * 已用上下文（最后一次带 usage 的 assistant 覆盖写入，口径同 Pi 的
+   * `calculateContextTokens`：totalTokens 优先，否则 input+output+cacheRead+cacheWrite）。
+   * 0 不写 → 无有效 usage 时 UI 回落 contextWindow（Windows 旧会话/entry 兜底形态）。
+   */
+  const contextTokens =
+    num(usage.totalTokens) ||
+    num(usage.input) + num(usage.output) + num(usage.cacheRead) + num(usage.cacheWrite);
+  if (contextTokens > 0) target.contextTokens = contextTokens;
 }
 
 /* ---------------------------------------------------------------------------
@@ -220,6 +232,8 @@ export function entriesToMessages(
           command: commandOf(toolName, callArgs.get(toolCallId)),
           output: textOfContent(message.content),
           status: message.isError === true ? "error" : "success",
+          // 历史会话里的终端同样默认收起，与实时口径一致
+          collapsed: true,
         };
         const owner = callOwner.get(toolCallId);
         if (owner !== undefined) {

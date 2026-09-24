@@ -1,18 +1,23 @@
-import { forwardRef, type HTMLAttributes } from "react";
+import { forwardRef, useEffect, useState, type HTMLAttributes } from "react";
 import { Bot, Blocks, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { isMcpEnabled } from "@/lib/feature-flags";
+import { isLiveEnabled, isMcpEnabled } from "@/lib/feature-flags";
+import { getLiveTransport } from "@/services/live-transport";
 import { Chip } from "@/components/primitives/Chip";
-import { ChipMenu } from "@/components/primitives/ChipMenu";
+import { ChipMenu, type ChipMenuGroup } from "@/components/primitives/ChipMenu";
 import { TOOLBAR_CONTROL_HEIGHT } from "@/lib/layout";
 import { TokenStats } from "@/components/common/TokenStats";
 import { useUiStore } from "@/store/ui-store";
 import {
   COMPOSER_MODEL_GROUPS,
   COMPOSER_MODELS,
+  COMPOSER_THINKING_LEVELS,
   MCP_CONNECTED_COUNT,
+  THINKING_HINT,
   THINKING_LABEL,
+  THINKING_LEVEL_OPTIONS,
 } from "@/mock/composer";
+import type { ModelInfo, ModelsPayload, ThinkingLevel } from "@/mock/types";
 
 /**
  * Composer 底部工具条。
@@ -44,7 +49,103 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
     const thinkingLevel = useUiStore((state) => state.thinkingLevel);
     const setThinkingLevel = useUiStore((state) => state.setThinkingLevel);
 
-    const model = COMPOSER_MODELS.find((m) => m.id === modelId) ?? COMPOSER_MODELS[0];
+    /*
+     * live 形态：思考档位不再写死，而是用 Pi 实际支持的档位（`GET /models` 的
+     * `availableThinkingLevels`，由模型能力/thinkingLevelMap 决定），选择即经
+     * `POST /thinking` 写回 core 的 settings.json —— 与设置弹窗·常规 Tab 同一真相。
+     * mock 形态（默认）：保持设计稿的 3 档，行为零变化。
+     *
+     * 激活态优先「用户所选」`settings.thinkingLevel`，回退「生效值」`thinkingLevel`：
+     * 后者会被模型能力夹取（如 reasoning:false 恒为 off），直接用会出现「点了没反应」。
+     */
+    const live = isLiveEnabled();
+    const [liveModels, setLiveModels] = useState<ModelsPayload | null>(null);
+    useEffect(() => {
+      if (!live) return;
+      const transport = getLiveTransport();
+      if (!transport) return;
+      let alive = true;
+      void transport
+        .listModels()
+        .then((payload) => {
+          if (alive) setLiveModels(payload);
+        })
+        .catch((e) => {
+          console.error("[live] /models 失败:", e);
+        });
+      return () => {
+        alive = false;
+      };
+    }, [live]);
+
+    /**
+     * live：以 core 返回的 `availableThinkingLevels` 为准（`reasoning:false` 的模型只有
+     * `["off"]`；无 `thinkingLevelMap` 的模型没有 xhigh/max）；尚未就绪（空数组）时用
+     * Pi 全集兜底。mock：设计稿 3 档。
+     */
+    const availableLevels: readonly ThinkingLevel[] = live
+      ? liveModels && liveModels.availableThinkingLevels.length > 0
+        ? (liveModels.availableThinkingLevels as ThinkingLevel[])
+        : THINKING_LEVEL_OPTIONS
+      : COMPOSER_THINKING_LEVELS;
+
+    const activeThinking: ThinkingLevel =
+      live && liveModels
+        ? ((liveModels.settings.thinkingLevel ?? liveModels.thinkingLevel ?? thinkingLevel) as ThinkingLevel)
+        : thinkingLevel;
+
+    const selectThinking = (level: ThinkingLevel) => {
+      setThinkingLevel(level);
+      if (!live) return;
+      const transport = getLiveTransport();
+      if (!transport) return;
+      void transport
+        .setThinkingLevel(level)
+        .then(setLiveModels)
+        .catch((e) => {
+          console.error("[live] setThinkingLevel 失败:", e);
+        });
+    };
+
+    /*
+     * live 形态：模型选择同样不再写死 —— 用 core `GET /models` 返回的可用清单
+     * （已配置凭证的模型，按 provider 分组），选择即经 `POST /models/select` 写回。
+     * value 用 `provider:id` 保证跨 provider 唯一（不同 provider 可能有同名模型）。
+     * mock 形态（默认）：保持设计稿清单，行为零变化。
+     */
+    const modelGroups: ReadonlyArray<ChipMenuGroup<string>> =
+      live && liveModels ? groupModelsByProvider(liveModels.models) : COMPOSER_MODEL_GROUPS;
+
+    const activeModelKey =
+      live && liveModels?.current
+        ? `${liveModels.current.provider}:${liveModels.current.modelId}`
+        : modelId;
+
+    const activeModelLabel = (() => {
+      if (live && liveModels) {
+        const cur = liveModels.current;
+        const found = cur
+          ? liveModels.models.find((m) => m.provider === cur.provider && m.id === cur.modelId)
+          : undefined;
+        return found?.label ?? cur?.modelId ?? modelId;
+      }
+      return (COMPOSER_MODELS.find((m) => m.id === modelId) ?? COMPOSER_MODELS[0]).label;
+    })();
+
+    const selectModel = (key: string) => {
+      setModelId(key);
+      if (!live) return;
+      const sep = key.indexOf(":");
+      if (sep < 0) return;
+      const transport = getLiveTransport();
+      if (!transport) return;
+      void transport
+        .setModel(key.slice(0, sep), key.slice(sep + 1))
+        .then(setLiveModels)
+        .catch((e) => {
+          console.error("[live] setModel 失败:", e);
+        });
+    };
 
     /** MCP 芯片开关（默认关；`?mcp=1` 打开，供验收 2-11 回归）—— 见 @/lib/feature-flags */
     const mcpEnabled = isMcpEnabled();
@@ -71,32 +172,32 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
           testId="composer-chip-model"
           menuTestId="composer-chip-model-menu"
           icon={Bot}
-          label={model.label}
+          label={activeModelLabel}
           ariaLabel="选择模型"
           menuLabel="可选模型"
-          groups={COMPOSER_MODEL_GROUPS}
-          value={modelId}
-          onChange={setModelId}
+          groups={modelGroups}
+          value={activeModelKey}
+          onChange={selectModel}
         />
 
         <ChipMenu
           testId="composer-chip-thinking"
           menuTestId="composer-chip-thinking-menu"
           icon={Sparkles}
-          label={`思考 ${THINKING_LABEL[thinkingLevel]}`}
+          label={`思考 ${THINKING_LABEL[activeThinking]}`}
           ariaLabel="选择思考强度"
           menuLabel="思考强度档位"
           groups={[
             {
-              options: [
-                { value: "low", label: "Low", hint: "快速回答，几乎不思考" },
-                { value: "high", label: "High", hint: "均衡模式，日常任务首选" },
-                { value: "max", label: "Max", hint: "最强推理，更慢也更耗用量" },
-              ],
+              options: availableLevels.map((level) => ({
+                value: level,
+                label: THINKING_LABEL[level],
+                hint: THINKING_HINT[level],
+              })),
             },
           ]}
-          value={thinkingLevel}
-          onChange={setThinkingLevel}
+          value={activeThinking}
+          onChange={selectThinking}
         />
 
         {mcpEnabled ? (
@@ -125,3 +226,14 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
     );
   },
 );
+
+/** live：把 core 的可用模型按 provider 分组，value 用 `provider:id` 保证跨 provider 唯一 */
+function groupModelsByProvider(models: readonly ModelInfo[]): ChipMenuGroup<string>[] {
+  const byProvider = new Map<string, { value: string; label: string }[]>();
+  for (const m of models) {
+    const options = byProvider.get(m.provider) ?? [];
+    options.push({ value: `${m.provider}:${m.id}`, label: m.label || m.id });
+    byProvider.set(m.provider, options);
+  }
+  return [...byProvider.entries()].map(([label, options]) => ({ label, options }));
+}

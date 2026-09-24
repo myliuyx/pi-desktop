@@ -152,9 +152,12 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		}
 	};
 
-	/** core 直接生成的 AgentEvent（uiContext 授权请求），已是契约形状，终态立即下发 */
+	/** core 直接生成的 AgentEvent（uiContext 授权请求 / 用量快照），已是契约形状，终态立即下发 */
 	const dispatchAgent = (e: unknown) => {
-		if (isRecord(e) && (e.type === "approval_request" || e.type === "approval_settled")) {
+		if (
+			isRecord(e) &&
+			(e.type === "approval_request" || e.type === "approval_settled" || e.type === "usage")
+		) {
 			flushBatch();
 			push(e);
 		}

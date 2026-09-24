@@ -92,6 +92,7 @@ function blocksOfType(state, type) {
 
 	const terminals = blocksOfType(state, "terminal");
 	check("[tool] 终端块数 == tool_execution_start 数", terminals.length, starts.length);
+	check("[tool] 终端块默认收起（collapsed=true）", terminals.every((t) => t.collapsed === true), true);
 	check("[tool] 首个终端块命令与事件一致", terminals[0].command, starts[0].args.command);
 	check(
 		"[tool] 终端块状态与 isError 一一对应",
@@ -214,6 +215,53 @@ function blocksOfType(state, type) {
 	s = applyEvent(s, { type: "approval_settled", requestId: "r2", resolution: "cancelled" });
 	const settled2 = s.messages[s.messages.length - 1].blocks.at(-1);
 	check("[approval] 超时结算写 resolved=cancelled 且保留 timeoutMs", [settled2.resolved, settled2.timeoutMs], ["cancelled", 4000]);
+}
+
+/* -------------------------------------------------------------------------
+ * 八、usage 事件（TokenStats 联动）—— reducer 不处理，但**绝不能吞掉**
+ *    背景：AgentEvent 是判别联合，早前漏写 usage case 会让 applyEvent 隐式返回
+ *    undefined（TS2366，且运行时会打坏 liveDraft、连带断掉 SSE）。本节锁死这个回归。
+ * ---------------------------------------------------------------------- */
+{
+	const before = createDraft([
+		{ id: "a-0", role: "assistant", timestamp: 0, blocks: [{ type: "text", content: "x" }] },
+	]);
+	const after = applyEvent(before, {
+		type: "usage",
+		usage: { input: 1995, output: 75, total: 4118, contextWindow: 200000, contextTokens: 2070 },
+	});
+	check("[usage] reducer 返回 DraftState（不是 undefined）", typeof after === "object" && after !== null, true);
+	check("[usage] reducer 不改消息树（消费在 store 层）", after === before, true);
+}
+
+/* -------------------------------------------------------------------------
+ * 九、思考块 streaming 标记（ThinkingCard“思考中展开 / 结束收起”的数据源）
+ * ---------------------------------------------------------------------- */
+{
+	// 只有 thinking（思考中）→ streaming=true → 卡片展开
+	let s = createDraft();
+	s = applyEvent(s, {
+		type: "message_start",
+		message: { role: "assistant", content: [{ type: "thinking", thinking: "想…" }] },
+	});
+	const thinkingOnly = s.messages[s.messages.length - 1].blocks.find((b) => b.type === "thinking");
+	check("[thinking] 仅思考段（思考中）标记 streaming=true", thinkingOnly.streaming, true);
+
+	// 出现正文（思考结束）→ thinking.streaming=false → 卡片自动收起
+	s = applyEvent(s, {
+		type: "message_update",
+		message: { role: "assistant", content: [{ type: "thinking", thinking: "想…" }, { type: "text", text: "答" }] },
+	});
+	const afterText = s.messages[s.messages.length - 1].blocks.find((b) => b.type === "thinking");
+	check("[thinking] 出现正文后思考段 streaming=false（自动收起）", afterText.streaming, false);
+
+	// 消息结束 → 仍为 false
+	s = applyEvent(s, {
+		type: "message_end",
+		message: { role: "assistant", content: [{ type: "thinking", thinking: "想…" }, { type: "text", text: "答" }] },
+	});
+	const ended = s.messages[s.messages.length - 1].blocks.find((b) => b.type === "thinking");
+	check("[thinking] 消息结束后思考段 streaming=false", ended.streaming, false);
 }
 
 /* ---------------------------------------------------------------------- */

@@ -19,8 +19,13 @@
 export function formatCompact(value: number): string {
   if (!Number.isFinite(value)) return "0";
   if (value < 1000) return String(Math.round(value));
-  const k = value / 1000;
-  return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+  if (value < 1000000) {
+    const k = value / 1000;
+    return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+  }
+  // ≥1M 用 M（1M 窗口显示 1.0M 而不是 1000k），口径对齐 Pi CLI 的 formatTokens
+  const m = value / 1000000;
+  return `${m < 10 ? m.toFixed(1) : Math.round(m)}M`;
 }
 
 /** 时刻 HH:MM（消息时间戳用） */

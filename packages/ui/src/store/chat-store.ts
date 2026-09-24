@@ -72,6 +72,14 @@ function ensureLive(): void {
   if (!transport) return;
   // 订阅生命周期与应用一致：只要还有监听器就保持 SSE 连接（见 transport 内部引用计数）
   transport.subscribe((event: AgentEvent) => {
+    /*
+     * usage 事件是 core 算好的真实用量快照（输入/输出/消耗/已用上下文），
+     * 与消息树无关 —— 不进 reducer，直接写 store，让 TokenStats 联动。
+     */
+    if (event.type === "usage") {
+      useChatStore.setState({ tokenUsage: event.usage });
+      return;
+    }
     liveDraft = applyEvent(liveDraft, event);
     useChatStore.setState({ messages: liveDraft.messages, streaming: liveDraft.streaming });
     // C4：一轮对话结束后刷新会话清单 —— Pi 是在首条 entry 追加时才落盘会话文件，

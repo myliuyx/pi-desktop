@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import { cn } from "@/lib/cn";
 import { formatCompact } from "@/lib/format";
+import type { TokenUsage } from "@/mock/types";
 import { useChatStore } from "@/store/chat-store";
 
 /**
@@ -8,10 +9,15 @@ import { useChatStore } from "@/store/chat-store";
  *
  * 设计要点（见 task-M2.md 3.2 / 验收 2-13~2-16）：
  * - 四段顺序固定：输入 → 输出 → 消耗 → 上下文，段间用 1px 细分隔线。
+ * - 数值来源：live 形态下前三段与「上下文」由 core 的 `usage` 事件实时下发
+ *   （`chat-store` 的 live 订阅写入，见 `ensureLive`）；mock 形态仍由 `computeTokens` 估算。
+ *   第四段「上下文」展示口径与 Pi CLI（footer.js）一致：live 显示「占用率% / 窗口」
+ *   （如 `0.1%/1.0M`）；mock 与「已用未知」时回落窗口大小（验收 2-14 的 `128k` 不变）。
  * - **只有「消耗」段用 `text-text-primary`**，其余三段用 `text-text-secondary`。
  *   验收脚本会现场注入 `text-text-primary` / `text-text-secondary` 探针元素比对计算色值，
  *   所以这里必须真的用这两个类，绝不能自己调亮度凑（见 3.2）。
- * - 数值格式化一律走 `formatCompact`（12.4k / 128k 那种），不得自行 toFixed。
+ * - 数值格式化一律走 `formatCompact`（12.4k / 128k / 1.0M）；唯一例外是「上下文」的
+ *   占用率百分比用 `toFixed(1)`（Pi CLI 同款口径）。
  * - 容器 `bg-bg-subtle` 圆角，靠工具条里的 `composer-toolbar-spacer`（flex-1）推到右边，
  *   这里不要加 `ml-auto`，否则验收就看不到那个弹性占位节点了（见 3.2）。
  * - `shrink-0`：四段用量是关键信息，工具条宽度吃紧时**不许**被挤压换行——
@@ -26,15 +32,34 @@ interface Segment {
   label: string;
   /** 是否高亮（仅「消耗」为 true） */
   highlight: boolean;
-  /** 从 tokenUsage 取该段数值 */
-  pick: (u: { input: number; output: number; total: number; contextWindow: number }) => number;
+  /** 该段的展示文本（已格式化，含单位 / 百分号） */
+  text: (u: TokenUsage) => string;
+}
+
+/**
+ * 第四段「上下文」—— 口径对齐 Pi CLI（footer.js）：`占用率% / 窗口`，如 `0.1%/1.0M`。
+ *
+ * - live：core 的 `usage` 事件带 `contextTokens`（Pi `getContextUsage().tokens`）→ 按
+ *   `tokens/contextWindow*100` 复算占用率（与 Pi `percent` 同式），窗口用 `formatCompact`；
+ * - mock（无 `contextTokens`）与 Pi 未知态（刚压缩完、无有效回复）：回落窗口大小，
+ *   于是验收 2-14 的 `128k` 保持不变。
+ *
+ * 为什么不显示裸已用 token（上一版）：1M 窗口下 `990` 没有信息量，且脱离窗口看不出占用，
+ * 与 Pi 自身 CLI 的展示（`0.1%/1.0M`）不一致。
+ */
+function contextText(u: TokenUsage): string {
+  if (u.contextTokens !== undefined && u.contextWindow > 0) {
+    const percent = (u.contextTokens / u.contextWindow) * 100;
+    return `${percent.toFixed(1)}%/${formatCompact(u.contextWindow)}`;
+  }
+  return formatCompact(u.contextWindow);
 }
 
 const SEGMENTS: Segment[] = [
-  { key: "input", label: "输入", highlight: false, pick: (u) => u.input },
-  { key: "output", label: "输出", highlight: false, pick: (u) => u.output },
-  { key: "total", label: "消耗", highlight: true, pick: (u) => u.total },
-  { key: "context", label: "上下文", highlight: false, pick: (u) => u.contextWindow },
+  { key: "input", label: "输入", highlight: false, text: (u) => formatCompact(u.input) },
+  { key: "output", label: "输出", highlight: false, text: (u) => formatCompact(u.output) },
+  { key: "total", label: "消耗", highlight: true, text: (u) => formatCompact(u.total) },
+  { key: "context", label: "上下文", highlight: false, text: contextText },
 ];
 
 export function TokenStats() {
@@ -54,7 +79,7 @@ export function TokenStats() {
           )}
           <div
             data-testid={`token-stats-item-${seg.key}`}
-            title={`${seg.label} ${formatCompact(seg.pick(usage))}`}
+            title={`${seg.label} ${seg.text(usage)}`}
             className={cn(
               // 颜色只挂在这一层：验收脚本读 item 自身的 color 与探针比对
               "flex items-center gap-1",
@@ -70,7 +95,7 @@ export function TokenStats() {
              * 数值（lastElementChild.textContent）与颜色，标签可见性不在断言内。
              */}
             <span className="hidden opacity-70 @min-[690px]:inline">{seg.label}</span>
-            <span className="font-medium tabular-nums">{formatCompact(seg.pick(usage))}</span>
+            <span className="font-medium tabular-nums">{seg.text(usage)}</span>
           </div>
         </Fragment>
       ))}

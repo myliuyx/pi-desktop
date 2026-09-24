@@ -45,6 +45,11 @@ export interface ThinkingBlock {
   content: string;
   /** 默认是否折叠 */
   collapsed?: boolean;
+  /**
+   * 该思考段是否仍在流式增长（**仅实时 reducer 设置**，mock / 历史加载不设）。
+   * `ThinkingCard` 据此「思考中自动展开、思考结束自动收起」；缺省时回退 `collapsed` 默认行为。
+   */
+  streaming?: boolean;
 }
 
 /** ← `message_update` → `toolcall_delta` */
@@ -68,6 +73,12 @@ export interface TerminalBlock {
   truncated?: boolean;
   /** 截断时省略的内容行数 */
   hiddenLineCount?: number;
+  /**
+   * 默认是否折叠内容（命令行 + 输出）。
+   * **仅实时 reducer / 历史加载设置 `true`**（实时执行终端不宜刷屏，点开才看）；
+   * mock 演示（01 屏会话 / 03 屏运行详情）不设 → 默认展开，验收 2-7 与 03 屏期望不变。
+   */
+  collapsed?: boolean;
 }
 
 /** ← Extension UI Protocol 的 `select` / `confirm` 请求-响应 */
@@ -191,10 +202,21 @@ export interface SessionLoadStats {
 
 /** ← `get_session_stats` 的 tokens + contextUsage */
 export interface TokenUsage {
+  /** 最近一次 assistant 请求的输入 tokens（已含历史上下文；累加会重复，故取最近一次） */
   input: number;
+  /** 最近一次 assistant 请求的输出 tokens */
   output: number;
+  /** 会话累计 token 消耗（Σ(input+output)，即 ΣtotalTokens） */
   total: number;
+  /** 当前模型上下文窗口大小 */
   contextWindow: number;
+  /**
+   * 当前**已用**上下文 tokens（Pi `AgentSession.getContextUsage().tokens`，随对话增长）。
+   *
+   * 可选：mock 数据与历史会话加载都不填 → TokenStats 回落 `contextWindow`（验收 2-14
+   * 行为不变）；Pi 侧未知时（刚压缩完、下一次 LLM 回复前）也不写该键，避免下发 0 的假数据。
+   */
+  contextTokens?: number;
 }
 
 /* ---------------------------------------------------------------------------
@@ -253,6 +275,8 @@ export type AgentEvent =
   | { type: "turn_end" }
   | { type: "agent_start" }
   | { type: "agent_settled" }
+  /** 新增：会话用量快照（每次 assistant 消息结束后下发；UI 的 TokenStats 消费） */
+  | { type: "usage"; usage: TokenUsage }
   /** 新增：授权请求（我们的形状，非 Pi 9 变体）。method 对应 select/confirm/input */
   | {
       type: "approval_request";

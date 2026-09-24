@@ -46,7 +46,7 @@ import type {
 import { createModelsController, type ModelsController } from "./models.ts";
 import { createProvidersController, type ProvidersController } from "./providers.ts";
 import { collectResources } from "./resources.ts";
-import { continueRecentSession, listSessions, loadSessionById, type SessionRef } from "./sessions.ts";
+import { continueRecentSession, entriesToMessages, listSessions, loadSessionById, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
 import { getToolsState, setToolsState } from "./tools.ts";
@@ -159,6 +159,15 @@ function mergeShellPath(agentDir: string, shellPath: string): void {
 	}
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === "object";
+}
+
+/** 数值归一：非有限数一律记 0（Pi 的 usage 全为 number，但旧事件可能缺字段） */
+function num(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 function resolveModelsPath(agentDir: string, envModelsPath?: string): string {
 	if (envModelsPath) return envModelsPath;
 	const inAgent = path.join(agentDir, "models.json");
@@ -234,6 +243,53 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 
 	/** 当前模型的上下文窗口（`TokenUsage.contextWindow` 的唯一来源；取不到记 0） */
 	const contextWindow = (): number => session?.model?.contextWindow ?? 0;
+
+	/*
+	 * 会话用量（TokenStats 数据源）：`input`/`output` 取最近一次 assistant 请求，
+	 * `total` 历史累加。每次 assistant `message_end` 后经 `usage` 事件下发；
+	 * 模型切换**不补发**（下次发消息自然带新的 contextWindow）。
+	 */
+	let usageInput = 0;
+	let usageOutput = 0;
+	let usageTotal = 0;
+
+	const emitUsage = () => {
+		/*
+		 * contextTokens：Pi 的「已用上下文」（`getContextUsage().tokens`，随对话增长）。
+		 * Pi 在压缩后、下一次 LLM 回复前返回 null —— 此时**不写该字段**，
+		 * 让 UI 回落 contextWindow（与旧行为一致，不出现 0 的假数据）。
+		 */
+		const contextTokens = session?.getContextUsage()?.tokens;
+		emitAgent({
+			type: "usage",
+			usage: {
+				input: usageInput,
+				output: usageOutput,
+				total: usageTotal,
+				contextWindow: contextWindow(),
+				...(typeof contextTokens === "number" ? { contextTokens } : {}),
+			},
+		});
+	};
+
+	const trackUsage = (raw: unknown) => {
+		if (!isRecord(raw) || raw.type !== "message_end") return;
+		const message = raw.message;
+		if (!isRecord(message) || message.role !== "assistant" || !isRecord(message.usage)) return;
+		usageInput = num(message.usage.input);
+		usageOutput = num(message.usage.output);
+		usageTotal += num(message.usage.totalTokens);
+		emitUsage();
+	};
+
+	/** 切换活动会话后，用新会话的历史汇总重置累计（否则新消息会叠加旧会话的用量） */
+	const resetUsageFromSession = () => {
+		const entries = session?.sessionManager.getEntries() ?? [];
+		const { tokenUsage } = entriesToMessages(entries, { contextWindow: contextWindow() });
+		usageInput = tokenUsage.input;
+		usageOutput = tokenUsage.output;
+		usageTotal = tokenUsage.total;
+	};
 
 	const models: ModelsController = createModelsController({
 		getSession: () => session,
@@ -335,7 +391,10 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		//   扩展（如 permission-gate）会走「无 UI 直接 block」分支 —— 命令静默失败、
 		//   UI 侧看不到任何授权卡。
 		await session.bindExtensions({ uiContext: bridge.uiContext, mode: "rpc" });
-		session.subscribe((event: unknown) => emitRaw(event));
+		session.subscribe((event: unknown) => {
+			trackUsage(event);
+			emitRaw(event);
+		});
 		console.log(`[core] 会话就绪：加载到扩展 ${extensionCount} 个`);
 	})();
 
@@ -373,7 +432,11 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		extensionCount = created.extensionsResult.extensions?.length ?? extensionCount;
 		// 与启动路径同口径：先换实例、绑扩展、订事件，最后才 dispose 旧实例
 		await session.bindExtensions({ uiContext: bridge.uiContext, mode: "rpc" });
-		session.subscribe((event: unknown) => emitRaw(event));
+		session.subscribe((event: unknown) => {
+			trackUsage(event);
+			emitRaw(event);
+		});
+		resetUsageFromSession();
 		previous?.dispose();
 		console.log(`[core] 已切换活动会话：${sessionFile}`);
 	};

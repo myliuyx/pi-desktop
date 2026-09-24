@@ -29,12 +29,23 @@ export function createDraft(messages: Message[] = []): DraftState {
 /** content[] → Block[]。streaming 只标在**最后一段** text 上（前面的已经写完）。 */
 function blocksFrom(parts: AgentContentPart[], streaming: boolean): Block[] {
 	const lastTextIndex = parts.reduce((acc, p, i) => (p.type === "text" ? i : acc), -1);
+	const lastIndex = parts.length - 1;
 	return parts.map((part, index): Block => {
 		if (part.type === "text") {
 			return { type: "text", content: part.text, streaming: streaming && index === lastTextIndex };
 		}
 		if (part.type === "thinking") {
-			return { type: "thinking", content: part.thinking, collapsed: true };
+			/*
+			 * 思考段“进行中”的判定：流式中、且它是**当前最后一个 part**（正在增长的那段）。
+			 * 一旦后面出现 text / toolCall，该思考段就不再是最后一段 → streaming=false，
+			 * ThinkingCard 自动收起（「思考完了再收起」）。
+			 */
+			return {
+				type: "thinking",
+				content: part.thinking,
+				collapsed: true,
+				streaming: streaming && index === lastIndex,
+			};
 		}
 		return {
 			type: "tool_call",
@@ -185,6 +196,8 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 				command: typeof event.args.command === "string" ? event.args.command : "",
 				output: "",
 				status: "running",
+				// 实时执行的终端默认收起：不刷屏，用户点开才看命令与输出
+				collapsed: true,
 			};
 			return {
 				...state,
@@ -262,6 +275,15 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 
 	case "turn_start":
 	case "turn_end":
+		return state;
+
+	/*
+	 * usage 是「会话用量快照」，reducer 只维护消息树 → 不改变状态、原样返回。
+	 * 真正的消费在 store 层（chat-store 的 live 订阅把 event.usage 写进 tokenUsage）。
+	 * **必须显式列出此 case**：AgentEvent 是判别联合，漏掉会让函数结尾缺少 return
+	 * （TS2366），且运行时会返回 undefined，把 liveDraft 打坏、连带断掉 SSE。
+	 */
+	case "usage":
 		return state;
 }
 }
