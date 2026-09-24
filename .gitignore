@@ -21,6 +21,9 @@ packages/ui/_settings-live-core.log
 .workbuddy/
 .plan/
 
+# SDD 子代理执行的临时工作区（ledger / briefs / reports / review packages，gitignored scratch）
+.superpowers/
+
 # vendored 上游仓库：pi 是 earendil-works/pi 的本地 clone（未做本地改动、无自带 .git），
 # 不入库以免污染本仓库历史；需要时用 `git clone https://github.com/earendil-works/pi pi` 还原。
 # 若将来要对 pi 做本地修改，删掉下面这行改为入库。
