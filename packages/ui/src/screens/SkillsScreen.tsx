@@ -21,6 +21,7 @@ import {
 } from "@/mock/skills";
 import type { ResourcesPayload } from "@/mock/types";
 import { useUiStore } from "@/store/ui-store";
+import { notifyFailure, useNoticeStore } from "@/store/notice-store";
 
 /**
  * 04 屏 · 技能与工具。
@@ -89,7 +90,10 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
       .then((payload) => {
         if (alive) setLiveResources(payload);
       })
-      .catch((e) => console.error("[live] /resources 失败:", e));
+      .catch((e) => {
+        console.error("[live] /resources 失败:", e);
+        useNoticeStore.getState().notify({ tone: "warning", text: "技能/工具读取失败" });
+      });
     return () => {
       alive = false;
     };
@@ -122,7 +126,10 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
         for (const t of TOOL_ENTRIES) next[t.name] = payload.active.includes(t.name);
         setLiveTools(next);
       })
-      .catch((e) => console.error("[live] /tools/active 失败:", e));
+      .catch((e) => {
+        console.error("[live] /tools/active 失败:", e);
+        useNoticeStore.getState().notify({ tone: "warning", text: "技能/工具读取失败" });
+      });
     return () => {
       alive = false;
     };
@@ -143,6 +150,7 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
       })
       .catch((e) => {
         console.error("[live] POST /tools/active 失败:", e);
+        notifyFailure("工具开关保存失败", e);
         setLiveTools(liveTools); // 失败回滚
       });
   };

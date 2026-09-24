@@ -4,6 +4,7 @@ import { TokensScreen } from "@/screens/TokensScreen";
 import { RunDetailScreen } from "@/screens/RunDetailScreen";
 import { SkillsScreen } from "@/screens/SkillsScreen";
 import { SettingsDialog } from "@/screens/SettingsDialog";
+import { NoticeStack } from "@/components/common/NoticeStack";
 import { ShellsScreen } from "@/screens/ShellsScreen";
 import { createStressSession, EMPTY_SESSION } from "@/mock/sessions";
 import { useChatStore } from "@/store/chat-store";
@@ -155,6 +156,8 @@ export default function App() {
       {content}
       {/* 设置弹窗挂在 App 级，任意屏都能弹出（D1） */}
       <SettingsDialog />
+      {/* 全局失败反馈（D4）：挂在 App 级，任意屏可见 */}
+      <NoticeStack />
     </>
   );
 }

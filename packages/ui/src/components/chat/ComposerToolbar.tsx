@@ -9,6 +9,7 @@ import { TOOLBAR_CONTROL_HEIGHT } from "@/lib/layout";
 import { TokenStats } from "@/components/common/TokenStats";
 import { useUiStore } from "@/store/ui-store";
 import { useModelsStore } from "@/store/models-store";
+import { notifyFailure } from "@/store/notice-store";
 import {
   COMPOSER_MODEL_GROUPS,
   COMPOSER_MODELS,
@@ -88,6 +89,9 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
         .then(applyModels)
         .catch((e) => {
           console.error("[live] setThinkingLevel 失败:", e);
+          notifyFailure("思考档位切换失败", e);
+          // 乐观更新已写入 ui-store，失败要拉回 core 的真实值，避免 chip 显示假状态
+          void useModelsStore.getState().refresh();
         });
     };
 
@@ -128,6 +132,8 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
         .then(applyModels)
         .catch((e) => {
           console.error("[live] setModel 失败:", e);
+          notifyFailure("模型切换失败", e);
+          void useModelsStore.getState().refresh();
         });
     };
 

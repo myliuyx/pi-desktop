@@ -16,6 +16,7 @@ import {
 } from "@/mock/settings";
 import { useUiStore } from "@/store/ui-store";
 import { useModelsStore } from "@/store/models-store";
+import { notifyFailure } from "@/store/notice-store";
 
 /**
  * 设置弹窗 · 「常规」Tab。
@@ -74,6 +75,9 @@ export function SettingsGeneralTab() {
       .then(applyModels)
       .catch((e) => {
         console.error("[live] setThinkingLevel 失败:", e);
+        notifyFailure("思考档位切换失败", e);
+        // 乐观更新已写入 ui-store，失败要拉回 core 的真实值，避免 chip 显示假状态
+        void useModelsStore.getState().refresh();
       });
   };
 

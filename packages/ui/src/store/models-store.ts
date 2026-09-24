@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { getLiveTransport } from "@/services/live-transport";
+import { useNoticeStore } from "@/store/notice-store";
 import type { ModelsPayload } from "@/mock/types";
 
 /**
@@ -36,6 +37,8 @@ export const useModelsStore = create<ModelsState>((set, get) => ({
     } catch (e) {
       // 与既有一致：失败只记录，消费方回落 mock / 保留旧快照，绝不白屏
       console.error("[live] /models 失败:", e);
+      // 模型清单是 Composer 芯片 / 设置·思考档位的可见数据源，回落演示清单要让用户知道
+      useNoticeStore.getState().notify({ tone: "warning", text: "模型清单读取失败，已回落演示清单" });
     }
   },
   applyPayload: (payload) => set({ payload }),

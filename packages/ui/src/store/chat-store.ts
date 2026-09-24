@@ -7,6 +7,7 @@ import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
 import { applyEvent, createDraft, type DraftState } from "@/adapter/reduce";
 import type { AgentEvent } from "@/adapter/pi-events";
+import { notifyFailure, useNoticeStore } from "@/store/notice-store";
 
 /**
  * 会话工作台状态。
@@ -162,6 +163,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       liveDraft = createDraft([...get().messages]);
       void transport.sendMessage(trimmed).catch((e) => {
         console.error("[live] sendMessage 失败:", e);
+        notifyFailure("消息发送失败", e);
         useChatStore.setState({ streaming: false });
       });
       return;
@@ -303,6 +305,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
       .catch((e) => {
         console.error("[live] listSessions 失败:", e);
+        useNoticeStore.getState().notify({ tone: "warning", text: "会话列表刷新失败" });
       });
   },
 
@@ -331,6 +334,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       })
       .catch((e) => {
         console.error(`[live] loadSession(${id}) 失败:`, e);
+        notifyFailure("会话加载失败", e);
       });
   },
 
@@ -388,6 +392,7 @@ if (typeof window !== "undefined") {
           }
         } catch (e) {
           console.error("[live] 启动加载最近会话失败:", e);
+          useNoticeStore.getState().notify({ tone: "warning", text: "最近会话加载失败" });
         }
       })();
     }
