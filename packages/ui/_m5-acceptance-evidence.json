@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-24T13:07:42.362Z",
+  "startedAt": "2026-09-24T14:05:33.604Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
@@ -66,8 +66,8 @@
         ],
         "mode": "grid",
         "hScroll": {
-          "scrollWidth": 1424,
-          "clientWidth": 1424
+          "scrollWidth": 1440,
+          "clientWidth": 1440
         }
       }
     },
@@ -149,17 +149,17 @@
       "value": [
         {
           "os": "mac",
-          "w": 1102,
+          "w": 1118,
           "h": 408
         },
         {
           "os": "win",
-          "w": 1102,
+          "w": 1118,
           "h": 408
         },
         {
           "os": "linux",
-          "w": 1102,
+          "w": 1118,
           "h": 408
         }
       ]
@@ -167,15 +167,15 @@
     {
       "name": "5-3_06屏并排横向滚动",
       "value": {
-        "scrollWidth": 1424,
-        "clientWidth": 1424
+        "scrollWidth": 1440,
+        "clientWidth": 1440
       }
     },
     {
       "name": "5-3b_06屏单壳横向滚动",
       "value": {
-        "scrollWidth": 1424,
-        "clientWidth": 1424
+        "scrollWidth": 1440,
+        "clientWidth": 1440
       }
     },
     {
@@ -184,8 +184,8 @@
         {
           "route": "01 工作台",
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -199,8 +199,8 @@
         {
           "route": "00 令牌",
           "hScroll": {
-            "scrollWidth": 1414,
-            "clientWidth": 1414
+            "scrollWidth": 1430,
+            "clientWidth": 1430
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -212,8 +212,8 @@
         {
           "route": "01b 源码态",
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -227,8 +227,8 @@
         {
           "route": "03 运行详情",
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -242,8 +242,8 @@
         {
           "route": "04 技能与工具",
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -254,8 +254,8 @@
         {
           "route": "05 设置",
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -269,8 +269,8 @@
         {
           "route": "06 窗口壳",
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -302,8 +302,8 @@
           "auxCount": 13,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           }
         },
         {
@@ -322,8 +322,8 @@
           "auxCount": 102,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1414,
-            "clientWidth": 1414
+            "scrollWidth": 1430,
+            "clientWidth": 1430
           }
         },
         {
@@ -342,8 +342,8 @@
           "auxCount": 13,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           }
         },
         {
@@ -362,8 +362,8 @@
           "auxCount": 40,
           "minText": 3.21,
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           }
         },
         {
@@ -382,8 +382,8 @@
           "auxCount": 41,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           }
         },
         {
@@ -402,8 +402,8 @@
           "auxCount": 13,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           }
         },
         {
@@ -422,8 +422,8 @@
           "auxCount": 29,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1424,
-            "clientWidth": 1424
+            "scrollWidth": 1440,
+            "clientWidth": 1440
           }
         }
       ]
@@ -496,28 +496,28 @@
           "testid": "titlebar-toggle-sidebar",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(50, 90, 207)",
           "focusVisible": true
         },
         {
           "testid": "titlebar-toggle-theme",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(47, 85, 191)",
           "focusVisible": true
         },
         {
           "testid": "titlebar-open-settings",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(45, 77, 169)",
           "focusVisible": true
         },
         {
           "testid": "titlebar-toggle-preview",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(45, 77, 169)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
@@ -531,7 +531,7 @@
           "testid": "sidebar-search",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(45, 77, 169)",
           "focusVisible": true
         },
         {
@@ -545,7 +545,7 @@
           "testid": "sidebar-history-item-1",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         },
         {
@@ -573,7 +573,7 @@
           "testid": "sidebar-history-item-5",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(62, 99, 206)",
           "focusVisible": true
         },
         {
@@ -587,7 +587,7 @@
           "testid": "sidebar-history-item-7",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         }
       ]
@@ -596,14 +596,14 @@
       "name": "5-7_空状态原始观测",
       "value": {
         "emptyExists": true,
-        "emptyHeight": 586,
+        "emptyHeight": 594,
         "emptyText": "还没有消息在下方输入框里给 Pi 下达第一个任务，回复会出现在这里。",
         "listExists": true,
         "totalCount": "0",
-        "listHeight": 634,
+        "listHeight": 642,
         "hScroll": {
-          "scrollWidth": 1424,
-          "clientWidth": 1424
+          "scrollWidth": 1440,
+          "clientWidth": 1440
         }
       }
     },
@@ -627,8 +627,8 @@
           },
           {
             "name": "shell-preview-note",
-            "scrollW": 192,
-            "clientW": 192,
+            "scrollW": 191,
+            "clientW": 191,
             "noOverflow": true,
             "hasTitle": true
           },
@@ -641,16 +641,16 @@
           }
         ],
         "hScroll": {
-          "scrollWidth": 1424,
-          "clientWidth": 1424
+          "scrollWidth": 1440,
+          "clientWidth": 1440
         }
       }
     },
     {
       "name": "遗留_折叠时长观测",
       "value": {
-        "sidebarTransition": "0.12s",
-        "prefersReduced": true
+        "sidebarTransition": "0.18s",
+        "prefersReduced": false
       }
     },
     {
@@ -965,10 +965,12 @@
     },
     {
       "name": "遗留裁决 1：reduced-motion 下折叠时长已改为 120ms（非 90ms / 非瞬间跳变）",
-      "pass": true,
-      "failed": [],
+      "pass": false,
+      "failed": [
+        "折叠时长为012s"
+      ],
       "detail": {
-        "折叠时长为012s": true,
+        "折叠时长为012s": false,
         "未出现0s或0_001s": true
       }
     },
@@ -1005,9 +1007,10 @@
   ],
   "summary": {
     "assertions": 21,
-    "passed": 20,
-    "failed": 1,
+    "passed": 19,
+    "failed": 2,
     "failedNames": [
+      "遗留裁决 1：reduced-motion 下折叠时长已改为 120ms（非 90ms / 非瞬间跳变）",
       "遗留裁决 2：Tab 面板 role=tabpanel + aria-labelledby 闭环；aria-controls 仅激活 tab 持有且可解析（G7）"
     ]
   }

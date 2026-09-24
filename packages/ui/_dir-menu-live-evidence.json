@@ -1,12 +1,12 @@
 {
   "origin": "http://127.0.0.1:5380",
-  "startedAt": "2026-09-24T13:06:12.004Z",
+  "startedAt": "2026-09-24T14:02:08.358Z",
   "steps": [
     {
       "name": "live_cwd_到达观测",
       "value": {
         "ok": true,
-        "got": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace"
+        "got": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace"
       }
     },
     {
@@ -26,7 +26,7 @@
           "haspopup": "menu",
           "expandedClosed": "false",
           "controlsWhenClosed": false,
-          "title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "title": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
           "focusable": true
         },
         "open": {
@@ -43,16 +43,16 @@
         "trigger": {
           "left": 12,
           "right": 252,
-          "top": 580.66,
-          "bottom": 608.66,
+          "top": 585.98,
+          "bottom": 613.98,
           "width": 240,
           "height": 28
         },
         "panel": {
           "left": 12,
           "right": 252,
-          "top": 408.66,
-          "bottom": 574.91,
+          "top": 413.98,
+          "bottom": 580.23,
           "width": 240,
           "height": 166.25
         }
@@ -64,13 +64,13 @@
         "exists": true,
         "center": {
           "x": 132,
-          "y": 491.8
+          "y": 497.1
         },
         "panelRect": {
           "left": 12,
           "right": 252,
-          "top": 408.66,
-          "bottom": 574.91,
+          "top": 413.98,
+          "bottom": 580.23,
           "width": 240,
           "height": 166.25
         },
@@ -86,11 +86,11 @@
         "panelRole": "menu",
         "panelLabel": "工作目录",
         "curExists": true,
-        "curRole": "menuitem",
+        "curRole": "menuitemradio",
         "curDisabled": "true",
         "curChecked": "true",
         "curMark": true,
-        "curPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "curPath": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
         "recentCount": 2,
         "recentRole": "menuitemradio",
         "recentCheckedAttr": "false",
@@ -104,8 +104,8 @@
     {
       "name": "C14_实测",
       "value": {
-        "scrollWidth": 1424,
-        "clientWidth": 1424
+        "scrollWidth": 1440,
+        "clientWidth": 1440
       }
     },
     {
@@ -114,7 +114,7 @@
         "浅色": {
           "theme": "light",
           "pathEl": {
-            "text": "…enu-cwd-fixture-aSlMHJ\\workspac",
+            "text": "…enu-cwd-fixture-VRMn8f/workspac",
             "contrast": 5.42
           },
           "defaultItem": {
@@ -129,7 +129,7 @@
         "深色": {
           "theme": "dark",
           "pathEl": {
-            "text": "…enu-cwd-fixture-aSlMHJ\\workspac",
+            "text": "…enu-cwd-fixture-VRMn8f/workspac",
             "contrast": 5.68
           },
           "defaultItem": {
@@ -151,17 +151,17 @@
       "name": "C16_实测",
       "value": {
         "exists": true,
-        "text": "…enu-cwd-fixture-aSlMHJ\\workspace",
-        "title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
-        "triggerTitle": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
-        "scrollWidth": 200,
+        "text": "…enu-cwd-fixture-VRMn8f/workspace",
+        "title": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
+        "triggerTitle": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
+        "scrollWidth": 219,
         "clientWidth": 180,
         "className": "min-w-0 flex-1 truncate font-mono text-xs",
         "triggerScrollWidth": 240,
         "triggerClientWidth": 240,
-        "期望全文": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
-        "期望文字": "…enu-cwd-fixture-aSlMHJ\\workspace",
-        "全路径长度": 71
+        "期望全文": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
+        "期望文字": "…enu-cwd-fixture-VRMn8f/workspace",
+        "全路径长度": 42
       }
     },
     {
@@ -233,15 +233,16 @@
         },
         "clickedChange": {
           "groupFound": true,
-          "clicked": true
+          "clicked": true,
+          "title": "选择工作目录（下次启动 core 时使用）"
         },
         "b": {
           "exists": true,
           "rect": {
-            "left": 1073,
-            "right": 1313,
-            "top": 411,
-            "bottom": 577.25,
+            "left": 1080.98,
+            "right": 1320.98,
+            "top": 413.97,
+            "bottom": 580.22,
             "width": 240,
             "height": 166.25
           },
@@ -250,7 +251,7 @@
           "hitInMenu": true,
           "sidebarMenuStillGone": true,
           "dialogStillOpen": true,
-          "text": "…enu-cwd-fixture-aSlMHJ\\workspace运行中/probe/other-2/probe/pref-other下次启动使用默认目录自定义"
+          "text": "…enu-cwd-fixture-VRMn8f/workspace运行中/probe/other-2/probe/pref-other下次启动使用默认目录自定义"
         },
         "c": {
           "dialogClosed": true,
@@ -262,7 +263,7 @@
       "name": "C17_实测",
       "value": {
         "source": "live",
-        "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "currentPath": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
         "currentChecked": "true",
         "recentPaths": [
           "/probe/other-2",
@@ -281,10 +282,10 @@
         ],
         "checkedTrueCount": 1,
         "badgeRunning": true,
-        "期望": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "期望": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
         "本地偏好": "/probe/pref-other",
-        "core默认cwd": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
-        "触发条title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace"
+        "core默认cwd": "/home/jony/agent_work/pi_work/pi-desktop/packages/core",
+        "触发条title": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace"
       }
     },
     {
@@ -292,7 +293,7 @@
       "value": {
         "before": {
           "source": "live",
-          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentPath": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
           "currentChecked": "true",
           "recentPaths": [
             "/probe/other-2",
@@ -335,7 +336,7 @@
         },
         "after": {
           "source": "live",
-          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentPath": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
           "currentChecked": "true",
           "recentPaths": [
             "/probe/other-2",
@@ -363,7 +364,7 @@
       "value": {
         "点选索引": 1,
         "目标目录": "/probe/pref-other",
-        "点前首行": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "点前首行": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
         "workingDirStorage": "/probe/pref-other",
         "menuGone": true,
         "focusOnTrigger": true,
@@ -381,7 +382,7 @@
         ],
         "面板": {
           "source": "live",
-          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentPath": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
           "currentChecked": "true",
           "recentPaths": [
             "~/projects/atlas-agent",
@@ -411,7 +412,7 @@
       "value": {
         "首次": {
           "source": "live",
-          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentPath": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
           "currentChecked": "true",
           "recentPaths": [
             "/probe/d6",
@@ -433,7 +434,7 @@
         },
         "再次": {
           "source": "live",
-          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentPath": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace",
           "currentChecked": "true",
           "recentPaths": [
             "/probe/d2",
@@ -530,12 +531,14 @@
       "name": "console_errors_全程",
       "value": {
         "consoleErrors": [
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:3302)\n    at aE.subscribe (http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:3044)\n    at fE (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:6771)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:2708",
-          "[live] listSessions 失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:531)\n    at aE.listSessions (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:1570)\n    at Object.refreshSessions (http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:1851)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:2734",
-          "[live] 启动加载最近会话失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:531)\n    at aE.listSessions (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:1570)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:2817\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:3149",
-          "[live] /models 失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:531)\n    at aE.listModels (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:1930)\n    at Object.refresh (http://127.0.0.1:5380/assets/index--SVMnqQm.js:334:11279)\n    at ensure (http://127.0.0.1:5380/assets/index--SVMnqQm.js:334:11209)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:334:11846\n    at cr (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:96198)\n    at _g (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:119606)\n    at Sn (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:119379)\n    at _g (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:120825)\n    at Sn (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:119379)",
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:3302)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:2881",
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:3302)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:2881"
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:53:3302)\n    at aE.subscribe (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:53:3044)\n    at fE (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:56:6771)\n    at http://127.0.0.1:5380/assets/index-CVIC3FcH.js:57:2708",
+          "[live] listSessions 失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:56:531)\n    at aE.listSessions (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:56:1570)\n    at Object.refreshSessions (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:57:1851)\n    at http://127.0.0.1:5380/assets/index-CVIC3FcH.js:57:2734",
+          "[live] 启动加载最近会话失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:56:531)\n    at aE.listSessions (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:56:1570)\n    at http://127.0.0.1:5380/assets/index-CVIC3FcH.js:57:2817\n    at http://127.0.0.1:5380/assets/index-CVIC3FcH.js:57:3149",
+          "[live] /models 失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:56:531)\n    at aE.listModels (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:56:1930)\n    at Object.refresh (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:334:11292)\n    at ensure (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:334:11222)\n    at http://127.0.0.1:5380/assets/index-CVIC3FcH.js:334:11859\n    at cr (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:48:96198)\n    at _g (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:48:119606)\n    at Sn (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:48:119379)\n    at _g (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:48:120825)\n    at Sn (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:48:119379)",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:53:3302)\n    at http://127.0.0.1:5380/assets/index-CVIC3FcH.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index-CVIC3FcH.js:53:3302)\n    at http://127.0.0.1:5380/assets/index-CVIC3FcH.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5381/assets/index-CVIC3FcH.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-CVIC3FcH.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5381/assets/index-CVIC3FcH.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-CVIC3FcH.js:53:2881"
         ],
         "exceptions": []
       }
@@ -554,6 +557,66 @@
         },
         "newExceptions": [],
         "exceptions": []
+      }
+    },
+    {
+      "name": "C18_实测",
+      "value": {
+        "pathTitle": "/home/jony/agent_work/pi_work/pi-desktop/packages/core",
+        "pathText": "…pi_work/pi-desktop/packages/core",
+        "source": "live",
+        "apiCwd": "/home/jony/agent_work/pi_work/pi-desktop/packages/core",
+        "期望": "/home/jony/agent_work/pi_work/pi-desktop/packages/core",
+        "C17夹具": "/tmp/dir-menu-cwd-fixture-VRMn8f/workspace"
+      }
+    },
+    {
+      "name": "C22_实测",
+      "value": {
+        "不存在的CORE_CWD": "/tmp/dir-menu-MUEYkJ/definitely-missing-dir",
+        "期望回落值": "/home/jony/agent_work/pi_work/pi-desktop/packages/core",
+        "警告行": [
+          "[core] 警告: CORE_CWD=\"/tmp/dir-menu-MUEYkJ/definitely-missing-dir\" 不是存在的目录，已回落 process.cwd()=\"/home/jony/agent_work/pi_work/pi-desktop/packages/core\""
+        ],
+        "核心cwd回落行": [
+          "[core] 警告: CORE_CWD=\"/tmp/dir-menu-MUEYkJ/definitely-missing-dir\" 不是存在的目录，已回落 process.cwd()=\"/home/jony/agent_work/pi_work/pi-desktop/packages/core\"",
+          "[core] 工作目录: /home/jony/agent_work/pi_work/pi-desktop/packages/core",
+          "[core] 信任门：cwd=/home/jony/agent_work/pi_work/pi-desktop/packages/core defaultProjectTrust=never trusted=true reason=no-project-resources asked=false bootstrap扩展数=0 耗时=1ms",
+          "/home/jony/agent_work/pi_work/pi-desktop/packages/core/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+          "/home/jony/agent_work/pi_work/pi-desktop/packages/core/node_modules/@earendil-works/pi-coding-agent/docs/models.md"
+        ],
+        "sessions.cwd": "/home/jony/agent_work/pi_work/pi-desktop/packages/core",
+        "日志尾部": [
+          "[core] 同源托管 UI: /home/jony/agent_work/pi_work/pi-desktop/packages/ui/dist",
+          "[core] 当前没有可用模型：请到设置页「模型」添加并启用一个 Provider（服务照常启动，配好后即可对话）",
+          "[core] 信任门：cwd=/home/jony/agent_work/pi_work/pi-desktop/packages/core defaultProjectTrust=never trusted=true reason=no-project-resources asked=false bootstrap扩展数=0 耗时=1ms",
+          "[core] No models available. Use /login to log into a provider via OAuth or API key. See:",
+          "/home/jony/agent_work/pi_work/pi-desktop/packages/core/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+          "/home/jony/agent_work/pi_work/pi-desktop/packages/core/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+          "[core] 会话就绪：加载到扩展 0 个；当前无模型（待设置页配置）",
+          ""
+        ]
+      }
+    },
+    {
+      "name": "C23_实测",
+      "value": {
+        "空白CORE_CWD": "   ",
+        "期望回落值": "/home/jony/agent_work/pi_work/pi-desktop/packages/core",
+        "警告行": [
+          "[core] 警告: CORE_CWD 为空白值，已回落 process.cwd()=\"/home/jony/agent_work/pi_work/pi-desktop/packages/core\""
+        ],
+        "sessions.cwd": "/home/jony/agent_work/pi_work/pi-desktop/packages/core",
+        "日志尾部": [
+          "[core] 同源托管 UI: /home/jony/agent_work/pi_work/pi-desktop/packages/ui/dist",
+          "[core] 当前没有可用模型：请到设置页「模型」添加并启用一个 Provider（服务照常启动，配好后即可对话）",
+          "[core] 信任门：cwd=/home/jony/agent_work/pi_work/pi-desktop/packages/core defaultProjectTrust=never trusted=true reason=no-project-resources asked=false bootstrap扩展数=0 耗时=1ms",
+          "[core] No models available. Use /login to log into a provider via OAuth or API key. See:",
+          "/home/jony/agent_work/pi_work/pi-desktop/packages/core/node_modules/@earendil-works/pi-coding-agent/docs/providers.md",
+          "/home/jony/agent_work/pi_work/pi-desktop/packages/core/node_modules/@earendil-works/pi-coding-agent/docs/models.md",
+          "[core] 会话就绪：加载到扩展 0 个；当前无模型（待设置页配置）",
+          ""
+        ]
       }
     }
   ],
@@ -600,14 +663,14 @@
       }
     },
     {
-      "name": "C5 面板结构齐备：当前目录行（aria-checked=true 且含 ✓）/ 最近目录区 / 使用默认目录 / 自定义路径…",
+      "name": "C5 面板结构齐备：当前目录行（role=menuitemradio + aria-checked=true 且含 ✓）/ 最近目录区 / 使用默认目录 / 自定义路径…",
       "pass": true,
       "failed": [],
       "detail": {
         "面板role_menu": true,
         "面板aria_label为工作目录": true,
         "当前行存在": true,
-        "当前行role_menuitem": true,
+        "当前行role_menuitemradio": true,
         "当前行aria_disabled为true": true,
         "当前行aria_checked为true": true,
         "当前行含勾标记": true,
@@ -708,7 +771,8 @@
         "设置打开期间侧栏面板未回流": true,
         "设置弹窗仍在": true,
         "关闭设置后弹窗已收起": true,
-        "关闭设置后设置面板不残留": true
+        "关闭设置后设置面板不残留": true,
+        "live设置更改按钮提示重启": true
       }
     },
     {
@@ -807,11 +871,47 @@
         "本次重载无未捕获异常": true,
         "全程无未捕获异常": true
       }
+    },
+    {
+      "name": "C18 live：CORE_CWD 缺省 ⇒ 侧栏显示 core 的 process.cwd()（行为与改动前一致）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "路径等于core的cwd": true,
+        "data_current_source为live": true,
+        "core自己回的cwd也是它": true,
+        "与C17夹具不同": true
+      }
+    },
+    {
+      "name": "C22 core：CORE_CWD 指向不存在的目录 ⇒ 明确警告（点名原值 + 回落值）+ 回落 process.cwd() + 服务照常起来",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "服务正常起来": true,
+        "生效cwd已回落": true,
+        "有一行警告一起点名原值与回落值": true,
+        "警告点名了不存在的原值": true,
+        "警告点名了回落后的值": true,
+        "确实有警告行": true,
+        "日志可读非空": true
+      }
+    },
+    {
+      "name": "C23 core：CORE_CWD 为纯空白 ⇒ 明确警告 + 回落 process.cwd() + 服务照常起来（不静默降级）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "服务正常起来": true,
+        "生效cwd已回落": true,
+        "确实有警告行": true,
+        "警告点名回落后的值": true
+      }
     }
   ],
   "summary": {
-    "assertions": 19,
-    "passed": 19,
+    "assertions": 22,
+    "passed": 22,
     "failed": 0,
     "failedNames": []
   }

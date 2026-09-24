@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-24T13:16:01.025Z",
+  "startedAt": "2026-09-24T14:03:14.592Z",
   "steps": [
     {
       "name": "C1_实测",
@@ -36,16 +36,16 @@
         "trigger": {
           "left": 12,
           "right": 252,
-          "top": 580.66,
-          "bottom": 608.66,
+          "top": 585.98,
+          "bottom": 613.98,
           "width": 240,
           "height": 28
         },
         "panel": {
           "left": 12,
           "right": 252,
-          "top": 408.66,
-          "bottom": 574.91,
+          "top": 413.98,
+          "bottom": 580.23,
           "width": 240,
           "height": 166.25
         }
@@ -57,13 +57,13 @@
         "exists": true,
         "center": {
           "x": 132,
-          "y": 491.8
+          "y": 497.1
         },
         "panelRect": {
           "left": 12,
           "right": 252,
-          "top": 408.66,
-          "bottom": 574.91,
+          "top": 413.98,
+          "bottom": 580.23,
           "width": 240,
           "height": 166.25
         },
@@ -79,7 +79,7 @@
         "panelRole": "menu",
         "panelLabel": "工作目录",
         "curExists": true,
-        "curRole": "menuitem",
+        "curRole": "menuitemradio",
         "curDisabled": "true",
         "curChecked": "true",
         "curMark": true,
@@ -97,8 +97,8 @@
     {
       "name": "C14_实测",
       "value": {
-        "scrollWidth": 1424,
-        "clientWidth": 1424
+        "scrollWidth": 1440,
+        "clientWidth": 1440
       }
     },
     {
@@ -147,7 +147,7 @@
         "text": "…at/exceeds/thirty-two/characters",
         "title": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
         "triggerTitle": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
-        "scrollWidth": 200,
+        "scrollWidth": 219,
         "clientWidth": 180,
         "className": "min-w-0 flex-1 truncate font-mono text-xs",
         "triggerScrollWidth": 240,
@@ -226,15 +226,16 @@
         },
         "clickedChange": {
           "groupFound": true,
-          "clicked": true
+          "clicked": true,
+          "title": "选择工作目录"
         },
         "b": {
           "exists": true,
           "rect": {
-            "left": 1073,
-            "right": 1313,
-            "top": 388.06,
-            "bottom": 554.31,
+            "left": 1080.98,
+            "right": 1320.98,
+            "top": 391.03,
+            "bottom": 557.28,
             "width": 240,
             "height": 166.25
           },
@@ -508,14 +509,14 @@
       }
     },
     {
-      "name": "C5 面板结构齐备：当前目录行（aria-checked=true 且含 ✓）/ 最近目录区 / 使用默认目录 / 自定义路径…",
+      "name": "C5 面板结构齐备：当前目录行（role=menuitemradio + aria-checked=true 且含 ✓）/ 最近目录区 / 使用默认目录 / 自定义路径…",
       "pass": true,
       "failed": [],
       "detail": {
         "面板role_menu": true,
         "面板aria_label为工作目录": true,
         "当前行存在": true,
-        "当前行role_menuitem": true,
+        "当前行role_menuitemradio": true,
         "当前行aria_disabled为true": true,
         "当前行aria_checked为true": true,
         "当前行含勾标记": true,
@@ -616,7 +617,8 @@
         "设置打开期间侧栏面板未回流": true,
         "设置弹窗仍在": true,
         "关闭设置后弹窗已收起": true,
-        "关闭设置后设置面板不残留": true
+        "关闭设置后设置面板不残留": true,
+        "mock设置更改按钮不提示重启": true
       }
     },
     {

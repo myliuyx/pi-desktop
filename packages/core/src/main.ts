@@ -54,16 +54,29 @@ const allowedHosts = ["127.0.0.1", "localhost", ...extraHosts];
  */
 const rawCwd = process.env.CORE_CWD;
 let resolvedCwd: string | undefined;
-if (rawCwd && rawCwd.trim()) {
-  const candidate = path.resolve(rawCwd.trim());
-  if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
-    resolvedCwd = candidate;
-  } else {
-    resolvedCwd = undefined;
-    console.warn(
-      `[core] 警告: CORE_CWD="${rawCwd}" 不是存在的目录，已回落 process.cwd()="${process.cwd()}"`,
-    );
-  }
+if (rawCwd) {
+	if (!rawCwd.trim()) {
+		// 有值但全是空白（如 CORE_CWD="   "）：点名警告后回落，不静默吞掉
+		console.warn(
+			`[core] 警告: CORE_CWD 为空白值，已回落 process.cwd()="${process.cwd()}"`,
+		);
+	} else {
+		const candidate = path.resolve(rawCwd.trim());
+		/*
+		 * 用一次 statSync 判定“存在且是目录”，并整体 try/catch：
+		 * existsSync + statSync 是两次系统调用，路径在两者之间消失（或不稳定挂载）时
+		 * statSync 会抛 ⇒ core 启动直接失败，违背“坏值不崩”契约。
+		 */
+		try {
+			if (!fs.statSync(candidate).isDirectory()) throw new Error("not a directory");
+			resolvedCwd = candidate;
+		} catch {
+			resolvedCwd = undefined;
+			console.warn(
+				`[core] 警告: CORE_CWD="${rawCwd}" 不是存在的目录，已回落 process.cwd()="${process.cwd()}"`,
+			);
+		}
+	}
 }
 
 /*

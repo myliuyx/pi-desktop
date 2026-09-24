@@ -97,6 +97,9 @@ const DEFAULT_CWD_PORT = 5381;
 const DEFAULTCWD_ORIGIN = `http://127.0.0.1:${DEFAULT_CWD_PORT}`;
 const BAD_CWD_PORT = 5382;
 const BADCWD_ORIGIN = `http://127.0.0.1:${BAD_CWD_PORT}`;
+/* C23：CORE_CWD 为纯空白（有值但 trim 后为空）——另一类坏值 */
+const BLANK_CWD_PORT = 5383;
+const BLANKCWD_ORIGIN = `http://127.0.0.1:${BLANK_CWD_PORT}`;
 
 /** `mock/settings.ts:131` 的默认工作目录（mock 形态的回落值） */
 const DEFAULT_WORKING_DIR = "~/projects/atlas-agent";
@@ -389,6 +392,7 @@ async function runMock() {
       coreDefaultCwd: null,
     };
     failures += await runSuite(ctx, env);
+    finalize(ctx);
   });
 }
 
@@ -515,7 +519,55 @@ async function runLive() {
       });
       await coreC.close();
       cores.splice(cores.indexOf(coreC), 1);
+
+      /* ---------------- C23：CORE_CWD 为纯空白 ---------------- */
+      /*
+       * “有值但全是空白”是另一类坏值：旧实现用 `if (rawCwd && rawCwd.trim())` 直接跳过，
+       * 既不警告也不回落 —— 属“静默降级”。本判据要求它与 C22 一样点名警告 + 回落。
+       */
+      const coreD = env.launch({ port: BLANK_CWD_PORT, cwd: "   ", suffix: "blank-cwd" });
+      const healthD = await waitForHealth(BLANKCWD_ORIGIN, LIVE_TOKEN, 90_000);
+      const logD = readText(coreD.logPath);
+      const linesD = logD.split(/\r?\n/);
+      const sessionsD = await coreGet(BLANKCWD_ORIGIN, "/sessions");
+      failures += checkLive(ctx, "C23", "core：CORE_CWD 为纯空白 ⇒ 明确警告 + 回落 process.cwd() + 服务照常起来（不静默降级）", {
+        服务正常起来: !!healthD && healthD.ok === true,
+        生效cwd已回落: sessionsD?.cwd === coreDefaultCwd,
+        确实有警告行: linesD.some((l) => /警告|WARN/i.test(l)),
+        警告点名回落后的值: linesD.some((l) => /警告|WARN/i.test(l) && l.includes(coreDefaultCwd)),
+      }, {
+        "空白CORE_CWD": "   ",
+        期望回落值: coreDefaultCwd,
+        警告行: linesD.filter((l) => /警告|WARN/i.test(l)).map((l) => l.trim().slice(0, 200)),
+        "sessions.cwd": sessionsD?.cwd ?? null,
+        日志尾部: linesD.slice(-8).map((l) => l.trim().slice(0, 200)),
+      });
+      await coreD.close();
+      cores.splice(cores.indexOf(coreD), 1);
+
+      /* 所有判据（含 C18/C22/C23）跑完，统一落盘一次 */
+      finalize(ctx);
     });
+
+    /*
+     * ★ 证据完整性自检：C18/C22/C23 是跑在 runSuite 之后的子 core 判据，
+     *   必须出现在落盘 evidence 里。2026-09-24 实踩：ctx.save() 留在 runSuite 内，
+     *   导致磁盘证据只有 19 条、三个 core 级判据“跑了却没证据”。此自检防止回归。
+     */
+    {
+      const ev = JSON.parse(readText(path.join(uiPkgDir, LIVE_EVIDENCE)) || "{}");
+      const names = (ev.assertions ?? []).map((a) => a.name);
+      const required = ["C18", "C22", "C23"];
+      const missing = required.filter((id) => !names.some((n) => n.startsWith(`${id} `)));
+      if (missing.length) {
+        console.error(
+          `[dir-menu:live] 证据完整性失败：evidence 缺少 ${missing.join(", ")}（仅 ${names.length} 条断言）`,
+        );
+        failures += 1;
+      } else {
+        console.log(`[dir-menu:live] 证据完整性：C18/C22/C23 均已落盘（共 ${names.length} 条断言）`);
+      }
+    }
   } catch (e) {
     console.error("[dir-menu:live] 脚本异常:", e && e.stack ? e.stack : e);
     for (const c of cores) {
@@ -711,11 +763,11 @@ async function runSuite(ctx, env) {
         customText: custom ? (custom.textContent || '').trim() : null,
       };
     })()`);
-    fails += check("C5", "面板结构齐备：当前目录行（aria-checked=true 且含 ✓）/ 最近目录区 / 使用默认目录 / 自定义路径…", {
+    fails += check("C5", "面板结构齐备：当前目录行（role=menuitemradio + aria-checked=true 且含 ✓）/ 最近目录区 / 使用默认目录 / 自定义路径…", {
       面板role_menu: c5.panelRole === "menu",
       面板aria_label为工作目录: c5.panelLabel === "工作目录",
       当前行存在: c5.curExists === true,
-      当前行role_menuitem: c5.curRole === "menuitem",
+      当前行role_menuitemradio: c5.curRole === "menuitemradio",
       当前行aria_disabled为true: c5.curDisabled === "true",
       当前行aria_checked为true: c5.curChecked === "true",
       当前行含勾标记: c5.curMark === true,
@@ -923,8 +975,9 @@ async function runSuite(ctx, env) {
       if (!group) return { groupFound: false, clicked: false };
       const btn = [...group.querySelectorAll('button')].find((b) => (b.textContent || '').includes('更改'));
       if (!btn) return { groupFound: true, clicked: false, buttons: [...group.querySelectorAll('button')].map((b) => (b.textContent || '').trim().slice(0, 20)) };
+      const title = btn.getAttribute('title');
       btn.click();
-      return { groupFound: true, clicked: true };
+      return { groupFound: true, clicked: true, title };
     })()`);
     await sleep(450);
     const b = await cdp.eval(`(() => {
@@ -972,6 +1025,10 @@ async function runSuite(ctx, env) {
       设置弹窗仍在: b.exists === true && b.dialogStillOpen === true,
       关闭设置后弹窗已收起: c.dialogClosed === true,
       关闭设置后设置面板不残留: c.settingsMenuGone === true,
+      // mock 下选择即生效、无「重启」语义；live 下才提示「下次启动 core 时使用」
+      ...(isLive
+        ? { live设置更改按钮提示重启: /下次启动|重启/.test(clickedChange.title ?? "") }
+        : { mock设置更改按钮不提示重启: !/下次启动|重启/.test(clickedChange.title ?? "") }),
     }, { a, clickedChange, b, c });
   }
 
@@ -1238,11 +1295,11 @@ async function runSuite(ctx, env) {
     }, { page, panel, newExceptions, exceptions });
   }
 
-  const summary = ctx.save();
-  if (summary.failed !== fails) {
-    // 让计数漂移可见，而不是静默
-    console.log(`\n[dir-menu] 断言计数：本地 ${fails} / 报告 ${summary.failed}`);
-  }
+  /*
+   * ★ 落盘不在这里做：C18/C22/C23 是跑在 runSuite 之后的 live 子 core 判据，
+   *   若在此处 ctx.save()，这些 core 级判据永远不会写进 evidence（2026-09-24 实踩，文件只有 19 条）。
+   *   统一由调用方在所有判据跑完后 finalize(ctx) 落盘一次。
+   */
   return fails;
 }
 
@@ -1283,6 +1340,19 @@ async function measureContrast(cdp) {
       customItem: measure(q('sidebar-working-directory-custom')),
     };
   })()`);
+}
+
+/**
+ * 所有判据（含 live 子 core 的 C18/C22/C23）跑完后**统一落盘**。
+ * 落盘前不写文件，避免“跑了却没落盘”（见 runSuite 末尾注释）。
+ */
+function finalize(ctx) {
+  const summary = ctx.save();
+  if (summary.failed !== failures) {
+    // 让计数漂移可见，而不是静默
+    console.log(`\n[dir-menu] 断言计数：本地 ${failures} / 报告 ${summary.failed}`);
+  }
+  return summary;
 }
 
 /** runSuite 里给 live 专用判据用的出口（复用同一计数口径；不在这里再落 record，调用处已给 measured） */

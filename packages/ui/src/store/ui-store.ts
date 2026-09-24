@@ -328,7 +328,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   setWorkingDir: (dir) => {
     const recentDirs = pushRecentDir(get().recentDirs, dir);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(WORKING_DIR_STORAGE_KEY, dir);
+      try {
+        window.localStorage.setItem(WORKING_DIR_STORAGE_KEY, dir);
+      } catch {
+        /* 配额/隐私模式等：写失败不能带崩内存态（否则本次选择连带 recentDirs 一起丢） */
+      }
     }
     writeRecentDirs(recentDirs);
     set({ workingDir: dir, recentDirs });

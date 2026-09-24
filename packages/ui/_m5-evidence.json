@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-22T07:09:41.163Z",
+  "startedAt": "2026-09-24T14:04:20.788Z",
   "steps": [
     {
       "name": "5-1_并排模式原始观测",
@@ -27,8 +27,8 @@
         ],
         "mode": "grid",
         "hScroll": {
-          "scrollWidth": 1424,
-          "clientWidth": 1424
+          "scrollWidth": 1440,
+          "clientWidth": 1440
         }
       }
     },
@@ -133,17 +133,17 @@
       "value": [
         {
           "os": "mac",
-          "cardWidth": 1102,
+          "cardWidth": 1118,
           "cardHeight": 408
         },
         {
           "os": "win",
-          "cardWidth": 1102,
+          "cardWidth": 1118,
           "cardHeight": 408
         },
         {
           "os": "linux",
-          "cardWidth": 1102,
+          "cardWidth": 1118,
           "cardHeight": 408
         }
       ]
@@ -151,8 +151,8 @@
     {
       "name": "5-3_06屏横向滚动量",
       "value": {
-        "scrollWidth": 1424,
-        "clientWidth": 1424
+        "scrollWidth": 1440,
+        "clientWidth": 1440
       }
     },
     {
@@ -241,13 +241,13 @@
           "ariaLabel": "切换到深色"
         },
         {
-          "testid": "titlebar-toggle-both",
+          "testid": "titlebar-toggle-preview",
           "bg": "rgba(0, 0, 0, 0)",
           "color": "rgb(26, 29, 33)",
           "hasHover": true,
           "hasActive": true,
           "hasTransition": true,
-          "ariaLabel": "收起两侧"
+          "ariaLabel": "收起右侧"
         },
         {
           "testid": "sidebar-new-task",
@@ -268,22 +268,13 @@
           "ariaLabel": "重构执行计划卡片"
         },
         {
-          "testid": "sidebar-change-directory",
-          "bg": "rgba(0, 0, 0, 0)",
+          "testid": "sidebar-working-directory",
+          "bg": "rgb(245, 246, 248)",
           "color": "rgb(97, 101, 107)",
           "hasHover": true,
           "hasActive": true,
           "hasTransition": true,
-          "ariaLabel": "打开文件夹"
-        },
-        {
-          "testid": "sidebar-search",
-          "bg": "rgba(0, 0, 0, 0)",
-          "color": "rgb(97, 101, 107)",
-          "hasHover": true,
-          "hasActive": true,
-          "hasTransition": true,
-          "ariaLabel": "搜索"
+          "ariaLabel": "~/projects/atlas-agent"
         },
         {
           "testid": "screen-back",
@@ -297,13 +288,22 @@
       ]
     },
     {
+      "name": "5-5b_侧栏搜索输入框检查",
+      "value": {
+        "tagName": "input",
+        "type": "search",
+        "placeholder": "搜索历史会话",
+        "ariaLabel": "搜索历史会话"
+      }
+    },
+    {
       "name": "5-6_键盘Tab焦点环采样",
       "value": [
         {
           "testid": "titlebar-toggle-sidebar",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(50, 90, 207)",
           "matchesFocusVisible": true,
           "className": "inline-flex shrink-0 items-center justify-center rounded-md transition-colors du"
         },
@@ -311,7 +311,7 @@
           "testid": "titlebar-toggle-theme",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(47, 85, 191)",
           "matchesFocusVisible": true,
           "className": "inline-flex shrink-0 items-center justify-center rounded-md transition-colors du"
         },
@@ -319,15 +319,15 @@
           "testid": "titlebar-open-settings",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(47, 85, 191)",
           "matchesFocusVisible": true,
           "className": "inline-flex shrink-0 items-center justify-center rounded-md transition-colors du"
         },
         {
-          "testid": "titlebar-toggle-both",
+          "testid": "titlebar-toggle-preview",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(45, 77, 169)",
           "matchesFocusVisible": true,
           "className": "inline-flex shrink-0 items-center justify-center rounded-md transition-colors du"
         },
@@ -337,31 +337,31 @@
           "outlineStyle": "solid",
           "outlineColor": "rgb(67, 100, 193)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-base "
         },
         {
           "testid": "sidebar-search",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(45, 77, 169)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "h-8 w-full rounded-md border border-border-subtle bg-bg-subtle pl-8 pr-2 text-ba"
         },
         {
           "testid": "sidebar-history-item-0",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(45, 77, 169)",
+          "outlineColor": "rgb(47, 85, 191)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-"
         },
         {
           "testid": "sidebar-history-item-1",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-"
         },
         {
           "testid": "sidebar-history-item-2",
@@ -369,7 +369,7 @@
           "outlineStyle": "solid",
           "outlineColor": "rgb(67, 100, 193)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-"
         },
         {
           "testid": "sidebar-history-item-3",
@@ -377,7 +377,7 @@
           "outlineStyle": "solid",
           "outlineColor": "rgb(67, 100, 193)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-"
         },
         {
           "testid": "sidebar-history-item-4",
@@ -385,7 +385,7 @@
           "outlineStyle": "solid",
           "outlineColor": "rgb(67, 100, 193)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-"
         },
         {
           "testid": "sidebar-history-item-5",
@@ -393,15 +393,15 @@
           "outlineStyle": "solid",
           "outlineColor": "rgb(67, 100, 193)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-"
         },
         {
           "testid": "sidebar-history-item-6",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-"
         },
         {
           "testid": "sidebar-history-item-7",
@@ -409,7 +409,7 @@
           "outlineStyle": "solid",
           "outlineColor": "rgb(67, 100, 193)",
           "matchesFocusVisible": true,
-          "className": "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-base transition"
+          "className": "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-"
         }
       ]
     },
@@ -425,13 +425,13 @@
       "name": "5-7_空状态原始观测",
       "value": {
         "emptyState存在": true,
-        "emptyHeight": 586,
+        "emptyHeight": 594,
         "list存在": true,
         "listTotalCount": "0",
-        "listHeight": 634,
+        "listHeight": 642,
         "hScroll": {
-          "scrollWidth": 1424,
-          "clientWidth": 1424
+          "scrollWidth": 1440,
+          "clientWidth": 1440
         }
       }
     },
@@ -441,24 +441,24 @@
         "results": [
           {
             "name": "sidebar-history-title",
-            "scrollWidth": 123,
-            "clientWidth": 123,
+            "scrollWidth": 214,
+            "clientWidth": 214,
             "有省略": true,
-            "title": "接入 Pi 工具链的调研",
+            "title": "3小时前 7 条消息",
             "hasTitle": true
           },
           {
             "name": "sidebar-working-directory",
-            "scrollWidth": 157,
-            "clientWidth": 157,
+            "scrollWidth": 180,
+            "clientWidth": 180,
             "有省略": true,
-            "title": "~ / projects / atlas-agent",
+            "title": "~/projects/atlas-agent",
             "hasTitle": true
           },
           {
             "name": "shell-preview-label-note",
-            "scrollWidth": 192,
-            "clientWidth": 192,
+            "scrollWidth": 191,
+            "clientWidth": 191,
             "有省略": true,
             "title": "交通灯在左（三个彩色圆点，直径 10）",
             "hasTitle": true
@@ -473,8 +473,8 @@
           }
         ],
         "hScroll": {
-          "scrollWidth": 1424,
-          "clientWidth": 1424
+          "scrollWidth": 1440,
+          "clientWidth": 1440
         }
       }
     },
@@ -482,7 +482,7 @@
       "name": "静态扫描详情",
       "value": {
         "staticResult": {
-          "扫描文件数": 56,
+          "扫描文件数": 79,
           "hex在tokens之外": [],
           "dark变体命中": [],
           "内置调色板命中": [],
@@ -604,6 +604,18 @@
       }
     },
     {
+      "name": "5-5b 侧栏搜索是语义化输入框",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "元素存在": true,
+        "标签为input": true,
+        "类型为search": true,
+        "占位文字正确": true,
+        "可读名称存在": true
+      }
+    },
+    {
       "name": "5-6 焦点环可见（纯键盘 Tab，:focus-visible 下 outlineWidth 非 0）",
       "pass": true,
       "failed": [],
@@ -681,8 +693,8 @@
     }
   ],
   "summary": {
-    "assertions": 16,
-    "passed": 16,
+    "assertions": 17,
+    "passed": 17,
     "failed": 0,
     "failedNames": []
   }

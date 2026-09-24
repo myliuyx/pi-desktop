@@ -215,7 +215,12 @@ export function WorkingDirectoryMenu({
     const maxLeft = Math.max(8, window.innerWidth - width - 8);
     setPos({ left: Math.min(Math.max(8, rect.left), maxLeft), top, width });
     setPlaced(true);
-  }, [open]);
+    /*
+     * 依赖不止 `open`：live 的 cwd 是**异步**拿到的，面板打开期间 `label`/`source` 可能变化
+     *（内容变高变矮）⇒ 必须重算 top/left，否则面板会停在旧坐标上（"错位却看起来有值"）。
+     * `recentDirs.length` 同理覆盖"最近目录在打开期间被外部改写"的防御场景。
+     */
+  }, [open, label, source, recentDirs.length]);
 
   /* 展开后焦点落到「当前项」（APG menu：菜单项不在 Tab 序里，靠方向键漫游） */
   useEffect(() => {
@@ -358,7 +363,7 @@ export function WorkingDirectoryMenu({
       size="sm"
       data-testid="settings-change-dir"
       className="shrink-0"
-      title="选择工作目录（下次启动 core 时使用）"
+      title={live ? "选择工作目录（下次启动 core 时使用）" : "选择工作目录"}
       aria-haspopup="menu"
       aria-expanded={open}
       aria-controls={open ? menuTestId : undefined}
@@ -397,10 +402,13 @@ export function WorkingDirectoryMenu({
                 transitionDuration: `${fadeMs}ms`,
               }}
             >
-              {/* 首行：当前目录（只读真相）。✓ 由 aria-checked 承载，不只画个图标 */}
+              {/* 首行：当前目录（只读真相）。
+                  用 `menuitemradio` + `aria-checked` 表达「当前项」——`aria-checked` 在
+                  普通 `menuitem` 上无效（WAI-ARIA 只在 radio/checkbox 类菜单项上支持），
+                  读屏会漏报选中态；✓ 图标只是视觉冗余，不是语义本体。 */}
               <button
                 type="button"
-                role="menuitem"
+                role="menuitemradio"
                 aria-disabled="true"
                 aria-checked="true"
                 tabIndex={-1}
