@@ -26,6 +26,13 @@ export const SIDEBAR_PADDING = 12;
 /** 侧边栏内容区纵向间距 */
 export const SIDEBAR_GAP = 10;
 
+/** 历史会话区与工作目录区按 2:1 分配内容区剩余高度 */
+export const SIDEBAR_HISTORY_SECTION_FLEX_GROW = 2;
+export const SIDEBAR_WORKING_DIRECTORY_SECTION_FLEX_GROW = 1;
+
+/** 两个可滚动分区从 0 基础高度开始分配剩余空间，列表变多时只触发内部滚动 */
+export const SIDEBAR_SECTION_FLEX_BASIS = "0%";
+
 /** 侧边栏底部条带高度（模型 / 设置 分段控件） */
 export const SIDEBAR_FOOTER_HEIGHT = 36;
 

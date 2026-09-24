@@ -1,10 +1,13 @@
-import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
+import { forwardRef, useState, type ChangeEvent, type HTMLAttributes, type ReactNode } from "react";
 import { FolderOpen, History, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   SIDEBAR_GAP,
+  SIDEBAR_HISTORY_SECTION_FLEX_GROW,
   SIDEBAR_PADDING,
+  SIDEBAR_SECTION_FLEX_BASIS,
   SIDEBAR_WIDTH,
+  SIDEBAR_WORKING_DIRECTORY_SECTION_FLEX_GROW,
   COLLAPSED_WIDTH,
   COLLAPSE_DURATION,
   COLLAPSE_DURATION_REDUCED,
@@ -16,6 +19,7 @@ import { isLiveEnabled } from "@/lib/feature-flags";
 import { useUiStore } from "@/store/ui-store";
 import { useChatStore } from "@/store/chat-store";
 import { SESSION_LIST_NOW, SESSION_SUMMARIES } from "@/mock/sessions";
+import type { SessionSummary } from "@/mock/types";
 
 interface MenuItemProps {
   icon: LucideIcon;
@@ -90,13 +94,22 @@ function HistoryItem({ title, meta, active = false, testId, onSelect }: { title:
   );
 }
 
+/** 按标题过滤历史会话；空查询返回原列表，英文大小写不敏感。 */
+export function filterSessionSummaries(
+  sessions: readonly SessionSummary[],
+  query: string,
+): readonly SessionSummary[] {
+  const normalizedQuery = query.trim().toLowerCase();
+  if (!normalizedQuery) return sessions;
+  return sessions.filter((session) => session.title.toLowerCase().includes(normalizedQuery));
+}
+
 export interface SidebarProps extends HTMLAttributes<HTMLElement> {
   /** 当前会话 id（mock） */
   activeSessionId?: string;
   /** 当前工作目录（mock） */
   workingDirectory?: string;
   onNewTask?: () => void;
-  onSearch?: () => void;
   onOpenFolder?: () => void;
   /** 底部条带，由 WorkbenchScreen 传入以避免 Sidebar 依赖 store 的折叠样式之外的东西 */
   footer?: ReactNode;
@@ -108,18 +121,25 @@ export interface SidebarProps extends HTMLAttributes<HTMLElement> {
  * 结构要点（验收 1-3 的地基）：
  * ```
  * aside  (padding:0 / gap:0 / flex-col)   ← 不给任何 padding
- * ├── div.内容包装器 (padding:12 / gap:10 / flex-1 / min-h-0 / overflow-y-auto)
+ * ├── div.内容包装器 (padding:12 / gap:10 / flex-1 / min-h-0 / overflow-hidden)
+ * │   ├── 顶部操作区 (固定)
+ * │   ├── 历史会话区 (flex:2 / min-h-0 / overflow-hidden)
+ * │   │   └── 会话列表 (flex-1 / min-h-0 / overflow-y-auto)
+ * │   └── 工作目录区 (flex:1 / min-h-0 / overflow-hidden)
+ * │       └── 工作目录内容 (flex-1 / min-h-0 / overflow-y-auto)
  * └── footer                                ← 兄弟节点，通底贴边
  * ```
- * 折叠走**宽度过渡 + overflow:hidden**（不用 display:none，验收 1-10），
- * 因此除 `whitespace-nowrap` 外不能有别的会随宽度重排的样式。
+ * 历史会话与未来可能嵌套多层的文件树各有独立滚动边界；任一列表变多都不能继续
+ * 把下方分区或 footer 推出可视区。折叠走**宽度过渡 + overflow:hidden**（不用
+ * display:none，验收 1-10），因此除 `whitespace-nowrap` 外不能有别的会随宽度重排的样式。
  */
 export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
-  { activeSessionId, workingDirectory = "~ / projects / atlas-agent", onNewTask, onSearch, onOpenFolder, footer, className, ...rest },
+  { activeSessionId, workingDirectory = "~ / projects / atlas-agent", onNewTask, onOpenFolder, footer, className, ...rest },
   ref,
 ) {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const prefersReducedMotion = usePrefersReducedMotion();
+  const [searchQuery, setSearchQuery] = useState("");
 
   /*
    * ★ C4：历史会话的数据源按形态二选一（**默认 mock 一行不变**）：
@@ -133,6 +153,11 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
   const summaries = live ? liveSummaries : SESSION_SUMMARIES;
   const relativeAnchor = live ? Date.now() : SESSION_LIST_NOW;
   const selectSession = useChatStore((state) => state.loadSessionById);
+  const visibleSessionIds = new Set(filterSessionSummaries(summaries, searchQuery).map((session) => session.id));
+
+  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.currentTarget.value);
+  };
 
   return (
     <aside
@@ -168,61 +193,118 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
       }}
       {...rest}
     >
-      {/* 内容包装器：承载 12px 内边距，折叠时用 nowrap 防止文字反复折行造成抖动 */}
+      {/* 内容包装器：承载 12px 内边距；自身不滚动，滚动职责下放到两个分区 */}
       <div
         data-testid="sidebar-content"
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden whitespace-nowrap"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden whitespace-nowrap"
         style={{ padding: SIDEBAR_PADDING, gap: SIDEBAR_GAP }}
       >
-        <MenuItem icon={Plus} label="新建任务" testId="sidebar-new-task" onClick={onNewTask} />
-
-        <MenuItem icon={Search} label="搜索" testId="sidebar-search" onClick={onSearch} />
-
-        {/* 历史会话：直接平铺列表，**无「今天 / 昨天」分组标题**（设计稿第 4 轮去掉，验收 1-7） */}
-        <SectionLabel icon={History} label="历史会话" />
-        <nav className="flex flex-col gap-0.5" data-testid="sidebar-history" aria-label="历史会话">
-          {summaries.map((session, index) => (
-            <HistoryItem
-              key={session.id}
-              title={session.title}
-              meta={`${formatRelativeTime(session.updatedAt, relativeAnchor)} ${session.messageCount} 条消息`}
-              /*
-               * 激活项判定：live 用真实当前会话 id，mock 仍用调用方传入的 `activeSessionId`
-               * （默认 "session-0" —— 不动清单里的既有行为）。
-               */
-              active={live ? liveSessionId === session.id : activeSessionId === session.id}
-              testId={`sidebar-history-item-${index}`}
-              /* live 形态下点击即按 id 打开历史会话；mock 形态不绑点击（行为零变化） */
-              onSelect={live ? () => selectSession(session.id, session.title) : undefined}
+        <div data-testid="sidebar-actions" className="flex shrink-0 flex-col" style={{ gap: SIDEBAR_GAP }}>
+          <MenuItem icon={Plus} label="新建任务" testId="sidebar-new-task" onClick={onNewTask} />
+          <div className="relative flex shrink-0 items-center">
+            <span className="pointer-events-none absolute left-2 flex items-center">
+              <Icon icon={Search} />
+            </span>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="搜索历史会话"
+              aria-label="搜索历史会话"
+              autoComplete="off"
+              spellCheck={false}
+              data-testid="sidebar-search"
+              className={cn(
+                "h-8 w-full rounded-md border border-border-subtle bg-bg-subtle pl-8 pr-2 text-base text-text-primary",
+                "transition-colors duration-150 ease-out placeholder:text-text-tertiary",
+                "hover:bg-bg-hover focus:border-border-strong",
+              )}
             />
-          ))}
-        </nav>
-
-        <SectionLabel icon={FolderOpen} label="工作目录" />
-        <div
-          data-testid="sidebar-working-directory"
-          className="flex shrink-0 items-center gap-2 rounded-md bg-bg-subtle px-2 py-1.5"
-        >
-          <Icon icon={FolderOpen} />
-          {/* title 提供超长路径的全称（M5 5-8 长文本合格线） */}
-          <span className="truncate font-mono text-xs text-text-secondary" title={workingDirectory}>
-            {workingDirectory}
-          </span>
+          </div>
         </div>
 
-        <button
-          type="button"
-          data-testid="sidebar-change-directory"
-          onClick={onOpenFolder}
-          className={cn(
-            "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-base",
-            "text-text-secondary transition-colors duration-150 ease-out",
-            "hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
-          )}
+        {/* 历史会话：直接平铺列表，**无「今天 / 昨天」分组标题**（设计稿第 4 轮去掉，验收 1-7） */}
+        <section
+          data-testid="sidebar-history-section"
+          className="flex min-h-0 flex-col overflow-hidden"
+          style={{
+            flexGrow: SIDEBAR_HISTORY_SECTION_FLEX_GROW,
+            flexBasis: SIDEBAR_SECTION_FLEX_BASIS,
+            gap: SIDEBAR_GAP,
+          }}
         >
-          <Icon icon={FolderOpen} />
-          <span className="truncate">打开文件夹</span>
-        </button>
+          <SectionLabel icon={History} label="历史会话" />
+          <nav
+            className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden"
+            data-testid="sidebar-history"
+            aria-label="历史会话"
+          >
+            {visibleSessionIds.size > 0 ? (
+              summaries.map((session, index) =>
+                visibleSessionIds.has(session.id) ? (
+                  <HistoryItem
+                    key={session.id}
+                    title={session.title}
+                    meta={`${formatRelativeTime(session.updatedAt, relativeAnchor)} ${session.messageCount} 条消息`}
+                    /*
+                     * 激活项判定：live 用真实当前会话 id，mock 仍用调用方传入的 `activeSessionId`
+                     * （默认 "session-0" —— 不动清单里的既有行为）。
+                     */
+                    active={live ? liveSessionId === session.id : activeSessionId === session.id}
+                    testId={`sidebar-history-item-${index}`}
+                    /* live 形态下点击即按 id 打开历史会话；mock 形态不绑点击（行为零变化） */
+                    onSelect={live ? () => selectSession(session.id, session.title) : undefined}
+                  />
+                ) : null,
+              )
+            ) : (
+              <div data-testid="sidebar-search-empty" className="px-2 py-2 text-xs text-text-tertiary">
+                没有匹配的历史会话
+              </div>
+            )}
+          </nav>
+        </section>
+
+        <section
+          data-testid="sidebar-working-directory-section"
+          className="flex min-h-0 flex-col overflow-hidden"
+          style={{
+            flexGrow: SIDEBAR_WORKING_DIRECTORY_SECTION_FLEX_GROW,
+            flexBasis: SIDEBAR_SECTION_FLEX_BASIS,
+            gap: SIDEBAR_GAP,
+          }}
+        >
+          <SectionLabel icon={FolderOpen} label="工作目录" />
+          <div
+            data-testid="sidebar-working-directory-content"
+            className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden"
+          >
+            <div
+              data-testid="sidebar-working-directory"
+              className="flex shrink-0 items-center gap-2 rounded-md bg-bg-subtle px-2 py-1.5"
+            >
+              <Icon icon={FolderOpen} />
+              {/* title 提供超长路径的全称（M5 5-8 长文本合格线） */}
+              <span className="truncate font-mono text-xs text-text-secondary" title={workingDirectory}>
+                {workingDirectory}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              data-testid="sidebar-change-directory"
+              onClick={onOpenFolder}
+              className={cn(
+                "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-base",
+                "text-text-secondary transition-colors duration-150 ease-out",
+                "hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
+              )}
+            >
+              <Icon icon={FolderOpen} />
+              <span className="truncate">打开文件夹</span>
+            </button>
+          </div>
+        </section>
       </div>
 
       {/* ★ 条带是内容包装器的兄弟节点，不在 12px padding 之内 —— 验收 1-3 的判定点 */}

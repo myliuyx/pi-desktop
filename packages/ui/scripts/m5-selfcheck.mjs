@@ -365,7 +365,6 @@ async function main() {
         '[data-testid="sidebar-new-task"]',
         '[data-testid="sidebar-history-item-1"]',
         '[data-testid="sidebar-change-directory"]',
-        '[data-testid="sidebar-search"]',
         '[data-testid="screen-back"]',
       ];
       const els = sels.map((s) => window.__T5.q(s)).filter(Boolean);
@@ -392,6 +391,24 @@ async function main() {
       全部有可读名称: interactive.every((e) => (e.ariaLabel || "").length > 0),
     });
     record("5-5_交互元素三态抽查", interactive);
+
+    const sidebarSearch = await cdp.eval(`(() => {
+      const input = window.__T5.q('[data-testid="sidebar-search"]');
+      return input ? {
+        tagName: input.tagName.toLowerCase(),
+        type: input.getAttribute('type'),
+        placeholder: input.getAttribute('placeholder'),
+        ariaLabel: input.getAttribute('aria-label'),
+      } : null;
+    })()`);
+    assert("5-5b 侧栏搜索是语义化输入框", {
+      元素存在: !!sidebarSearch,
+      标签为input: sidebarSearch?.tagName === "input",
+      类型为search: sidebarSearch?.type === "search",
+      占位文字正确: sidebarSearch?.placeholder === "搜索历史会话",
+      可读名称存在: (sidebarSearch?.ariaLabel || "").length > 0,
+    });
+    record("5-5b_侧栏搜索输入框检查", sidebarSearch);
 
     /* ================= 5b. 焦点环（含 Composer textarea 修复点） ================= */
     // 用真实键盘 Tab 遍历，读 :focus-visible 命中元素的 outlineWidth
