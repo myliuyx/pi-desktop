@@ -19,13 +19,19 @@
 export function formatCompact(value: number): string {
   if (!Number.isFinite(value)) return "0";
   if (value < 1000) return String(Math.round(value));
-  if (value < 1000000) {
-    const k = value / 1000;
+  const k = value / 1000;
+  // 用「保留一位小数后」的值判进位：999_950 起的 k 会四舍五入成 1000.0k，应升到 M。
+  // 输出格式仍看**原始** k 是否为整数（1995 ⇒ 2.0k，保持既有行为不变）。
+  if (Math.round(k * 10) / 10 < 1000) {
     return `${Number.isInteger(k) ? k : k.toFixed(1)}k`;
   }
-  // ≥1M 用 M（1M 窗口显示 1.0M 而不是 1000k），口径对齐 Pi CLI 的 formatTokens
-  const m = value / 1000000;
-  return `${m < 10 ? m.toFixed(1) : Math.round(m)}M`;
+  return formatMillions(value);
+}
+
+/** ≥1M（含从 k 进位上来的 999_950..999_999）：M 值 ≥10 时取整，避免出现 "10.0M" */
+function formatMillions(value: number): string {
+  const m = value / 1_000_000;
+  return Math.round(m * 10) / 10 < 10 ? `${m.toFixed(1)}M` : `${Math.round(m)}M`;
 }
 
 /** 时刻 HH:MM（消息时间戳用） */

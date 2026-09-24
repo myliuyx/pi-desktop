@@ -12,6 +12,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "check:format": "node --experimental-strip-types scripts/format-check.mjs",
     "check:cn": "node --experimental-strip-types scripts/cn-check.mjs",
     "check:adapter": "node --experimental-strip-types scripts/adapter-check.mjs",
     "accept:m1": "node scripts/m1-acceptance.mjs",
