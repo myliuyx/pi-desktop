@@ -128,12 +128,17 @@ export const PI_FIELD_NAMES = {
 } as const;
 
 /**
- * 工作目录默认值 —— **mock 形态**的偏好目录（也是「使用默认目录」写回的值）。
+ * 工作目录的 **mock 展示占位** —— 仅 mock 形态下偏好未设置（`workingDir === null`）时
+ * 用作显示回落；live 形态显示 core 的真实 cwd，与本值无关。
+ *
+ * ⚠️ 2026-09-24 裁决：「使用默认目录」**不再写回本值** —— 早先写回它会落盘一个
+ * 不存在但很像真的偏好（`~` 路径在 Windows 上根本不存在）。现在「默认」= 清除偏好
+ * （`ui-store.clearWorkingDir`），core 侧 `CORE_CWD` 缺省 ⇒ 回落 pi 自己的
+ * `process.cwd()`。本值不进任何存储。
  *
  * ⚠️ 旧注释"与 Sidebar 的展示值保持一致"已于 2026-09-24 清理：那条早已过期 ——
  * Sidebar 当时的默认展示值是 `"~ / projects / atlas-agent"`（**带空格**），与此处
- * **不带空格**的值并不一致。现在两处统一收到 `useWorkingDirectoryView()` 一处解析，
- * 且 live 形态下侧栏显示的是 core 的**真实 cwd**，与本默认值无关。
+ * **不带空格**的值并不一致。现在两处统一收到 `useWorkingDirectoryView()` 一处解析。
  */
 export const DEFAULT_WORKING_DIR = "~/projects/atlas-agent";
 

@@ -103,11 +103,25 @@ function readSessionSwitches(): Record<SessionSwitchField, boolean> {
   return result;
 }
 
-/** 工作目录：空串视为缺省（清空 localStorage 后应回落默认路径） */
-function readStoredWorkingDir(): string {
-  if (typeof window === "undefined") return DEFAULT_WORKING_DIR;
+/**
+ * 工作目录偏好：缺失/空白/历史污染值（`DEFAULT_WORKING_DIR` —— 2026-09-24 前
+ * 点「使用默认目录」写回的假路径，见 `clearWorkingDir` 注释）一律回落 `null` =
+ * 未设置偏好（跟随 core 默认）。**不再回落任何路径**：live 下写哪个值都是猜。
+ */
+function readStoredWorkingDir(): string | null {
+  if (typeof window === "undefined") return null;
   const stored = window.localStorage.getItem(WORKING_DIR_STORAGE_KEY);
-  return stored && stored.trim().length > 0 ? stored : DEFAULT_WORKING_DIR;
+  if (!stored || stored.trim().length === 0) return null;
+  return stored === DEFAULT_WORKING_DIR ? null : stored;
+}
+
+/**
+ * 最近目录读出后统一剔除 mock 占位值（`DEFAULT_WORKING_DIR`）：老用户存储里
+ * 可能还留着它（历史「使用默认目录」写回的），菜单里不该再见到这个假目录。
+ * store 初始化与 `initTheme` 共用一份口径。
+ */
+function readRecentDirsForStore(): string[] {
+  return readRecentDirs().filter((dir) => dir !== DEFAULT_WORKING_DIR);
 }
 
 function readSystemTheme(): Theme {
@@ -207,8 +221,15 @@ interface UiState {
   sessionSwitches: Record<SessionSwitchField, boolean>;
   toggleSessionSwitch: (field: SessionSwitchField) => void;
 
-  /** 工作目录（对齐 Pi 的 AgentOptions.cwd） */
-  workingDir: string;
+  /**
+   * 偏好工作目录（对齐 Pi 的 AgentOptions.cwd）。
+   *
+   * `null` = **未设置偏好**（「使用默认目录」清成这个状态）：live 下次启动不带
+   * `CORE_CWD`，core 回落 pi 自己的 `process.cwd()`；mock 下展示回落
+   * `DEFAULT_WORKING_DIR`（仅展示占位，见 `mock/settings.ts`）。
+   * 真实 cwd 永远以 `chat-store.liveCwd` 为准（只读），本字段只表达「下次启动」。
+   */
+  workingDir: string | null;
   /**
    * 记录/切换偏好工作目录。
    *
@@ -219,6 +240,18 @@ interface UiState {
    * `liveCwd`），这里的改动只保证「下次用这个目录启动 core」，**不会热切当前会话目录**。
    */
   setWorkingDir: (dir: string) => void;
+
+  /**
+   * 清除工作目录偏好（「使用默认目录」的落地语义，2026-09-24 裁决）。
+   *
+   * ⚠️ **不写任何路径**：live 的「默认」是 core 未来启动时的 `process.cwd()`，
+   * UI 此刻拿不到 —— 写死某个值（含 mock 占位 `DEFAULT_WORKING_DIR`）只会造出
+   * 一个不存在但很像真的事实。清除后 core 侧 `CORE_CWD` 缺省 ⇒ 自动回落
+   * `process.cwd()`，这才是真的「用默认」。
+   * 与主题的 `useSystemTheme` 同构：新增语义明确的 action，不给 `setWorkingDir` 加参。
+   * 不动 `recentDirs`：清偏好不产生「新目录」。
+   */
+  clearWorkingDir: () => void;
 
   /**
    * 最近使用过的工作目录（最新在前，最多 `MAX_RECENT_DIRS` 条）。
@@ -338,7 +371,14 @@ export const useUiStore = create<UiState>((set, get) => ({
     set({ workingDir: dir, recentDirs });
   },
 
-  recentDirs: readRecentDirs(),
+  clearWorkingDir: () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(WORKING_DIR_STORAGE_KEY);
+    }
+    set({ workingDir: null });
+  },
+
+  recentDirs: readRecentDirsForStore(),
 }));
 
 let initialized = false;
@@ -370,7 +410,7 @@ export function initTheme(): void {
     sessionSwitches: readSessionSwitches(),
     workingDir: readStoredWorkingDir(),
     // 最近目录同属「首帧前确定」：否则侧栏首帧会先画空菜单再跳出入选项
-    recentDirs: readRecentDirs(),
+    recentDirs: readRecentDirsForStore(),
   });
 
   window

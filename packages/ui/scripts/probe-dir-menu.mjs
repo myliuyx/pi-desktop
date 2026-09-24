@@ -1136,19 +1136,22 @@ async function runSuite(ctx, env) {
     const panel = await readPanelState(cdp);
     await ensureClosed(cdp);
     /*
-     * ★ 2026-09-24 主控修正口径：原断言「面板内最近目录首位也是默认值」与规格 §4.8 矛盾 ——
-     * 「当前目录恒置顶（首行 ✓），最近区**排除**当前项」，且 §4.6 明令不许出现两个 ✓。
-     * 另：「首行」断言**只在 mock 成立** —— live 下首行恒为真实 cwd（§4.6 只读真相，
-     * 不可被选择改写），默认值以「下次启动」角标出现在最近区。两形态分别断言。
+     * ★ 2026-09-24 裁决改写：「使用默认目录」= **清除偏好**，不再写回任何路径 ——
+     * live 的「默认」是 core 未来启动时的 `process.cwd()`，UI 此刻拿不到；写死
+     * mock 占位值只会落盘一个不存在但很像真的偏好（旧断言已随之作废）。
+     * 新口径：偏好键被**移除**（`localStorage[working-dir] === null`）；
+     * recentDirs **不含**占位值（不再推入假目录，存储里残留的也会被 store 读取侧滤掉）；
+     * mock：首行回落 DEFAULT_WORKING_DIR、最近区不重复出现它；
+     * live：首行恒为真 cwd（§4.6 只读真相）、全面板**无**「下次启动」角标、仍只有一个 ✓。
      */
-    fails += check("C7", "点「使用默认目录」⇒ workingDir === DEFAULT_WORKING_DIR；存储 recentDirs 首位 = 默认值；mock：首行变默认值且最近区不重复；live：首行不变（真 cwd）、默认值带「下次启动」角标", {
+    fails += check("C7", "点「使用默认目录」⇒ 清除偏好（localStorage[working-dir] 移除）；recentDirs 不含 mock 占位值；mock：首行回落 DEFAULT_WORKING_DIR；live：首行不变（真 cwd）、无「下次启动」角标、只有一个 ✓", {
       "按钮可点": clicked === true,
-      工作目录为默认值: stored.workingDir === DEFAULT_WORKING_DIR,
-      "localStorage_recent_dirs首位是默认值": stored.recent[0] === DEFAULT_WORKING_DIR,
+      偏好键已移除: stored.workingDir === null,
+      recentDirs不含mock占位值: !stored.recent.includes(DEFAULT_WORKING_DIR),
       ...(isLive
         ? {
             live_首行仍是真实cwd: panel.currentPath === env.expectedFull,
-            live_默认值以角标出现在最近区: panel.pending.some((p) => p.ownerPath === DEFAULT_WORKING_DIR && p.text === "下次启动"),
+            live_无下次启动角标: panel.pending.length === 0,
             live_只有一个勾: panel.checkedTrueCount === 1,
           }
         : {

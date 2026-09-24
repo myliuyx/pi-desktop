@@ -1,11 +1,11 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-23T14:41:41.503Z",
+  "startedAt": "2026-09-24T15:23:30.530Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 71,
+        "扫描文件数": 79,
         "hex在tokens之外": [],
         "dark变体命中": [],
         "内置调色板命中": [],
@@ -276,7 +276,7 @@
           "route": "/#/run-detail",
           "theme": "dark",
           "bigBrightBlocks": 0,
-          "measuredTextNodes": 115,
+          "measuredTextNodes": 113,
           "minTextContrast": 3.21,
           "bodyMinContrast": 4.9,
           "bodyMinSample": {
@@ -320,11 +320,11 @@
               "cls": "px-3 h-8 rounded-full text-base transition-colors duration-150 ease-ou"
             },
             {
-              "text": "~ / projects / atlas-age",
+              "text": "~/projects/atlas-agent",
               "contrast": 5.68,
               "tag": "span",
               "color": "rgb(154, 160, 168)",
-              "cls": "truncate font-mono text-xs text-text-secondary"
+              "cls": "min-w-0 flex-1 truncate font-mono text-xs"
             },
             {
               "text": "模型",
@@ -344,7 +344,7 @@
           "route": "/#/skills",
           "theme": "dark",
           "bigBrightBlocks": 0,
-          "measuredTextNodes": 127,
+          "measuredTextNodes": 125,
           "minTextContrast": 3.17,
           "bodyMinContrast": 4.9,
           "bodyMinSample": {
@@ -388,11 +388,11 @@
               "cls": "px-3 h-8 rounded-full text-base transition-colors duration-150 ease-ou"
             },
             {
-              "text": "~ / projects / atlas-age",
+              "text": "~/projects/atlas-agent",
               "contrast": 5.68,
               "tag": "span",
               "color": "rgb(154, 160, 168)",
-              "cls": "truncate font-mono text-xs text-text-secondary"
+              "cls": "min-w-0 flex-1 truncate font-mono text-xs"
             },
             {
               "text": "模型",

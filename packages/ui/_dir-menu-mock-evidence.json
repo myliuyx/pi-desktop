@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-24T14:03:14.592Z",
+  "startedAt": "2026-09-24T15:18:41.632Z",
   "steps": [
     {
       "name": "C1_实测",
@@ -36,16 +36,16 @@
         "trigger": {
           "left": 12,
           "right": 252,
-          "top": 585.98,
-          "bottom": 613.98,
+          "top": 580.66,
+          "bottom": 608.66,
           "width": 240,
           "height": 28
         },
         "panel": {
           "left": 12,
           "right": 252,
-          "top": 413.98,
-          "bottom": 580.23,
+          "top": 408.66,
+          "bottom": 574.91,
           "width": 240,
           "height": 166.25
         }
@@ -57,13 +57,13 @@
         "exists": true,
         "center": {
           "x": 132,
-          "y": 497.1
+          "y": 491.8
         },
         "panelRect": {
           "left": 12,
           "right": 252,
-          "top": 413.98,
-          "bottom": 580.23,
+          "top": 408.66,
+          "bottom": 574.91,
           "width": 240,
           "height": 166.25
         },
@@ -97,8 +97,8 @@
     {
       "name": "C14_实测",
       "value": {
-        "scrollWidth": 1440,
-        "clientWidth": 1440
+        "scrollWidth": 1424,
+        "clientWidth": 1424
       }
     },
     {
@@ -147,7 +147,7 @@
         "text": "…at/exceeds/thirty-two/characters",
         "title": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
         "triggerTitle": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
-        "scrollWidth": 219,
+        "scrollWidth": 200,
         "clientWidth": 180,
         "className": "min-w-0 flex-1 truncate font-mono text-xs",
         "triggerScrollWidth": 240,
@@ -232,10 +232,10 @@
         "b": {
           "exists": true,
           "rect": {
-            "left": 1080.98,
-            "right": 1320.98,
-            "top": 391.03,
-            "bottom": 557.28,
+            "left": 1073,
+            "right": 1313,
+            "top": 388.06,
+            "bottom": 554.31,
             "width": 240,
             "height": 166.25
           },
@@ -281,9 +281,8 @@
     {
       "name": "C7_实测",
       "value": {
-        "workingDir": "~/projects/atlas-agent",
+        "workingDir": null,
         "recent": [
-          "~/projects/atlas-agent",
           "/probe/beta",
           "/probe/alpha"
         ],
@@ -634,13 +633,13 @@
       }
     },
     {
-      "name": "C7 点「使用默认目录」⇒ workingDir === DEFAULT_WORKING_DIR；存储 recentDirs 首位 = 默认值；mock：首行变默认值且最近区不重复；live：首行不变（真 cwd）、默认值带「下次启动」角标",
+      "name": "C7 点「使用默认目录」⇒ 清除偏好（localStorage[working-dir] 移除）；recentDirs 不含 mock 占位值；mock：首行回落 DEFAULT_WORKING_DIR；live：首行不变（真 cwd）、无「下次启动」角标、只有一个 ✓",
       "pass": true,
       "failed": [],
       "detail": {
         "按钮可点": true,
-        "工作目录为默认值": true,
-        "localStorage_recent_dirs首位是默认值": true,
+        "偏好键已移除": true,
+        "recentDirs不含mock占位值": true,
         "mock_面板首行是默认值": true,
         "mock_最近区不重复出现当前项": true
       }

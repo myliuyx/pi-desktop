@@ -76,8 +76,8 @@ export interface WorkingDirectoryView {
   fullPath: string;
   /** 左侧省略后的展示值（侧栏路径行用） */
   label: string;
-  /** 本地偏好目录（live 下即"下次启动"用哪个；mock 下即当前值） */
-  preference: string;
+  /** 本地偏好目录；`null` = 未设置（跟随 core 默认）。live 下即「下次启动带不带 CORE_CWD」；mock 下即当前展示值的直接来源 */
+  preference: string | null;
   /** live 下 core 的真实 cwd；未拿到为 null */
   liveCwd: string | null;
   /** 本地最近目录（未排除当前项） */
@@ -93,8 +93,10 @@ export function useWorkingDirectoryView(override?: string): WorkingDirectoryView
   /*
    * `override` 是**仅 SSR / 探针**的固定口径（`scripts/sidebar-layout-check.mjs` 依赖它传
    * 固定值渲染真实 Sidebar）；生产调用点一律不传。取值优先级：override › 形态口径。
+   * mock 没有 core 可显示，偏好未设置（`null`）时回落 mock 占位值 —— **仅展示**，
+   * 不写回存储（live 下显示值恒为真 cwd，偏好为 null 时不会走到这里）。
    */
-  const value = override ?? (live ? liveCwd : preference);
+  const value = override ?? (live ? liveCwd : preference ?? DEFAULT_WORKING_DIR);
   const source: WorkingDirectorySource = live ? (liveCwd ? "live" : "unavailable") : "mock";
   const fullPath = value ?? UNAVAILABLE_TEXT;
 
@@ -128,6 +130,7 @@ export function WorkingDirectoryMenu({
 
   const prefersReduced = usePrefersReducedMotion();
   const setWorkingDir = useUiStore((state) => state.setWorkingDir);
+  const clearWorkingDir = useUiStore((state) => state.clearWorkingDir);
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
   const settingsOpen = useUiStore((state) => state.settingsOpen);
 
@@ -138,8 +141,10 @@ export function WorkingDirectoryMenu({
    * 当前项之后的「其余最近目录」。
    * 当前目录**恒置顶**（见下方首行），所以要从本区排除，否则同一个目录会出现两次
    * （live 下更严重：真实目录与偏好目录是两个概念，会出现**两个 ✓**，§4.6 明令禁止）。
+   * 排除对象是**有效展示值**（mock 偏好未设置时 = 占位值），不是裸 preference。
    */
-  const restRecents = recentDirs.filter((dir) => dir !== (live ? liveCwd : preference));
+  const currentDir = live ? liveCwd : preference ?? DEFAULT_WORKING_DIR;
+  const restRecents = recentDirs.filter((dir) => dir !== currentDir);
 
   function close() {
     setOpen(false);
@@ -296,6 +301,29 @@ export function WorkingDirectoryMenu({
       useNoticeStore.getState().notify({
         tone: "info",
         text: `已记录为下次启动目录：${dir}。重启 core 后生效：cd packages/core && CORE_CWD=${dir} npm run smoke`,
+      });
+    }
+    close();
+    triggerRef.current?.focus();
+  }
+
+  /**
+   * 「使用默认目录」= **清除偏好**（2026-09-24 裁决，替代旧的「写回 DEFAULT_WORKING_DIR」）。
+   *
+   * 为什么不写任何路径：live 的「默认」是 core **未来启动时**的 `process.cwd()`，
+   * UI 此刻拿不到 —— 写死某个值（如 mock 占位 `DEFAULT_WORKING_DIR`，`~` 路径在
+   * Windows 上根本不存在）只会造出一个不存在但很像真的偏好。清除后 core 侧
+   * `CORE_CWD` 缺省 ⇒ 自动回落 pi 自己的 `process.cwd()`，语义才是真的「用默认」。
+   *
+   * - live：弹提示说明重启后不带 `CORE_CWD`（对齐 chooseDir 的显式反馈）；
+   * - mock：偏好即显示值，清除立即生效，不弹提示（C21 先例）。
+   */
+  function chooseDefault() {
+    clearWorkingDir();
+    if (live) {
+      useNoticeStore.getState().notify({
+        tone: "info",
+        text: "已恢复默认：下次启动 core 不设置 CORE_CWD，将以 core 启动时所在目录（process.cwd()）为工作目录",
       });
     }
     close();
@@ -478,7 +506,7 @@ export function WorkingDirectoryMenu({
                 role="menuitem"
                 tabIndex={-1}
                 data-testid="sidebar-working-directory-default"
-                onClick={() => chooseDir(DEFAULT_WORKING_DIR)}
+                onClick={chooseDefault}
                 className={cn(menuItemClass, "text-text-secondary")}
               >
                 <Icon icon={FolderOpen} size={14} />
