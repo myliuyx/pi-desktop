@@ -71,6 +71,17 @@ let liveDraft: DraftState = createDraft();
 function ensureLive(): void {
   const transport = getLiveTransport();
   if (!transport) return;
+  transport.setHooks({
+    onConnectionError: (message) => {
+      useNoticeStore.getState().notify({ tone: "danger", text: message });
+      // 断线后收不到后续事件，若仍在 streaming 会永久卡在「停止生成」——主动复位，
+      // 用户可继续发送（重连成功后新消息照常回流）。
+      useChatStore.setState({ streaming: false });
+    },
+    onConnectionRestored: () => {
+      useNoticeStore.getState().notify({ tone: "success", text: "已重新连接 core" });
+    },
+  });
   // 订阅生命周期与应用一致：只要还有监听器就保持 SSE 连接（见 transport 内部引用计数）
   transport.subscribe((event: AgentEvent) => {
     /*

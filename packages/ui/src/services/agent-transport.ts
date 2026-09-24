@@ -34,6 +34,13 @@ import type {
  * 这里返回 `SessionLoadResult`（= `Session` 的超集：多带 `tokenUsage` 与映射统计）。
  * 结构上可直接当 `Session` 用，且省掉 UI 为拿 token 用量再查一次清单。
  */
+export interface TransportHooks {
+  /** SSE 连接失败 / 断开（含重连期间） */
+  onConnectionError?: (message: string) => void;
+  /** 重连成功 */
+  onConnectionRestored?: () => void;
+}
+
 export interface AgentTransport {
   /** 发送一条用户消息 */
   sendMessage(text: string): Promise<void>;
@@ -45,6 +52,8 @@ export interface AgentTransport {
   cancelApproval(requestId: string): Promise<void>;
   /** 订阅 core 下发的 AgentEvent 流；返回取消订阅函数 */
   subscribe(listener: (event: AgentEvent) => void): () => void;
+  /** 注册连接状态回调（由 chat-store 在 ensureLive 时调用；传输层因此不依赖任何 store） */
+  setHooks(hooks: TransportHooks): void;
 
   /* ---------------------------------------------------------------- C4 · 会话 */
   /** 当前工作目录的历史会话清单（Sidebar 在 live 形态下的数据源） */
@@ -97,8 +106,27 @@ function isAgentEvent(value: unknown): value is AgentEvent {
 export class HttpAgentTransport implements AgentTransport {
   private listeners = new Set<(e: AgentEvent) => void>();
   private esAbort: AbortController | null = null;
+  private hooks: TransportHooks = {};
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private everConnected = false;
 
   constructor(private readonly cfg: LiveConfig) {}
+
+  setHooks(hooks: TransportHooks): void {
+    this.hooks = { ...this.hooks, ...hooks };
+  }
+
+  /** 指数退避重连（1s → 2s → … 上限 30s）；无订阅者或已有定时器时不动 */
+  private scheduleReconnect(): void {
+    if (this.listeners.size === 0 || this.reconnectTimer) return;
+    const delay = Math.min(30_000, 1000 * 2 ** this.reconnectAttempts);
+    this.reconnectAttempts++;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.connectSse();
+    }, delay);
+  }
 
   private authHeader(): Record<string, string> {
     return { Authorization: `Bearer ${this.cfg.token}` };
@@ -106,7 +134,7 @@ export class HttpAgentTransport implements AgentTransport {
 
   subscribe(listener: (event: AgentEvent) => void): () => void {
     this.listeners.add(listener);
-    if (!this.esAbort) void this.connectSse();
+    if (!this.esAbort && !this.reconnectTimer) void this.connectSse();
     return () => {
       this.listeners.delete(listener);
       if (this.listeners.size === 0) this.disconnectSse();
@@ -126,8 +154,14 @@ export class HttpAgentTransport implements AgentTransport {
       if (!res.ok || !res.body) {
         console.error("[live] SSE 连接失败:", res.status);
         this.esAbort = null;
+        this.hooks.onConnectionError?.(`与 core 的事件流连接失败（HTTP ${res.status}），正在重连…`);
+        this.scheduleReconnect();
         return;
       }
+      // 连上：首次之后的重连成功才提示恢复
+      if (this.everConnected) this.hooks.onConnectionRestored?.();
+      this.everConnected = true;
+      this.reconnectAttempts = 0;
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
@@ -149,15 +183,25 @@ export class HttpAgentTransport implements AgentTransport {
         }
       }
     } catch (e) {
-      if (!ctrl.signal.aborted) console.error("[live] SSE 异常:", e);
+      if (!ctrl.signal.aborted) {
+        console.error("[live] SSE 异常:", e);
+        this.hooks.onConnectionError?.(`与 core 的事件流中断，正在重连…`);
+      }
     } finally {
       if (this.esAbort === ctrl) this.esAbort = null;
+      // 正常读完（core 重启导致流结束）也要重连；被 abort 断开则不重连
+      if (!ctrl.signal.aborted) this.scheduleReconnect();
     }
   }
 
   private disconnectSse(): void {
     this.esAbort?.abort();
     this.esAbort = null;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.reconnectAttempts = 0;
   }
 
   private async get<T>(path: string): Promise<T> {
