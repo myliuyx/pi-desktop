@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { FolderOpen, Moon, Sun } from "lucide-react";
 import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
@@ -7,7 +7,7 @@ import { Icon } from "@/components/common/icons";
 import { Button, Chip } from "@/components/primitives";
 import { Switch } from "@/components/screens/Switch";
 import { COMPOSER_THINKING_LEVELS, THINKING_LABEL } from "@/mock/composer";
-import type { ModelsPayload, ThinkingLevel } from "@/mock/types";
+import type { ThinkingLevel } from "@/mock/types";
 import {
   PI_FIELD_NAMES,
   SESSION_SWITCHES,
@@ -15,6 +15,7 @@ import {
   type ThemeOptionValue,
 } from "@/mock/settings";
 import { useUiStore } from "@/store/ui-store";
+import { useModelsStore } from "@/store/models-store";
 
 /**
  * 设置弹窗 · 「常规」Tab。
@@ -53,24 +54,12 @@ export function SettingsGeneralTab() {
    *   编辑器，选用走工具条上拉菜单；live 拉取保留供思考档位展示。）
    */
   const live = isLiveEnabled();
-  const [liveModels, setLiveModels] = useState<ModelsPayload | null>(null);
+  const liveModels = useModelsStore((state) => state.payload);
+  const ensureModels = useModelsStore((state) => state.ensure);
+  const applyModels = useModelsStore((state) => state.applyPayload);
   useEffect(() => {
-    if (!live) return;
-    const transport = getLiveTransport();
-    if (!transport) return;
-    let alive = true;
-    void transport
-      .listModels()
-      .then((payload) => {
-        if (alive) setLiveModels(payload);
-      })
-      .catch((e) => {
-        console.error("[live] /models 失败:", e);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [live]);
+    if (live) void ensureModels();
+  }, [live, ensureModels]);
 
   const activeThinking: ThinkingLevel | null = live
     ? ((liveModels?.settings.thinkingLevel ?? liveModels?.thinkingLevel ?? null) as ThinkingLevel | null)
@@ -82,7 +71,7 @@ export function SettingsGeneralTab() {
     if (!transport) return;
     void transport
       .setThinkingLevel(level)
-      .then(setLiveModels)
+      .then(applyModels)
       .catch((e) => {
         console.error("[live] setThinkingLevel 失败:", e);
       });

@@ -21,6 +21,7 @@ import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
 import { cn } from "@/lib/cn";
 import { useUiStore } from "@/store/ui-store";
+import { useModelsStore } from "@/store/models-store";
 import { SettingsGeneralTab } from "./settings/SettingsGeneralTab";
 import { ModelProvidersTab } from "./settings/ModelProvidersTab";
 
@@ -121,6 +122,9 @@ export function SettingsDialog() {
       const res = await transport.saveProviders(buildPutRequest(snapshot));
       // 用 core 回给我的合并清单为准（含 enabled 拆分结果与回退后的 current）
       setDraft(entriesToProviders(res));
+      // 保存会改变可选模型 / 当前模型 —— 通知所有 models-store 消费者重取，
+      // 否则 Composer 的模型菜单仍是旧快照（#2）。
+      void useModelsStore.getState().refresh();
       setStatus(
         res.fallbackApplied
           ? { tone: "warning", text: res.warning ?? "当前生效模型已失效，已自动回退" }

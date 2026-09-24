@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useState, type HTMLAttributes } from "react";
+import { forwardRef, useEffect, type HTMLAttributes } from "react";
 import { Bot, Blocks, Sparkles } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { isLiveEnabled, isMcpEnabled } from "@/lib/feature-flags";
@@ -8,6 +8,7 @@ import { ChipMenu, type ChipMenuGroup } from "@/components/primitives/ChipMenu";
 import { TOOLBAR_CONTROL_HEIGHT } from "@/lib/layout";
 import { TokenStats } from "@/components/common/TokenStats";
 import { useUiStore } from "@/store/ui-store";
+import { useModelsStore } from "@/store/models-store";
 import {
   COMPOSER_MODEL_GROUPS,
   COMPOSER_MODELS,
@@ -17,7 +18,7 @@ import {
   THINKING_LABEL,
   THINKING_LEVEL_OPTIONS,
 } from "@/mock/composer";
-import type { ModelInfo, ModelsPayload, ThinkingLevel } from "@/mock/types";
+import type { ModelInfo, ThinkingLevel } from "@/mock/types";
 
 /**
  * Composer 底部工具条。
@@ -59,24 +60,12 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
      * 后者会被模型能力夹取（如 reasoning:false 恒为 off），直接用会出现「点了没反应」。
      */
     const live = isLiveEnabled();
-    const [liveModels, setLiveModels] = useState<ModelsPayload | null>(null);
+    const liveModels = useModelsStore((state) => state.payload);
+    const ensureModels = useModelsStore((state) => state.ensure);
+    const applyModels = useModelsStore((state) => state.applyPayload);
     useEffect(() => {
-      if (!live) return;
-      const transport = getLiveTransport();
-      if (!transport) return;
-      let alive = true;
-      void transport
-        .listModels()
-        .then((payload) => {
-          if (alive) setLiveModels(payload);
-        })
-        .catch((e) => {
-          console.error("[live] /models 失败:", e);
-        });
-      return () => {
-        alive = false;
-      };
-    }, [live]);
+      if (live) void ensureModels();
+    }, [live, ensureModels]);
 
     /**
      * live：以 core 返回的 `availableThinkingLevels` 为准（`reasoning:false` 的模型只有
@@ -101,7 +90,7 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
       if (!transport) return;
       void transport
         .setThinkingLevel(level)
-        .then(setLiveModels)
+        .then(applyModels)
         .catch((e) => {
           console.error("[live] setThinkingLevel 失败:", e);
         });
@@ -141,7 +130,7 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
       if (!transport) return;
       void transport
         .setModel(key.slice(0, sep), key.slice(sep + 1))
-        .then(setLiveModels)
+        .then(applyModels)
         .catch((e) => {
           console.error("[live] setModel 失败:", e);
         });
