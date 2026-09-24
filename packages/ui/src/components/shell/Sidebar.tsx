@@ -15,6 +15,7 @@ import {
 import { formatRelativeTime } from "@/lib/format";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { Icon, type LucideIcon } from "@/components/common/icons";
+import { WorkingDirectoryMenu } from "@/components/shell/WorkingDirectoryMenu";
 import { isLiveEnabled } from "@/lib/feature-flags";
 import { useUiStore } from "@/store/ui-store";
 import { useChatStore } from "@/store/chat-store";
@@ -107,10 +108,18 @@ export function filterSessionSummaries(
 export interface SidebarProps extends HTMLAttributes<HTMLElement> {
   /** 当前会话 id（mock） */
   activeSessionId?: string;
-  /** 当前工作目录（mock） */
+  /**
+   * 工作目录**覆盖口径**（`workingDirectory ?? 按形态取值`）—— 仅 SSR / 探针使用，
+   * **生产调用点一律不传**：
+   * - 不传（生产）：live 显示 core 的真实 cwd（只读），mock 显示 `uiStore.workingDir`；
+   * - 传了（`scripts/sidebar-layout-check.mjs` SSR 渲染需要固定值）：以传入值为准。
+   *
+   * ⚠️ 2026-09-24 起**不再是**"展示值"本身：旧默认值 `"~ / projects / atlas-agent"`
+   * 与 `uiStore.workingDir` 各不相同（一个带空格一个不带），两处已漂移 —— 现在统一收到
+   * `useWorkingDirectoryView` 一处解析（U5 / R9）。
+   */
   workingDirectory?: string;
   onNewTask?: () => void;
-  onOpenFolder?: () => void;
   /** 底部条带，由 WorkbenchScreen 传入以避免 Sidebar 依赖 store 的折叠样式之外的东西 */
   footer?: ReactNode;
 }
@@ -134,7 +143,7 @@ export interface SidebarProps extends HTMLAttributes<HTMLElement> {
  * display:none，验收 1-10），因此除 `whitespace-nowrap` 外不能有别的会随宽度重排的样式。
  */
 export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
-  { activeSessionId, workingDirectory = "~ / projects / atlas-agent", onNewTask, onOpenFolder, footer, className, ...rest },
+  { activeSessionId, workingDirectory, onNewTask, footer, className, ...rest },
   ref,
 ) {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
@@ -279,30 +288,16 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
             data-testid="sidebar-working-directory-content"
             className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden"
           >
-            <div
-              data-testid="sidebar-working-directory"
-              className="flex shrink-0 items-center gap-2 rounded-md bg-bg-subtle px-2 py-1.5"
-            >
-              <Icon icon={FolderOpen} />
-              {/* title 提供超长路径的全称（M5 5-8 长文本合格线） */}
-              <span className="truncate font-mono text-xs text-text-secondary" title={workingDirectory}>
-                {workingDirectory}
-              </span>
-            </div>
-
-            <button
-              type="button"
-              data-testid="sidebar-change-directory"
-              onClick={onOpenFolder}
-              className={cn(
-                "flex h-8 w-full shrink-0 items-center gap-2 rounded-md px-2 text-left text-base",
-                "text-text-secondary transition-colors duration-150 ease-out",
-                "hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
-              )}
-            >
-              <Icon icon={FolderOpen} />
-              <span className="truncate">打开文件夹</span>
-            </button>
+            {/*
+             * ★ 2026-09-24 改造（U1/U2/U5）：
+             * - 这里原本是一个纯展示 `div` + 一个**哑按钮**「打开文件夹」
+             *   （`onClick={onOpenFolder}`，而 `onOpenFolder` 在全部 4 个调用点都没传）；
+             *   现在合成一个**可点击的触发条**：点击上弹工作目录菜单。
+             * - 触发条**必须留在本容器内部**（`sidebar-layout-check.mjs` 断言文档序），
+             *   而上弹的面板 portal 到 `body`（否则会被本容器的 `overflow-y-auto`
+             *   连同上两层 `overflow-hidden` 一起裁掉，见 WorkingDirectoryMenu 文件头）。
+             */}
+            <WorkingDirectoryMenu workingDirectory={workingDirectory} />
           </div>
         </section>
       </div>

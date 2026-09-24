@@ -48,7 +48,16 @@ export interface ChatState {
   sessionSummaries: SessionSummary[];
   /** live 形态下当前打开的会话 id（Sidebar 高亮用）；mock 形态恒为 null */
   liveSessionId: string | null;
-  /** 重新拉取会话清单（live 形态；mock 形态是空操作） */
+  /**
+   * live 形态下 core 的**真实工作目录**（`GET /sessions` 回的 `runtime.getCwd()`）；
+   * 尚未拿到时为 `null`。
+   *
+   * ⚠️ 只读真相：**不提供 setter**。UI 任何地方都不许写它，否则就变成"UI 自己编一个
+   * 目录名"。取不到时消费方（Sidebar / 设置页）必须**显式降级**，
+   * 不许回落成 `uiStore.workingDir` —— 那是本地偏好，不是当前会话目录。
+   */
+  liveCwd: string | null;
+  /** 重新拉取会话清单（live 形态；mock 形态是空操作），顺带刷新 `liveCwd` */
   refreshSessions: () => void;
   /** 按 id 打开历史会话（live 形态；mock 形态是空操作） */
   loadSessionById: (id: string, title?: string) => void;
@@ -315,18 +324,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   sessionSummaries: [],
   liveSessionId: null,
+  liveCwd: null,
 
   refreshSessions: () => {
     const transport = getLiveTransport();
     if (!transport) return;
     void transport
       .listSessions()
-      .then((sessions) => {
-        useChatStore.setState({ sessionSummaries: sessions });
+      .then(({ cwd, sessions }) => {
+        // cwd 与清单同批写入：两者都来自那一次 `GET /sessions`，不会错配
+        useChatStore.setState({ sessionSummaries: sessions, liveCwd: cwd });
       })
       .catch((e) => {
         console.error("[live] listSessions 失败:", e);
         useNoticeStore.getState().notify({ tone: "warning", text: "会话列表刷新失败" });
+        // 失败时**不动** liveCwd：保留上一次已知真值，绝不拿本地偏好顶替
       });
   },
 
@@ -403,7 +415,10 @@ if (typeof window !== "undefined") {
         const transport = getLiveTransport();
         if (!transport) return;
         try {
-          const sessions = await transport.listSessions();
+          const { cwd, sessions } = await transport.listSessions();
+          // 第二次调用点（启动时加载最近会话）同样写入 liveCwd，否则首屏要等到下一轮
+          // `agent_settled` 才有真值 —— 期间侧栏会一直停在「未知目录」。
+          useChatStore.setState({ liveCwd: cwd });
           if (sessions.length > 0) {
             const latest = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)[0];
             useChatStore.getState().loadSessionById(latest.id, latest.title);

@@ -1,0 +1,694 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-24T13:16:01.025Z",
+  "steps": [
+    {
+      "name": "C1_实测",
+      "value": {
+        "exists": false,
+        "tag": null
+      }
+    },
+    {
+      "name": "C2_实测",
+      "value": {
+        "closed": {
+          "exists": true,
+          "tag": "button",
+          "type": "button",
+          "haspopup": "menu",
+          "expandedClosed": "false",
+          "controlsWhenClosed": false,
+          "title": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
+          "focusable": true
+        },
+        "open": {
+          "expandedOpen": "true",
+          "controlsWhenOpen": true,
+          "panelPresent": true
+        },
+        "opened": true
+      }
+    },
+    {
+      "name": "C3_实测",
+      "value": {
+        "trigger": {
+          "left": 12,
+          "right": 252,
+          "top": 580.66,
+          "bottom": 608.66,
+          "width": 240,
+          "height": 28
+        },
+        "panel": {
+          "left": 12,
+          "right": 252,
+          "top": 408.66,
+          "bottom": 574.91,
+          "width": 240,
+          "height": 166.25
+        }
+      }
+    },
+    {
+      "name": "C4_实测",
+      "value": {
+        "exists": true,
+        "center": {
+          "x": 132,
+          "y": 491.8
+        },
+        "panelRect": {
+          "left": 12,
+          "right": 252,
+          "top": 408.66,
+          "bottom": 574.91,
+          "width": 240,
+          "height": 166.25
+        },
+        "hitTag": "span",
+        "hitTestId": null,
+        "hitInsidePanel": true,
+        "hitIsPanel": false
+      }
+    },
+    {
+      "name": "C5_实测",
+      "value": {
+        "panelRole": "menu",
+        "panelLabel": "工作目录",
+        "curExists": true,
+        "curRole": "menuitem",
+        "curDisabled": "true",
+        "curChecked": "true",
+        "curMark": true,
+        "curPath": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
+        "recentCount": 2,
+        "recentRole": "menuitemradio",
+        "recentCheckedAttr": "false",
+        "defExists": true,
+        "defRole": "menuitem",
+        "customExists": true,
+        "customRole": "menuitem",
+        "customText": "自定义路径…"
+      }
+    },
+    {
+      "name": "C14_实测",
+      "value": {
+        "scrollWidth": 1424,
+        "clientWidth": 1424
+      }
+    },
+    {
+      "name": "C15_实测",
+      "value": {
+        "浅色": {
+          "theme": "light",
+          "pathEl": {
+            "text": "…at/exceeds/thirty-two/character",
+            "contrast": 5.42
+          },
+          "defaultItem": {
+            "text": "使用默认目录",
+            "contrast": 5.86
+          },
+          "customItem": {
+            "text": "自定义路径…",
+            "contrast": 5.86
+          }
+        },
+        "深色": {
+          "theme": "dark",
+          "pathEl": {
+            "text": "…at/exceeds/thirty-two/character",
+            "contrast": 5.68
+          },
+          "defaultItem": {
+            "text": "使用默认目录",
+            "contrast": 5.75
+          },
+          "customItem": {
+            "text": "自定义路径…",
+            "contrast": 5.75
+          }
+        },
+        "切换后主题": "dark",
+        "还原后主题": "light",
+        "浅色最低对比度": 5.42,
+        "深色最低对比度": 5.68
+      }
+    },
+    {
+      "name": "C16_实测",
+      "value": {
+        "exists": true,
+        "text": "…at/exceeds/thirty-two/characters",
+        "title": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
+        "triggerTitle": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
+        "scrollWidth": 200,
+        "clientWidth": 180,
+        "className": "min-w-0 flex-1 truncate font-mono text-xs",
+        "triggerScrollWidth": 240,
+        "triggerClientWidth": 240,
+        "期望全文": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
+        "期望文字": "…at/exceeds/thirty-two/characters",
+        "全路径长度": 74
+      }
+    },
+    {
+      "name": "C11_实测",
+      "value": {
+        "beforeEsc": {
+          "menuOpen": true,
+          "active": "sidebar-working-directory-current"
+        },
+        "afterEsc": {
+          "menuGone": true,
+          "focusOnTrigger": true,
+          "active": "sidebar-working-directory"
+        },
+        "外部点击后已关闭": true
+      }
+    },
+    {
+      "name": "C12_实测",
+      "value": {
+        "opened": {
+          "menuOpen": true,
+          "active": "sidebar-working-directory-current",
+          "index": 0,
+          "inPanel": true,
+          "itemCount": 5
+        },
+        "down": {
+          "active": "sidebar-working-directory-recent-0",
+          "index": 1
+        },
+        "up": {
+          "active": "sidebar-working-directory-current",
+          "index": 0
+        },
+        "end": {
+          "active": "sidebar-working-directory-custom",
+          "index": 4
+        },
+        "home": {
+          "active": "sidebar-working-directory-current",
+          "index": 0
+        },
+        "afterTab": {
+          "menuGone": true,
+          "active": "titlebar-toggle-sidebar"
+        }
+      }
+    },
+    {
+      "name": "C10_实测",
+      "value": {
+        "collapsed": {
+          "menuGone": true,
+          "collapsed": "true"
+        },
+        "restored": {
+          "collapsed": "false",
+          "triggerThere": true
+        }
+      }
+    },
+    {
+      "name": "C13_实测",
+      "value": {
+        "a": {
+          "sidebarMenuGone": true,
+          "dialogOpen": true
+        },
+        "clickedChange": {
+          "groupFound": true,
+          "clicked": true
+        },
+        "b": {
+          "exists": true,
+          "rect": {
+            "left": 1073,
+            "right": 1313,
+            "top": 388.06,
+            "bottom": 554.31,
+            "width": 240,
+            "height": 166.25
+          },
+          "hitTag": "span",
+          "hitTestId": null,
+          "hitInMenu": true,
+          "sidebarMenuStillGone": true,
+          "dialogStillOpen": true,
+          "text": "…at/exceeds/thirty-two/characters/probe/alpha/probe/beta使用默认目录自定义路径…"
+        },
+        "c": {
+          "dialogClosed": true,
+          "settingsMenuGone": true
+        }
+      }
+    },
+    {
+      "name": "C17_不适用",
+      "value": {
+        "mode": "mock",
+        "说明": "形态差异判据，仅在 live 形态执行（请跑 probe:dir-menu:live）"
+      }
+    },
+    {
+      "name": "C19_不适用",
+      "value": {
+        "mode": "mock",
+        "说明": "形态差异判据，仅在 live 形态执行"
+      }
+    },
+    {
+      "name": "C6_实测",
+      "value": {
+        "点选索引": 1,
+        "目标目录": "/probe/beta",
+        "点前首行": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
+        "workingDirStorage": "/probe/beta",
+        "menuGone": true,
+        "focusOnTrigger": true,
+        "active": "sidebar-working-directory"
+      }
+    },
+    {
+      "name": "C7_实测",
+      "value": {
+        "workingDir": "~/projects/atlas-agent",
+        "recent": [
+          "~/projects/atlas-agent",
+          "/probe/beta",
+          "/probe/alpha"
+        ],
+        "面板": {
+          "source": "mock",
+          "currentPath": "~/projects/atlas-agent",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/beta",
+            "/probe/alpha"
+          ],
+          "recentChecked": [
+            "false",
+            "false"
+          ],
+          "pending": [],
+          "checkedTrueCount": 1,
+          "badgeRunning": false
+        },
+        "期望默认值": "~/projects/atlas-agent"
+      }
+    },
+    {
+      "name": "C8_实测",
+      "value": {
+        "首次": {
+          "source": "mock",
+          "currentPath": "/probe/current-x",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/d6",
+            "/probe/d5",
+            "/probe/d4",
+            "/probe/d3",
+            "/probe/d2"
+          ],
+          "recentChecked": [
+            "false",
+            "false",
+            "false",
+            "false",
+            "false"
+          ],
+          "pending": [],
+          "checkedTrueCount": 1,
+          "badgeRunning": false
+        },
+        "再次": {
+          "source": "mock",
+          "currentPath": "/probe/d2",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/d6",
+            "/probe/d5",
+            "/probe/d4",
+            "/probe/d3"
+          ],
+          "recentChecked": [
+            "false",
+            "false",
+            "false",
+            "false"
+          ],
+          "pending": [],
+          "checkedTrueCount": 1,
+          "badgeRunning": false
+        },
+        "localStorage_recent_dirs": [
+          "/probe/d2",
+          "/probe/d6",
+          "/probe/d5",
+          "/probe/d4",
+          "/probe/d3"
+        ],
+        "夹具": [
+          "/probe/d6",
+          "/probe/d5",
+          "/probe/d4",
+          "/probe/d3",
+          "/probe/d2",
+          "/probe/d1",
+          "/probe/d3"
+        ],
+        "期望首次": [
+          "/probe/d6",
+          "/probe/d5",
+          "/probe/d4",
+          "/probe/d3",
+          "/probe/d2"
+        ],
+        "所点目录": "/probe/d2"
+      }
+    },
+    {
+      "name": "C21_实测",
+      "value": {
+        "before": {
+          "source": "mock",
+          "currentPath": "/probe/d2",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/d6",
+            "/probe/d5",
+            "/probe/d4",
+            "/probe/d3"
+          ],
+          "recentChecked": [
+            "false",
+            "false",
+            "false",
+            "false"
+          ],
+          "pending": [],
+          "checkedTrueCount": 1,
+          "badgeRunning": false
+        },
+        "afterClick": {
+          "triggerPath": "/probe/d6",
+          "workingDirStorage": "/probe/d6",
+          "notice": {
+            "count": 0,
+            "items": [],
+            "bodyTextHasCoreCwd": false,
+            "bodyTextHasRestart": false
+          },
+          "menuGone": true
+        },
+        "after": {
+          "source": "mock",
+          "currentPath": "/probe/d6",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/d2",
+            "/probe/d5",
+            "/probe/d4",
+            "/probe/d3"
+          ],
+          "recentChecked": [
+            "false",
+            "false",
+            "false",
+            "false"
+          ],
+          "pending": [],
+          "checkedTrueCount": 1,
+          "badgeRunning": false
+        },
+        "点选索引": 0,
+        "目标目录": "/probe/d6"
+      }
+    },
+    {
+      "name": "C20_不适用",
+      "value": {
+        "mode": "mock",
+        "说明": "形态差异判据，仅在 live 形态执行"
+      }
+    },
+    {
+      "name": "console_errors_全程",
+      "value": {
+        "consoleErrors": [],
+        "exceptions": []
+      }
+    },
+    {
+      "name": "C9_实测",
+      "value": {
+        "page": {
+          "shell": true,
+          "sidebar": true,
+          "recentStorage": "{oops"
+        },
+        "panel": {
+          "panelPresent": true,
+          "recentCount": 0
+        },
+        "newExceptions": [],
+        "exceptions": []
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "C1 哑按钮「打开文件夹」已从 DOM 删除",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "sidebar_change_directory不存在": true
+      }
+    },
+    {
+      "name": "C2 触发条是可聚焦 <button> + aria-haspopup=menu；点击后 aria-expanded 翻转且面板出现",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "触发条存在": true,
+        "是button": true,
+        "可聚焦": true,
+        "有haspopup_menu": true,
+        "收起时expanded为false": true,
+        "展开时expanded为true": true,
+        "点击后面板出现": true,
+        "说明_aria_controls仅展开时持有": true
+      }
+    },
+    {
+      "name": "C3 面板**向上**弹出：panelRect.bottom <= triggerRect.top",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "面板底不高于触发条顶": true,
+        "面板有实际尺寸": true
+      }
+    },
+    {
+      "name": "C4 面板**未被任何祖先裁剪**：elementFromPoint(面板几何中心) 命中节点在面板内（唯一可信判据）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "面板存在": true,
+        "中心命中在面板内": true
+      }
+    },
+    {
+      "name": "C5 面板结构齐备：当前目录行（aria-checked=true 且含 ✓）/ 最近目录区 / 使用默认目录 / 自定义路径…",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "面板role_menu": true,
+        "面板aria_label为工作目录": true,
+        "当前行存在": true,
+        "当前行role_menuitem": true,
+        "当前行aria_disabled为true": true,
+        "当前行aria_checked为true": true,
+        "当前行含勾标记": true,
+        "最近目录区非空": true,
+        "最近项目role_menuitemradio": true,
+        "最近项目带aria_checked": true,
+        "使用默认目录存在": true,
+        "自定义路径存在": true,
+        "自定义路径文案可读": true
+      }
+    },
+    {
+      "name": "C14 无横向滚动：documentElement.scrollWidth <= clientWidth + 1（G6）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "无横向滚动": true
+      }
+    },
+    {
+      "name": "C15 深浅两主题下路径 / 动作文字与面板背景对比度 >= 4.5（G3）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "浅色_路径对比度达标": true,
+        "浅色_默认目录对比度达标": true,
+        "浅色_自定义路径对比度达标": true,
+        "深色_路径对比度达标": true,
+        "深色_默认目录对比度达标": true,
+        "深色_自定义路径对比度达标": true,
+        "两主题确实切换过": true,
+        "主题已还原": true
+      }
+    },
+    {
+      "name": "C16 长路径：溢出被 CSS 截断管住（truncate）、触发条自身无横向溢出、title = 全路径、左侧省略规则生效（>32 字符时首字符为 …）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "路径span存在": true,
+        "溢出被truncate管住": true,
+        "触发条无横向溢出": true,
+        "title为全路径": true,
+        "触发条title也是全路径": true,
+        "截尾规则正确": true,
+        "保留truncate类": true,
+        "夹具确实超过32字符": true
+      }
+    },
+    {
+      "name": "C11 Escape 关闭并归还焦点；点面板外部关闭",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "Escape前焦点在面板内": true,
+        "Escape后面板关闭": true,
+        "Escape后焦点回到触发条": true,
+        "外部pointerdown后面板关闭": true
+      }
+    },
+    {
+      "name": "C12 键盘：ArrowUp/Down 漫游、Home/End 跳两端、Tab 关闭后焦点自然离开",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "收起时ArrowDown可展开": true,
+        "展开后焦点落在面板内": true,
+        "展开后落在当前项": true,
+        "面板可漫游项不少于4": true,
+        "ArrowDown前进一格": true,
+        "ArrowUp后退一格": true,
+        "End跳到末项": true,
+        "Home跳回首端": true,
+        "面板收起了": true
+      }
+    },
+    {
+      "name": "C10 点 titlebar-toggle-sidebar 折叠侧栏 ⇒ 面板自动关闭（portal 方案的必需项）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "折叠前面板是开的": true,
+        "折叠后面板已关闭": true,
+        "侧栏确实折叠了": true,
+        "已复原未折叠": true
+      }
+    },
+    {
+      "name": "C13 设置弹窗打开时侧栏面板不残留；设置页「更改」弹出的面板**可见**（未被 backdrop 盖住，z=60 生效）；**关弹窗后设置面板不残留**",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "打开设置时侧栏面板已消失": true,
+        "设置弹窗确实打开了": true,
+        "设置页更改按钮可点": true,
+        "设置页面板存在": true,
+        "设置页面板可见_未被backdrop盖住": true,
+        "设置打开期间侧栏面板未回流": true,
+        "设置弹窗仍在": true,
+        "关闭设置后弹窗已收起": true,
+        "关闭设置后设置面板不残留": true
+      }
+    },
+    {
+      "name": "C6 选一项后：localStorage[working-dir] 变更 + 面板关闭 + 焦点回到触发条",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "按钮可点": true,
+        "localStorage_working_dir已是所选值": true,
+        "所选值确实与点前不同": true,
+        "面板已关闭": true,
+        "焦点回到触发条": true
+      }
+    },
+    {
+      "name": "C7 点「使用默认目录」⇒ workingDir === DEFAULT_WORKING_DIR；存储 recentDirs 首位 = 默认值；mock：首行变默认值且最近区不重复；live：首行不变（真 cwd）、默认值带「下次启动」角标",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "按钮可点": true,
+        "工作目录为默认值": true,
+        "localStorage_recent_dirs首位是默认值": true,
+        "mock_面板首行是默认值": true,
+        "mock_最近区不重复出现当前项": true
+      }
+    },
+    {
+      "name": "C8 依次选多个目录 ⇒ 存储 recentDirs 只留 5 条、最新在最上、无重复；再次选择后：mock 该目录成为首行、live 该目录获得「下次启动」角标",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "只留5条": true,
+        "最新在最上": true,
+        "无重复_首次": true,
+        "mock_再次选择后首行是所点目录": true,
+        "再次选择后存储置顶且5条": true,
+        "再次选择后存储无重复": true,
+        "最近区等于存储去掉当前项": true,
+        "当前项不出现在最近区": true
+      }
+    },
+    {
+      "name": "C21 mock：点最近目录 ⇒ 首行**立即变**，不出现「下次启动」灰字，不弹 notice",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "点击前首行不是目标": true,
+        "首行立即变为目标": true,
+        "触发条同步变化": true,
+        "localStorage_working_dir已变": true,
+        "data_current_source为mock": true,
+        "无下次启动灰字": true,
+        "不弹notice": true
+      }
+    },
+    {
+      "name": "C9 recent-dirs 写成非法 JSON 后重载 ⇒ 页面正常、最近目录回落空数组、无未捕获异常",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "页面正常挂载": true,
+        "最近目录回落空数组": true,
+        "面板仍可打开": true,
+        "本次重载无未捕获异常": true,
+        "全程无未捕获异常": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 17,
+    "passed": 17,
+    "failed": 0,
+    "failedNames": []
+  }
+}

@@ -38,17 +38,14 @@
       "name": "1-6_1-7_侧边栏顺序与无日期分组",
       "value": {
         "内容区直接子节点顺序": [
-          "sidebar-new-task",
-          "sidebar-search",
-          "div",
-          "sidebar-history",
-          "div",
-          "sidebar-working-directory",
-          "sidebar-change-directory"
+          "sidebar-actions",
+          "sidebar-history-section",
+          "sidebar-working-directory-section"
         ],
         "菜单项文案": [
           "新建任务",
-          "搜索",
+          "新建任务",
+          "历史会话\n接入 Pi 工具链的调研\n3小时前 7 条消息\n重构执行计划卡片\n8小时前 292 条消息\n修复深色模式对比度\n19小时前 63 条消息\n整理 MCP 服务器配置\n22小时前 100 条消息\n梳理窗口壳跨平台差异\n23小时前 102 条消息\n终端输出截断策略\n1天前 112 条消息\n虚拟滚动性能回归\n1天前 217 条消息\n技能列表分类方案\n2天前 132 条消息",
           "接入 Pi 工具链的调研\n3小时前 7 条消息\n重构执行计划卡片\n8小时前 292 条消息\n修复深色模式对比度\n19小时前 63 条消息\n整理 MCP 服务器配置\n22小时前 100 条消息\n梳理窗口壳跨平台差异\n23小时前 102 条消息\n终端输出截断策略\n1天前 112 条消息\n虚拟滚动性能回归\n1天前 217 条消息\n技能列表分类方案\n2天前 132 条消息",
           "接入 Pi 工具链的调研\n3小时前 7 条消息",
           "重构执行计划卡片\n8小时前 292 条消息",
@@ -58,8 +55,10 @@
           "终端输出截断策略\n1天前 112 条消息",
           "虚拟滚动性能回归\n1天前 217 条消息",
           "技能列表分类方案\n2天前 132 条消息",
-          "~ / projects / atlas-agent",
-          "打开文件夹"
+          "工作目录\n~/projects/atlas-agent",
+          "~/projects/atlas-agent",
+          "~/projects/atlas-agent",
+          "~/projects/atlas-agent"
         ],
         "历史会话条目数": 8,
         "命中日期分组关键词": [],
@@ -401,7 +400,7 @@
           "sidebar-history-item-5",
           "sidebar-history-item-6",
           "sidebar-history-item-7",
-          "sidebar-change-directory",
+          "sidebar-working-directory",
           "sidebar-footer-model",
           "sidebar-footer-settings",
           "thinking-toggle",
@@ -471,7 +470,7 @@
             "label": "收起左侧",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(58, 90, 182)"
+            "outlineColor": "rgb(65, 97, 190)"
           },
           {
             "tag": "button",
@@ -479,7 +478,7 @@
             "label": "切换到深色",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(45, 77, 170)"
+            "outlineColor": "rgb(46, 79, 171)"
           },
           {
             "tag": "button",
@@ -495,7 +494,7 @@
             "label": "收起右侧",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(44, 77, 169)"
+            "outlineColor": "rgb(45, 77, 169)"
           },
           {
             "tag": "button",
@@ -503,15 +502,15 @@
             "label": "新建任务",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(67, 100, 193)"
+            "outlineColor": "rgb(73, 100, 174)"
           },
           {
-            "tag": "button",
+            "tag": "input",
             "testid": "sidebar-search",
-            "label": "搜索",
+            "label": "搜索历史会话",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(67, 100, 193)"
+            "outlineColor": "rgb(45, 77, 169)"
           },
           {
             "tag": "button",
@@ -519,7 +518,7 @@
             "label": "接入 Pi 工具链的调研\n3小时前 7 ",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(40, 66, 140)"
+            "outlineColor": "rgb(44, 77, 169)"
           },
           {
             "tag": "button",
@@ -557,26 +556,27 @@
       "name": "1-10_过渡中间帧采样",
       "value": {
         "首帧": {
-          "t": 11.2,
+          "t": 6.5,
           "sidebar": 264,
           "workspace": 680
         },
         "末帧": {
-          "t": 328,
+          "t": 334.1,
           "sidebar": 0,
           "workspace": 944
         },
-        "采样帧数": 20,
+        "采样帧数": 21,
         "中间帧数_宽度介于1与263之间": 6,
         "宽度序列_抽样": [
           264,
-          161.91,
-          101.45,
-          60.48,
-          32.56,
-          14.47,
-          4.06,
-          0.09,
+          161.42,
+          101.42,
+          60.47,
+          32.55,
+          14.39,
+          4.05,
+          0.11,
+          0,
           0,
           0,
           0,
@@ -592,13 +592,14 @@
         ],
         "内容区宽度序列_抽样": [
           680,
-          782.09,
-          842.55,
-          883.52,
-          911.44,
-          929.53,
-          939.94,
-          943.91,
+          782.58,
+          842.58,
+          883.53,
+          911.45,
+          929.61,
+          939.95,
+          943.89,
+          944,
           944,
           944,
           944,

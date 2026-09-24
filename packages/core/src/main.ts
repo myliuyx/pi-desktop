@@ -45,6 +45,28 @@ const extraHosts = (process.env.CORE_ALLOWED_HOSTS ?? "")
 const allowedHosts = ["127.0.0.1", "localhost", ...extraHosts];
 
 /*
+ * CORE_CWD：core 的工作目录（决定项目本地资源与信任门）。解析规则：
+ * - env 缺省 ⇒ undefined ⇒ createCoreRuntime 内部回落 process.cwd() ⇒ 行为零变化；
+ * - 有值 ⇒ path.resolve(value)；
+ * - 指向不存在或不是目录 ⇒ 打一行点名警告（原值 + 回落后的值）并回落 process.cwd()，
+ *   不静默、不崩（"静默降级"是本项目最忌讳的失败形态）。
+ * 用法：cd packages/core && CORE_CWD=F:/path/to/project npm run smoke
+ */
+const rawCwd = process.env.CORE_CWD;
+let resolvedCwd: string | undefined;
+if (rawCwd && rawCwd.trim()) {
+  const candidate = path.resolve(rawCwd.trim());
+  if (fs.existsSync(candidate) && fs.statSync(candidate).isDirectory()) {
+    resolvedCwd = candidate;
+  } else {
+    resolvedCwd = undefined;
+    console.warn(
+      `[core] 警告: CORE_CWD="${rawCwd}" 不是存在的目录，已回落 process.cwd()="${process.cwd()}"`,
+    );
+  }
+}
+
+/*
  * C3：**先起服务、再等会话就绪**。
  * 原因：`ask` 态的项目信任门（trust.ts）会在会话创建之前向 UI 提问，
  * 而提问要走 SSE/HTTP —— 若等服务就绪才 listen，提问必然没人应答、启动死锁
@@ -52,6 +74,7 @@ const allowedHosts = ["127.0.0.1", "localhost", ...extraHosts];
  */
 const boot = createCoreRuntime({
   agentDir: process.env.CORE_AGENT_DIR,
+  cwd: resolvedCwd,
   shellPath: process.env.CORE_SHELL_PATH,
   modelProvider: process.env.CORE_MODEL_PROVIDER,
   modelId: process.env.PI_MODEL,
@@ -71,6 +94,7 @@ boot.runtime.onEvent((e) => {
   fs.appendFileSync(dumpPath, `${JSON.stringify(e)}\n`);
 });
 
+console.log(`[core] 工作目录: ${boot.runtime.getCwd()}`);
 console.log(`[core] 监听 http://${host}:${handle.port}  (SSE: /events, 健康: /health)`);
 if (host === "0.0.0.0" || host === "::") {
 	console.log(`[core] 已对内网开放，允许的 Host: ${allowedHosts.join(", ")}`);

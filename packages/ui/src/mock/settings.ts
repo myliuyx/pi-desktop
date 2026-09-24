@@ -127,7 +127,14 @@ export const PI_FIELD_NAMES = {
   workingDir: "AgentOptions.cwd",
 } as const;
 
-/** 工作目录默认路径（与 Sidebar 的展示值保持一致，避免两屏各说一套） */
+/**
+ * 工作目录默认值 —— **mock 形态**的偏好目录（也是「使用默认目录」写回的值）。
+ *
+ * ⚠️ 旧注释"与 Sidebar 的展示值保持一致"已于 2026-09-24 清理：那条早已过期 ——
+ * Sidebar 当时的默认展示值是 `"~ / projects / atlas-agent"`（**带空格**），与此处
+ * **不带空格**的值并不一致。现在两处统一收到 `useWorkingDirectoryView()` 一处解析，
+ * 且 live 形态下侧栏显示的是 core 的**真实 cwd**，与本默认值无关。
+ */
 export const DEFAULT_WORKING_DIR = "~/projects/atlas-agent";
 
 /* ---------------------------------------------------------------------------

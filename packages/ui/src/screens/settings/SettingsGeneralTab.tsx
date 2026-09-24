@@ -4,7 +4,11 @@ import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
 import { SETTINGS_GROUP_HEADER_MIN_HEIGHT, SETTINGS_LABEL_WIDTH, SCREEN_SECTION_GAP } from "@/lib/layout";
 import { Icon } from "@/components/common/icons";
-import { Button, Chip } from "@/components/primitives";
+import { Chip } from "@/components/primitives";
+import {
+  WorkingDirectoryMenu,
+  useWorkingDirectoryView,
+} from "@/components/shell/WorkingDirectoryMenu";
 import { Switch } from "@/components/screens/Switch";
 import { COMPOSER_THINKING_LEVELS, THINKING_LABEL } from "@/mock/composer";
 import type { ThinkingLevel } from "@/mock/types";
@@ -41,7 +45,12 @@ export function SettingsGeneralTab() {
   const setThinkingLevel = useUiStore((state) => state.setThinkingLevel);
   const sessionSwitches = useUiStore((state) => state.sessionSwitches);
   const toggleSessionSwitch = useUiStore((state) => state.toggleSessionSwitch);
-  const workingDir = useUiStore((state) => state.workingDir);
+
+  /*
+   * ★ 工作目录的显示口径与侧栏**共用同一个 hook**（D4）：live 下这里也显示 core 的真实 cwd，
+   * 否则会出现「侧栏说真的、设置页说假的」。**不提供 setter** —— 它是只读真相。
+   */
+  const { fullPath: workingDirPath } = useWorkingDirectoryView();
 
   /*
    * ★ C5：live 形态下「思考强度」组用 core 的真实数据（`GET /models`），
@@ -176,25 +185,18 @@ export function SettingsGeneralTab() {
           className="flex min-w-0 items-center gap-3 rounded-lg border border-border-subtle bg-bg-surface px-3 py-2.5"
         >
           <Icon icon={FolderOpen} />
-          <code className="min-w-0 flex-1 truncate font-mono text-sm text-text-primary" title={workingDir}>
-            {workingDir}
+          <code className="min-w-0 flex-1 truncate font-mono text-sm text-text-primary" title={workingDirPath}>
+            {workingDirPath}
           </code>
           <code className="hidden shrink-0 font-mono text-xs text-text-tertiary sm:block">
             {PI_FIELD_NAMES.workingDir}
           </code>
           {/*
-           * 「更改」按钮：原型里不实现目录选择器（浏览器没有跨平台的原生目录选择 UI），
-           * 但按钮必须可点、可聚焦 —— 空实现而不是 disabled，否则 G7 走查会把它当成
-           * 「交互元素无反馈」。点击行为与真实接入的落点写在 title 里。
+           * 「更改」= 打开**与侧栏同一个**上弹浮层（D4）。
+           * 面板 portal 到 body 且 z 轴取 POPOVER_Z(60) —— 设置弹窗本身是 z-50 的 Dialog
+           * 加全屏 backdrop，面板不抬到 60 就会被压住/挡住（验收 C13）。
            */}
-          <Button
-            variant="secondary"
-            size="sm"
-            data-testid="settings-change-dir"
-            title="原型阶段不实现目录选择器；接入 Electron 后调用系统目录对话框"
-          >
-            更改
-          </Button>
+          <WorkingDirectoryMenu variant="settings" menuTestId="settings-working-dir-menu" />
         </div>
       </SettingsGroup>
     </div>

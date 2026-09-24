@@ -19,6 +19,11 @@ import {
   INITIAL_MODEL_PROVIDERS,
   type ModelProviderConfig,
 } from "@/mock/model-config";
+import {
+  pushRecentDir,
+  readRecentDirs,
+  writeRecentDirs,
+} from "@/lib/recent-dirs";
 
 export type Theme = "light" | "dark";
 export type ThemeSource = "user" | "system";
@@ -204,7 +209,22 @@ interface UiState {
 
   /** 工作目录（对齐 Pi 的 AgentOptions.cwd） */
   workingDir: string;
+  /**
+   * 记录/切换偏好工作目录。
+   *
+   * 语义（2026-09-24 扩）：写 `working-dir` → 把 `dir` **推到 `recentDirs` 头部**
+   * （去重、截 `MAX_RECENT_DIRS`）→ 写 `recent-dirs` → `set`。
+   *
+   * ⚠️ 它**只表达偏好**：live 形态下侧栏显示的是 core 的真实 cwd（只读，见 chat-store 的
+   * `liveCwd`），这里的改动只保证「下次用这个目录启动 core」，**不会热切当前会话目录**。
+   */
   setWorkingDir: (dir: string) => void;
+
+  /**
+   * 最近使用过的工作目录（最新在前，最多 `MAX_RECENT_DIRS` 条）。
+   * 读取全程兜底回落空数组（见 `lib/recent-dirs.ts`）—— 一份坏 JSON 不能带崩 store 初始化。
+   */
+  recentDirs: string[];
 }
 
 function persistFlag(key: string, value: boolean): void {
@@ -306,11 +326,15 @@ export const useUiStore = create<UiState>((set, get) => ({
   workingDir: readStoredWorkingDir(),
 
   setWorkingDir: (dir) => {
+    const recentDirs = pushRecentDir(get().recentDirs, dir);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(WORKING_DIR_STORAGE_KEY, dir);
     }
-    set({ workingDir: dir });
+    writeRecentDirs(recentDirs);
+    set({ workingDir: dir, recentDirs });
   },
+
+  recentDirs: readRecentDirs(),
 }));
 
 let initialized = false;
@@ -341,6 +365,8 @@ export function initTheme(): void {
     enabledTools: readEnabledTools(),
     sessionSwitches: readSessionSwitches(),
     workingDir: readStoredWorkingDir(),
+    // 最近目录同属「首帧前确定」：否则侧栏首帧会先画空菜单再跳出入选项
+    recentDirs: readRecentDirs(),
   });
 
   window

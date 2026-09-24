@@ -1,0 +1,818 @@
+{
+  "origin": "http://127.0.0.1:5380",
+  "startedAt": "2026-09-24T13:06:12.004Z",
+  "steps": [
+    {
+      "name": "live_cwd_到达观测",
+      "value": {
+        "ok": true,
+        "got": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace"
+      }
+    },
+    {
+      "name": "C1_实测",
+      "value": {
+        "exists": false,
+        "tag": null
+      }
+    },
+    {
+      "name": "C2_实测",
+      "value": {
+        "closed": {
+          "exists": true,
+          "tag": "button",
+          "type": "button",
+          "haspopup": "menu",
+          "expandedClosed": "false",
+          "controlsWhenClosed": false,
+          "title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "focusable": true
+        },
+        "open": {
+          "expandedOpen": "true",
+          "controlsWhenOpen": true,
+          "panelPresent": true
+        },
+        "opened": true
+      }
+    },
+    {
+      "name": "C3_实测",
+      "value": {
+        "trigger": {
+          "left": 12,
+          "right": 252,
+          "top": 580.66,
+          "bottom": 608.66,
+          "width": 240,
+          "height": 28
+        },
+        "panel": {
+          "left": 12,
+          "right": 252,
+          "top": 408.66,
+          "bottom": 574.91,
+          "width": 240,
+          "height": 166.25
+        }
+      }
+    },
+    {
+      "name": "C4_实测",
+      "value": {
+        "exists": true,
+        "center": {
+          "x": 132,
+          "y": 491.8
+        },
+        "panelRect": {
+          "left": 12,
+          "right": 252,
+          "top": 408.66,
+          "bottom": 574.91,
+          "width": 240,
+          "height": 166.25
+        },
+        "hitTag": "span",
+        "hitTestId": null,
+        "hitInsidePanel": true,
+        "hitIsPanel": false
+      }
+    },
+    {
+      "name": "C5_实测",
+      "value": {
+        "panelRole": "menu",
+        "panelLabel": "工作目录",
+        "curExists": true,
+        "curRole": "menuitem",
+        "curDisabled": "true",
+        "curChecked": "true",
+        "curMark": true,
+        "curPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "recentCount": 2,
+        "recentRole": "menuitemradio",
+        "recentCheckedAttr": "false",
+        "defExists": true,
+        "defRole": "menuitem",
+        "customExists": true,
+        "customRole": "menuitem",
+        "customText": "自定义路径…"
+      }
+    },
+    {
+      "name": "C14_实测",
+      "value": {
+        "scrollWidth": 1424,
+        "clientWidth": 1424
+      }
+    },
+    {
+      "name": "C15_实测",
+      "value": {
+        "浅色": {
+          "theme": "light",
+          "pathEl": {
+            "text": "…enu-cwd-fixture-aSlMHJ\\workspac",
+            "contrast": 5.42
+          },
+          "defaultItem": {
+            "text": "使用默认目录",
+            "contrast": 5.86
+          },
+          "customItem": {
+            "text": "自定义路径…",
+            "contrast": 5.86
+          }
+        },
+        "深色": {
+          "theme": "dark",
+          "pathEl": {
+            "text": "…enu-cwd-fixture-aSlMHJ\\workspac",
+            "contrast": 5.68
+          },
+          "defaultItem": {
+            "text": "使用默认目录",
+            "contrast": 5.75
+          },
+          "customItem": {
+            "text": "自定义路径…",
+            "contrast": 5.75
+          }
+        },
+        "切换后主题": "dark",
+        "还原后主题": "light",
+        "浅色最低对比度": 5.42,
+        "深色最低对比度": 5.68
+      }
+    },
+    {
+      "name": "C16_实测",
+      "value": {
+        "exists": true,
+        "text": "…enu-cwd-fixture-aSlMHJ\\workspace",
+        "title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "triggerTitle": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "scrollWidth": 200,
+        "clientWidth": 180,
+        "className": "min-w-0 flex-1 truncate font-mono text-xs",
+        "triggerScrollWidth": 240,
+        "triggerClientWidth": 240,
+        "期望全文": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "期望文字": "…enu-cwd-fixture-aSlMHJ\\workspace",
+        "全路径长度": 71
+      }
+    },
+    {
+      "name": "C11_实测",
+      "value": {
+        "beforeEsc": {
+          "menuOpen": true,
+          "active": "sidebar-working-directory-current"
+        },
+        "afterEsc": {
+          "menuGone": true,
+          "focusOnTrigger": true,
+          "active": "sidebar-working-directory"
+        },
+        "外部点击后已关闭": true
+      }
+    },
+    {
+      "name": "C12_实测",
+      "value": {
+        "opened": {
+          "menuOpen": true,
+          "active": "sidebar-working-directory-current",
+          "index": 0,
+          "inPanel": true,
+          "itemCount": 5
+        },
+        "down": {
+          "active": "sidebar-working-directory-recent-0",
+          "index": 1
+        },
+        "up": {
+          "active": "sidebar-working-directory-current",
+          "index": 0
+        },
+        "end": {
+          "active": "sidebar-working-directory-custom",
+          "index": 4
+        },
+        "home": {
+          "active": "sidebar-working-directory-current",
+          "index": 0
+        },
+        "afterTab": {
+          "menuGone": true,
+          "active": "titlebar-toggle-sidebar"
+        }
+      }
+    },
+    {
+      "name": "C10_实测",
+      "value": {
+        "collapsed": {
+          "menuGone": true,
+          "collapsed": "true"
+        },
+        "restored": {
+          "collapsed": "false",
+          "triggerThere": true
+        }
+      }
+    },
+    {
+      "name": "C13_实测",
+      "value": {
+        "a": {
+          "sidebarMenuGone": true,
+          "dialogOpen": true
+        },
+        "clickedChange": {
+          "groupFound": true,
+          "clicked": true
+        },
+        "b": {
+          "exists": true,
+          "rect": {
+            "left": 1073,
+            "right": 1313,
+            "top": 411,
+            "bottom": 577.25,
+            "width": 240,
+            "height": 166.25
+          },
+          "hitTag": "span",
+          "hitTestId": null,
+          "hitInMenu": true,
+          "sidebarMenuStillGone": true,
+          "dialogStillOpen": true,
+          "text": "…enu-cwd-fixture-aSlMHJ\\workspace运行中/probe/other-2/probe/pref-other下次启动使用默认目录自定义"
+        },
+        "c": {
+          "dialogClosed": true,
+          "settingsMenuGone": true
+        }
+      }
+    },
+    {
+      "name": "C17_实测",
+      "value": {
+        "source": "live",
+        "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "currentChecked": "true",
+        "recentPaths": [
+          "/probe/other-2",
+          "/probe/pref-other"
+        ],
+        "recentChecked": [
+          "false",
+          "false"
+        ],
+        "pending": [
+          {
+            "text": "下次启动",
+            "owner": "sidebar-working-directory-recent-1",
+            "ownerPath": "/probe/pref-other"
+          }
+        ],
+        "checkedTrueCount": 1,
+        "badgeRunning": true,
+        "期望": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "本地偏好": "/probe/pref-other",
+        "core默认cwd": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
+        "触发条title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace"
+      }
+    },
+    {
+      "name": "C19_实测",
+      "value": {
+        "before": {
+          "source": "live",
+          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/other-2",
+            "/probe/pref-other"
+          ],
+          "recentChecked": [
+            "false",
+            "false"
+          ],
+          "pending": [
+            {
+              "text": "下次启动",
+              "owner": "sidebar-working-directory-recent-1",
+              "ownerPath": "/probe/pref-other"
+            }
+          ],
+          "checkedTrueCount": 1,
+          "badgeRunning": true
+        },
+        "afterClick": {
+          "menuGone": true,
+          "notice": {
+            "count": 2,
+            "items": [
+              {
+                "testid": "notice-stack",
+                "tone": null,
+                "text": "已记录为下次启动目录：/probe/other-2。重启 core 后生效：cd packages/core && CORE_CWD=/probe/other-2 npm run smoke"
+              },
+              {
+                "testid": "notice-item",
+                "tone": "info",
+                "text": "已记录为下次启动目录：/probe/other-2。重启 core 后生效：cd packages/core && CORE_CWD=/probe/other-2 npm run smoke"
+              }
+            ],
+            "bodyTextHasCoreCwd": true,
+            "bodyTextHasRestart": true
+          },
+          "workingDirStorage": "/probe/other-2"
+        },
+        "after": {
+          "source": "live",
+          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/other-2",
+            "/probe/pref-other"
+          ],
+          "recentChecked": [
+            "false",
+            "false"
+          ],
+          "pending": [
+            {
+              "text": "下次启动",
+              "owner": "sidebar-working-directory-recent-0",
+              "ownerPath": "/probe/other-2"
+            }
+          ],
+          "checkedTrueCount": 1,
+          "badgeRunning": true
+        },
+        "notice文案": "已记录为下次启动目录：/probe/other-2。重启 core 后生效：cd packages/core && CORE_CWD=/probe/other-2 npm run smoke | 已记录为下次启动目录：/probe/other-2。重启 core 后生效：cd packages/core && CORE_CWD=/probe/other-2 npm run smoke"
+      }
+    },
+    {
+      "name": "C6_实测",
+      "value": {
+        "点选索引": 1,
+        "目标目录": "/probe/pref-other",
+        "点前首行": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+        "workingDirStorage": "/probe/pref-other",
+        "menuGone": true,
+        "focusOnTrigger": true,
+        "active": "sidebar-working-directory"
+      }
+    },
+    {
+      "name": "C7_实测",
+      "value": {
+        "workingDir": "~/projects/atlas-agent",
+        "recent": [
+          "~/projects/atlas-agent",
+          "/probe/pref-other",
+          "/probe/other-2"
+        ],
+        "面板": {
+          "source": "live",
+          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentChecked": "true",
+          "recentPaths": [
+            "~/projects/atlas-agent",
+            "/probe/pref-other",
+            "/probe/other-2"
+          ],
+          "recentChecked": [
+            "false",
+            "false",
+            "false"
+          ],
+          "pending": [
+            {
+              "text": "下次启动",
+              "owner": "sidebar-working-directory-recent-0",
+              "ownerPath": "~/projects/atlas-agent"
+            }
+          ],
+          "checkedTrueCount": 1,
+          "badgeRunning": true
+        },
+        "期望默认值": "~/projects/atlas-agent"
+      }
+    },
+    {
+      "name": "C8_实测",
+      "value": {
+        "首次": {
+          "source": "live",
+          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/d6",
+            "/probe/d5",
+            "/probe/d4",
+            "/probe/d3",
+            "/probe/d2"
+          ],
+          "recentChecked": [
+            "false",
+            "false",
+            "false",
+            "false",
+            "false"
+          ],
+          "pending": [],
+          "checkedTrueCount": 1,
+          "badgeRunning": true
+        },
+        "再次": {
+          "source": "live",
+          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-aSlMHJ\\workspace",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/d2",
+            "/probe/d6",
+            "/probe/d5",
+            "/probe/d4",
+            "/probe/d3"
+          ],
+          "recentChecked": [
+            "false",
+            "false",
+            "false",
+            "false",
+            "false"
+          ],
+          "pending": [
+            {
+              "text": "下次启动",
+              "owner": "sidebar-working-directory-recent-0",
+              "ownerPath": "/probe/d2"
+            }
+          ],
+          "checkedTrueCount": 1,
+          "badgeRunning": true
+        },
+        "localStorage_recent_dirs": [
+          "/probe/d2",
+          "/probe/d6",
+          "/probe/d5",
+          "/probe/d4",
+          "/probe/d3"
+        ],
+        "夹具": [
+          "/probe/d6",
+          "/probe/d5",
+          "/probe/d4",
+          "/probe/d3",
+          "/probe/d2",
+          "/probe/d1",
+          "/probe/d3"
+        ],
+        "期望首次": [
+          "/probe/d6",
+          "/probe/d5",
+          "/probe/d4",
+          "/probe/d3",
+          "/probe/d2"
+        ],
+        "所点目录": "/probe/d2"
+      }
+    },
+    {
+      "name": "C21_不适用",
+      "value": {
+        "mode": "live",
+        "说明": "形态差异判据，仅在 mock 形态执行（mock 下选择即改显示，不弹 notice）"
+      }
+    },
+    {
+      "name": "C20_实测",
+      "value": {
+        "source": "unavailable",
+        "currentPath": "未知目录",
+        "currentChecked": "true",
+        "recentPaths": [
+          "/probe/d2",
+          "/probe/d6",
+          "/probe/d5",
+          "/probe/d4",
+          "/probe/d3"
+        ],
+        "recentChecked": [
+          "false",
+          "false",
+          "false",
+          "false",
+          "false"
+        ],
+        "pending": [
+          {
+            "text": "下次启动",
+            "owner": "sidebar-working-directory-recent-0",
+            "ownerPath": "/probe/d2"
+          }
+        ],
+        "checkedTrueCount": 1,
+        "badgeRunning": false,
+        "显示值": "未知目录",
+        "本地偏好值": "/probe/d2",
+        "默认值": "~/projects/atlas-agent"
+      }
+    },
+    {
+      "name": "console_errors_全程",
+      "value": {
+        "consoleErrors": [
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:3302)\n    at aE.subscribe (http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:3044)\n    at fE (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:6771)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:2708",
+          "[live] listSessions 失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:531)\n    at aE.listSessions (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:1570)\n    at Object.refreshSessions (http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:1851)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:2734",
+          "[live] 启动加载最近会话失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:531)\n    at aE.listSessions (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:1570)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:2817\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:57:3149",
+          "[live] /models 失败: TypeError: Failed to fetch\n    at aE.get (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:531)\n    at aE.listModels (http://127.0.0.1:5380/assets/index--SVMnqQm.js:56:1930)\n    at Object.refresh (http://127.0.0.1:5380/assets/index--SVMnqQm.js:334:11279)\n    at ensure (http://127.0.0.1:5380/assets/index--SVMnqQm.js:334:11209)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:334:11846\n    at cr (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:96198)\n    at _g (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:119606)\n    at Sn (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:119379)\n    at _g (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:120825)\n    at Sn (http://127.0.0.1:5380/assets/index--SVMnqQm.js:48:119379)",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:3302)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at aE.connectSse (http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:3302)\n    at http://127.0.0.1:5380/assets/index--SVMnqQm.js:53:2881"
+        ],
+        "exceptions": []
+      }
+    },
+    {
+      "name": "C9_实测",
+      "value": {
+        "page": {
+          "shell": true,
+          "sidebar": true,
+          "recentStorage": "{oops"
+        },
+        "panel": {
+          "panelPresent": true,
+          "recentCount": 0
+        },
+        "newExceptions": [],
+        "exceptions": []
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "C1 哑按钮「打开文件夹」已从 DOM 删除",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "sidebar_change_directory不存在": true
+      }
+    },
+    {
+      "name": "C2 触发条是可聚焦 <button> + aria-haspopup=menu；点击后 aria-expanded 翻转且面板出现",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "触发条存在": true,
+        "是button": true,
+        "可聚焦": true,
+        "有haspopup_menu": true,
+        "收起时expanded为false": true,
+        "展开时expanded为true": true,
+        "点击后面板出现": true,
+        "说明_aria_controls仅展开时持有": true
+      }
+    },
+    {
+      "name": "C3 面板**向上**弹出：panelRect.bottom <= triggerRect.top",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "面板底不高于触发条顶": true,
+        "面板有实际尺寸": true
+      }
+    },
+    {
+      "name": "C4 面板**未被任何祖先裁剪**：elementFromPoint(面板几何中心) 命中节点在面板内（唯一可信判据）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "面板存在": true,
+        "中心命中在面板内": true
+      }
+    },
+    {
+      "name": "C5 面板结构齐备：当前目录行（aria-checked=true 且含 ✓）/ 最近目录区 / 使用默认目录 / 自定义路径…",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "面板role_menu": true,
+        "面板aria_label为工作目录": true,
+        "当前行存在": true,
+        "当前行role_menuitem": true,
+        "当前行aria_disabled为true": true,
+        "当前行aria_checked为true": true,
+        "当前行含勾标记": true,
+        "最近目录区非空": true,
+        "最近项目role_menuitemradio": true,
+        "最近项目带aria_checked": true,
+        "使用默认目录存在": true,
+        "自定义路径存在": true,
+        "自定义路径文案可读": true
+      }
+    },
+    {
+      "name": "C14 无横向滚动：documentElement.scrollWidth <= clientWidth + 1（G6）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "无横向滚动": true
+      }
+    },
+    {
+      "name": "C15 深浅两主题下路径 / 动作文字与面板背景对比度 >= 4.5（G3）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "浅色_路径对比度达标": true,
+        "浅色_默认目录对比度达标": true,
+        "浅色_自定义路径对比度达标": true,
+        "深色_路径对比度达标": true,
+        "深色_默认目录对比度达标": true,
+        "深色_自定义路径对比度达标": true,
+        "两主题确实切换过": true,
+        "主题已还原": true
+      }
+    },
+    {
+      "name": "C16 长路径：溢出被 CSS 截断管住（truncate）、触发条自身无横向溢出、title = 全路径、左侧省略规则生效（>32 字符时首字符为 …）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "路径span存在": true,
+        "溢出被truncate管住": true,
+        "触发条无横向溢出": true,
+        "title为全路径": true,
+        "触发条title也是全路径": true,
+        "截尾规则正确": true,
+        "保留truncate类": true,
+        "夹具确实超过32字符": true
+      }
+    },
+    {
+      "name": "C11 Escape 关闭并归还焦点；点面板外部关闭",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "Escape前焦点在面板内": true,
+        "Escape后面板关闭": true,
+        "Escape后焦点回到触发条": true,
+        "外部pointerdown后面板关闭": true
+      }
+    },
+    {
+      "name": "C12 键盘：ArrowUp/Down 漫游、Home/End 跳两端、Tab 关闭后焦点自然离开",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "收起时ArrowDown可展开": true,
+        "展开后焦点落在面板内": true,
+        "展开后落在当前项": true,
+        "面板可漫游项不少于4": true,
+        "ArrowDown前进一格": true,
+        "ArrowUp后退一格": true,
+        "End跳到末项": true,
+        "Home跳回首端": true,
+        "面板收起了": true
+      }
+    },
+    {
+      "name": "C10 点 titlebar-toggle-sidebar 折叠侧栏 ⇒ 面板自动关闭（portal 方案的必需项）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "折叠前面板是开的": true,
+        "折叠后面板已关闭": true,
+        "侧栏确实折叠了": true,
+        "已复原未折叠": true
+      }
+    },
+    {
+      "name": "C13 设置弹窗打开时侧栏面板不残留；设置页「更改」弹出的面板**可见**（未被 backdrop 盖住，z=60 生效）；**关弹窗后设置面板不残留**",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "打开设置时侧栏面板已消失": true,
+        "设置弹窗确实打开了": true,
+        "设置页更改按钮可点": true,
+        "设置页面板存在": true,
+        "设置页面板可见_未被backdrop盖住": true,
+        "设置打开期间侧栏面板未回流": true,
+        "设置弹窗仍在": true,
+        "关闭设置后弹窗已收起": true,
+        "关闭设置后设置面板不残留": true
+      }
+    },
+    {
+      "name": "C17 live：侧栏显示 core 的真实 cwd（CORE_CWD 夹具），**不是**本地偏好值",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "首行等于夹具目录": true,
+        "data_current_source为live": true,
+        "触发条title等于夹具目录": true,
+        "未回落成本地偏好": true,
+        "运行中角标在首行": true,
+        "夹具与core默认cwd不同": true
+      }
+    },
+    {
+      "name": "C19 live：点最近目录 ⇒ 首行不变（仍真 cwd）+ 弹 notice 提示需 CORE_CWD 重启 + 偏好项出「下次启动」灰字且不出现第二个 ✓",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "点击前首行是真cwd": true,
+        "点击前角标只在偏好项上": true,
+        "点击后面板关闭": true,
+        "点击后偏好已记下": true,
+        "弹出了notice": true,
+        "notice文案含CORE_CWD": true,
+        "notice提示需重启": true,
+        "点击后首行不变": true,
+        "点击后data_current_source仍为live": true,
+        "只有一个勾_无第二个": true,
+        "角标指向新偏好": true,
+        "运行中角标仍在": true
+      }
+    },
+    {
+      "name": "C6 选一项后：localStorage[working-dir] 变更 + 面板关闭 + 焦点回到触发条",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "按钮可点": true,
+        "localStorage_working_dir已是所选值": true,
+        "所选值确实与点前不同": true,
+        "面板已关闭": true,
+        "焦点回到触发条": true
+      }
+    },
+    {
+      "name": "C7 点「使用默认目录」⇒ workingDir === DEFAULT_WORKING_DIR；存储 recentDirs 首位 = 默认值；mock：首行变默认值且最近区不重复；live：首行不变（真 cwd）、默认值带「下次启动」角标",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "按钮可点": true,
+        "工作目录为默认值": true,
+        "localStorage_recent_dirs首位是默认值": true,
+        "live_首行仍是真实cwd": true,
+        "live_默认值以角标出现在最近区": true,
+        "live_只有一个勾": true
+      }
+    },
+    {
+      "name": "C8 依次选多个目录 ⇒ 存储 recentDirs 只留 5 条、最新在最上、无重复；再次选择后：mock 该目录成为首行、live 该目录获得「下次启动」角标",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "只留5条": true,
+        "最新在最上": true,
+        "无重复_首次": true,
+        "live_首行仍是真实cwd": true,
+        "live_所点目录获得角标": true,
+        "再次选择后存储置顶且5条": true,
+        "再次选择后存储无重复": true,
+        "最近区等于存储去掉当前项": true,
+        "当前项不出现在最近区": true
+      }
+    },
+    {
+      "name": "C20 live 拿不到 cwd ⇒ 显式占位（未知目录/连接中…），**不得**回落成本地偏好值（防「很像真的假事实」）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "data_current_source为unavailable": true,
+        "未回落成本地偏好值": true,
+        "显示的不是目录路径_结构性反回落": true,
+        "占位文案可辨识": true,
+        "不是mock来源": true
+      }
+    },
+    {
+      "name": "C9 recent-dirs 写成非法 JSON 后重载 ⇒ 页面正常、最近目录回落空数组、无未捕获异常",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "页面正常挂载": true,
+        "最近目录回落空数组": true,
+        "面板仍可打开": true,
+        "本次重载无未捕获异常": true,
+        "全程无未捕获异常": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 19,
+    "passed": 19,
+    "failed": 0,
+    "failedNames": []
+  }
+}

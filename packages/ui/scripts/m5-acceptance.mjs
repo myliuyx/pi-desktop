@@ -507,7 +507,16 @@ await withBrowser({ port: PORT, origin: ORIGIN, evidencePath: EVIDENCE }, async 
       '[data-testid="sidebar-new-task"]',
       '[data-testid="sidebar-history-item-1"]',
       '[data-testid="sidebar-history-item-2"]',
-      '[data-testid="sidebar-change-directory"]',
+      /*
+       * ★ 2026-09-24「侧边栏工作目录」改造同步口径（.plan/task-sidebar-dir-menu.md §四·4.0 / §五）：
+       * 旧的 "sidebar-change-directory"（「打开文件夹」哑按钮）已删除、testid 不再存在。
+       * 这里必须换成触发条的 "sidebar-working-directory"，不能留旧值：
+       * 旧值查不到 → ".filter(Boolean)" 会静默吞掉一个采样点（抽查 7→6，仍 ≥5 ⇒ 假绿），
+       * 「三态齐全」看起来照样通过，实际少测一项却无人知道。这是"检查点无声消失"的典型。
+       * ⚠️ 本段位于 cdp.eval 的模板字面量内，注释里禁止出现反引号（会提前闭合模板）。
+       * 触发条本身带 hover:/active:/transition 三类，满足本条判据。
+       */
+      '[data-testid="sidebar-working-directory"]',
       '[data-testid="screen-back"]',
     ];
     return sels.map((s) => window.__TM5.q(s)).filter(Boolean).map((el) => {
@@ -613,7 +622,16 @@ await withBrowser({ port: PORT, origin: ORIGIN, evidencePath: EVIDENCE }, async 
     const out = [];
     const push = (sel, name) => { const el = window.__TM5.q(sel); if (el) out.push(check(el, name)); };
     push('[data-testid="sidebar-history-item-0"] span:last-child', 'sidebar-history-title');
-    push('[data-testid="sidebar-working-directory"] span:last-child', 'sidebar-working-directory');
+    /*
+     * ★ 2026-09-24 同步口径（.plan/task-sidebar-dir-menu.md §四·4.0 / §五）：
+     * 旧选择器 "[data-testid="sidebar-working-directory"] span:last-child" 无条件必改。
+     * 触发条改造后右侧要加 chevron（展开指示），路径 span 就不再是 last-child
+     * ⇒ 旧选择器返回 null ⇒ 下面的 "if (el)" 会静默跳过 —— 「长文本有省略策略」这条检查
+     * 悄悄消失，而断言里 "results.length >= 3" 仍能满足（还有另外三处采样）⇒ 假绿。
+     * ⚠️ 本段位于 cdp.eval 的模板字面量内，注释里禁止出现反引号（会提前闭合模板）。
+     * 改指冻结的显式 testid 后，本条对 chevron 免疫。
+     */
+    push('[data-testid="sidebar-working-directory-path"]', 'sidebar-working-directory');
     push('[data-testid="shell-preview-label"] span:last-child', 'shell-preview-note');
     push('[data-testid="titlebar-title"]', 'titlebar-session-title');
     return { results: out, hScroll: window.__TM5.hScroll() };

@@ -297,3 +297,37 @@ export const DIALOG_TRANSITION_MS = 200;
 
 /** 弹窗展开时的最大高度（视口占比，留边距；用 vh 表达，非颜色） */
 export const SETTINGS_DIALOG_MAX_HEIGHT_VH = 90;
+
+/* ---------------------------------------------------------------------------
+ * 工作目录上弹菜单（侧边栏 + 设置页共用同一个浮层组件）
+ *
+ * ★ 这个浮层是**项目里第一个 portal**：触发条位于
+ *   `sidebar-working-directory-content`（`overflow-y-auto`）内部，且外层
+ *   `sidebar-working-directory-section`（`:270`）与 `aside`（`:181`）**也都是
+ *   `overflow-hidden`** —— 原地 `absolute bottom-full`（ChipMenu 的写法）会被逐层裁掉，
+ *   而且被裁时 `getBoundingClientRect()` 照样返回正常数值（"看起来有值"≠"看得见"）。
+ *   所以必须 `createPortal(panel, document.body)` + `position: fixed`。
+ * ------------------------------------------------------------------------- */
+
+/** 面板最小宽度（触发条较窄时也要放得下路径与「下次启动 / 运行中」角标） */
+export const WORKING_DIR_MENU_MIN_WIDTH = 240;
+
+/** 面板与触发条之间的间距 */
+export const WORKING_DIR_MENU_GAP = 6;
+
+/**
+ * 浮层统一 z 轴高度。
+ *
+ * 既有梯子：10 站内 / 20 ChipMenu / 50 Dialog + NoticeStack。
+ * 取 60 的**唯一原因**是设置页场景：那里面板要盖住 `Dialog`（z-50，见
+ * `primitives/Dialog.tsx:108`），否则「更改」弹出的面板会被 backdrop 与弹窗本体压住。
+ */
+export const POPOVER_Z = 60;
+
+/**
+ * 面板淡入时长（ms）。
+ * reduced-motion 下取**半量**（与 `Dialog` 同款口径），**绝不取消过渡** ——
+ * `motion-reduce:transition-none` 会生成 `transition-property: none`，
+ * 把过渡整个干掉（G8 老坑，headless Chrome 默认即 reduce）。
+ */
+export const WORKING_DIR_MENU_FADE_MS = 120;

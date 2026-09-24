@@ -364,7 +364,15 @@ async function main() {
         '[data-testid="titlebar-toggle-preview"]',
         '[data-testid="sidebar-new-task"]',
         '[data-testid="sidebar-history-item-1"]',
-        '[data-testid="sidebar-change-directory"]',
+        /*
+         * ★ 2026-09-24「侧边栏工作目录」改造同步口径（.plan/task-sidebar-dir-menu.md §五）：
+         * "sidebar-change-directory"（「打开文件夹」哑按钮）已删除。
+         * 必须换成触发条 "sidebar-working-directory" —— 旧值查不到后会被下面的
+         * ".filter(Boolean)" 静默吞掉（抽查 6→5，仍 ≥5 ⇒ 假绿），
+         * 「三态齐全」看起来照样通过，实际检查点无声消失。
+         * ⚠️ 本段位于 cdp.eval 的模板字面量内，注释里禁止出现反引号（会提前闭合模板）。
+         */
+        '[data-testid="sidebar-working-directory"]',
         '[data-testid="screen-back"]',
       ];
       const els = sels.map((s) => window.__T5.q(s)).filter(Boolean);
@@ -511,7 +519,13 @@ async function main() {
       const hist = window.__T5.q('[data-testid="sidebar-history-item-0"] span:last-child');
       if (hist) results.push(check(hist, 'sidebar-history-title'));
       // 侧边栏工作目录（truncate + title）
-      const wd = window.__T5.q('[data-testid="sidebar-working-directory"] span:last-child');
+      /*
+       * ★ 2026-09-24 同步口径（.plan/task-sidebar-dir-menu.md §五）：无条件必改。
+       * 触发条加了右侧 chevron 后，路径 span 不再是 last-child
+       * ⇒ 旧选择器返回 null ⇒ 下面的 "if (wd)" 静默跳过 ⇒ 长文本检查悄悄消失。
+       * ⚠️ 本段位于 cdp.eval 的模板字面量内，注释里禁止出现反引号（会提前闭合模板）。
+       */
+      const wd = window.__T5.q('[data-testid="sidebar-working-directory-path"]');
       if (wd) results.push(check(wd, 'sidebar-working-directory'));
       // 06 屏卡片说明文字（truncate + title）
       const note = window.__T5.q('[data-testid="shell-preview-label"] span:last-child');

@@ -29,6 +29,8 @@
     "probe:settings": "node scripts/probe-settings-dialog.mjs",
     "probe:settings:live": "node scripts/probe-settings-live.mjs",
     "probe:onboarding": "node scripts/probe-settings-onboarding.mjs",
+    "probe:dir-menu": "node scripts/probe-dir-menu.mjs",
+    "probe:dir-menu:live": "node scripts/probe-dir-menu.mjs --live",
     "shots:m1": "node scripts/m1-shots.mjs"
   },
   "dependencies": {

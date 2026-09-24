@@ -43,6 +43,20 @@ export interface TransportHooks {
   onConnectionRestored?: () => void;
 }
 
+/**
+ * `GET /sessions` 的返回（C4 新增 `cwd` 之后）。
+ *
+ * - `cwd`：core 进程**真实生效的工作目录**（`runtime.getCwd()`，即 `CORE_CWD` 或
+ *   `process.cwd()`）。UI 侧**只读展示**，且**取不到时必须显式降级**，
+ *   绝不许回落成本地记录值 —— 用本地值冒充"当前会话目录"就是造一个很像真的假事实
+ *   （同「无模型别回落 mock modelId」的铁律）。
+ * - `sessions`：当前目录的历史会话清单；清单为空时也保证是数组（调用方无需判 null）。
+ */
+export interface SessionListResult {
+  cwd: string | null;
+  sessions: SessionSummary[];
+}
+
 export interface AgentTransport {
   /** 发送一条用户消息 */
   sendMessage(text: string): Promise<void>;
@@ -58,8 +72,8 @@ export interface AgentTransport {
   setHooks(hooks: TransportHooks): void;
 
   /* ---------------------------------------------------------------- C4 · 会话 */
-  /** 当前工作目录的历史会话清单（Sidebar 在 live 形态下的数据源） */
-  listSessions(): Promise<SessionSummary[]>;
+  /** 当前工作目录的历史会话清单 + core 的真实 cwd（Sidebar 在 live 形态下的数据源） */
+  listSessions(): Promise<SessionListResult>;
   /** 按 id 加载历史会话（返回 `Message[]` + 标题/时间/token 用量） */
   loadSession(id: string): Promise<SessionLoadResult>;
   /** 续接最近一次会话（只读） */
@@ -287,10 +301,14 @@ export class HttpAgentTransport implements AgentTransport {
 
   /* ------------------------------------------------------------------ C4 */
 
-  async listSessions(): Promise<SessionSummary[]> {
-    // core 的响应是 `{ ok, cwd, sessions }`；清单为空时也必须返回数组（UI 侧无需再判 null）
-    const body = await this.get<{ sessions?: SessionSummary[] }>("/sessions");
-    return Array.isArray(body?.sessions) ? body.sessions : [];
+  async listSessions(): Promise<SessionListResult> {
+    // core 的响应是 `{ ok, cwd, sessions }`（server.ts:324）；清单为空时也必须返回数组
+    const body = await this.get<{ cwd?: unknown; sessions?: SessionSummary[] }>("/sessions");
+    return {
+      // 空串 / 非字符串一律视为「拿不到」⇒ null，由调用方显式降级（不在此处编一个值）
+      cwd: typeof body?.cwd === "string" && body.cwd.length > 0 ? body.cwd : null,
+      sessions: Array.isArray(body?.sessions) ? body.sessions : [],
+    };
   }
 
   loadSession(id: string): Promise<SessionLoadResult> {

@@ -1,11 +1,11 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-23T07:56:11.427Z",
+  "startedAt": "2026-09-24T13:07:42.362Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 62,
+        "扫描文件数": 79,
         "hex在tokens之外": [],
         "dark变体命中": [],
         "内置调色板命中": [],
@@ -260,6 +260,9 @@
           "hasNeutralIcon": true,
           "strokeSamples": [
             "rgb(138, 145, 158)",
+            "rgb(15, 122, 88)",
+            "rgb(53, 99, 232)",
+            "rgb(192, 57, 43)",
             "rgb(97, 101, 107)"
           ]
         },
@@ -287,7 +290,7 @@
           "route": "01 工作台",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 339,
+          "measured": 336,
           "tokenValuesExcluded": 0,
           "bodyMin": 5.16,
           "bodyMinSample": {
@@ -307,7 +310,7 @@
           "route": "00 令牌",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 189,
+          "measured": 205,
           "tokenValuesExcluded": 52,
           "bodyMin": 4.9,
           "bodyMinSample": {
@@ -316,7 +319,7 @@
             "color": "rgb(107, 147, 255)"
           },
           "auxMin": 3.17,
-          "auxCount": 99,
+          "auxCount": 102,
           "minText": 3.17,
           "hScroll": {
             "scrollWidth": 1414,
@@ -327,7 +330,7 @@
           "route": "01b 源码态",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 339,
+          "measured": 336,
           "tokenValuesExcluded": 0,
           "bodyMin": 5.16,
           "bodyMinSample": {
@@ -347,17 +350,17 @@
           "route": "03 运行详情",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 73,
+          "measured": 113,
           "tokenValuesExcluded": 0,
-          "bodyMin": 5.68,
+          "bodyMin": 4.9,
           "bodyMinSample": {
-            "t": "~ / projects / atlas",
-            "c": 5.68,
-            "color": "rgb(154, 160, 168)"
+            "t": "模型",
+            "c": 4.9,
+            "color": "rgb(107, 147, 255)"
           },
-          "auxMin": 3.5,
-          "auxCount": 32,
-          "minText": 3.5,
+          "auxMin": 3.21,
+          "auxCount": 40,
+          "minText": 3.21,
           "hScroll": {
             "scrollWidth": 1424,
             "clientWidth": 1424
@@ -367,16 +370,16 @@
           "route": "04 技能与工具",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 85,
+          "measured": 125,
           "tokenValuesExcluded": 0,
-          "bodyMin": 5.68,
+          "bodyMin": 4.9,
           "bodyMinSample": {
-            "t": "~ / projects / atlas",
-            "c": 5.68,
-            "color": "rgb(154, 160, 168)"
+            "t": "模型",
+            "c": 4.9,
+            "color": "rgb(107, 147, 255)"
           },
           "auxMin": 3.17,
-          "auxCount": 33,
+          "auxCount": 41,
           "minText": 3.17,
           "hScroll": {
             "scrollWidth": 1424,
@@ -387,17 +390,17 @@
           "route": "05 设置",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 69,
+          "measured": 336,
           "tokenValuesExcluded": 0,
-          "bodyMin": 4.9,
+          "bodyMin": 5.16,
           "bodyMinSample": {
-            "t": "支持 Max",
-            "c": 4.9,
+            "t": "查看完整内容（还有 8 行）",
+            "c": 5.16,
             "color": "rgb(107, 147, 255)"
           },
-          "auxMin": 3.5,
-          "auxCount": 29,
-          "minText": 3.5,
+          "auxMin": 3.17,
+          "auxCount": 13,
+          "minText": 3.17,
           "hScroll": {
             "scrollWidth": 1424,
             "clientWidth": 1424
@@ -407,7 +410,7 @@
           "route": "06 窗口壳",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 310,
+          "measured": 303,
           "tokenValuesExcluded": 0,
           "bodyMin": 5.16,
           "bodyMinSample": {
@@ -471,11 +474,11 @@
           "name": "修复深色模式对比度"
         },
         {
-          "testid": "sidebar-change-directory",
+          "testid": "sidebar-working-directory",
           "hasHover": true,
           "hasActive": true,
           "hasTransition": true,
-          "name": "打开文件夹"
+          "name": "~/projects/atlas-agent"
         },
         {
           "testid": "screen-back",
@@ -507,49 +510,49 @@
           "testid": "titlebar-open-settings",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(45, 77, 169)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
           "testid": "titlebar-toggle-preview",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(44, 77, 169)",
+          "outlineColor": "rgb(45, 77, 169)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-new-task",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-search",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-history-item-0",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(40, 66, 140)",
+          "outlineColor": "rgb(47, 85, 191)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-history-item-1",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(62, 99, 206)",
+          "outlineColor": "rgb(73, 100, 174)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-history-item-2",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(73, 100, 174)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         },
         {
@@ -610,15 +613,15 @@
         "results": [
           {
             "name": "sidebar-history-title",
-            "scrollW": 224,
-            "clientW": 224,
+            "scrollW": 214,
+            "clientW": 214,
             "noOverflow": true,
             "hasTitle": true
           },
           {
             "name": "sidebar-working-directory",
-            "scrollW": 157,
-            "clientW": 157,
+            "scrollW": 180,
+            "clientW": 180,
             "noOverflow": true,
             "hasTitle": true
           },
@@ -653,12 +656,17 @@
     {
       "name": "遗留_Tabs aria 接线观测",
       "value": {
-        "tabCount": 2,
-        "panelCount": 1,
+        "tabCount": 7,
+        "panelCount": 2,
         "panels": [
           {
             "id": "preview-panel-code",
             "labelledby": "preview-tab-code",
+            "labelledbyResolves": true
+          },
+          {
+            "id": "settings-tab-panel-models",
+            "labelledby": "settings-tab-tab-models",
             "labelledbyResolves": true
           }
         ],
@@ -672,6 +680,31 @@
             "controls": "preview-panel-code",
             "resolves": true,
             "selected": "true"
+          },
+          {
+            "controls": null,
+            "resolves": false,
+            "selected": "false"
+          },
+          {
+            "controls": "settings-tab-panel-models",
+            "resolves": true,
+            "selected": "true"
+          },
+          {
+            "controls": null,
+            "resolves": false,
+            "selected": "false"
+          },
+          {
+            "controls": null,
+            "resolves": false,
+            "selected": "false"
+          },
+          {
+            "controls": null,
+            "resolves": false,
+            "selected": "false"
           }
         ],
         "activeTab": "preview-tab-code"
@@ -848,27 +881,27 @@
           "01 工作台: 5.16",
           "00 令牌: 4.9",
           "01b 源码态: 5.16",
-          "03 运行详情: 5.68",
-          "04 技能与工具: 5.68",
-          "05 设置: 4.9",
+          "03 运行详情: 4.9",
+          "04 技能与工具: 4.9",
+          "05 设置: 5.16",
           "06 窗口壳: 5.16"
         ],
         "各屏正文最低样本": [
           "01 工作台: \"查看完整内容（还有 8 行）\"",
           "00 令牌: \"Claude Sonnet\"",
           "01b 源码态: \"查看完整内容（还有 8 行）\"",
-          "03 运行详情: \"~ / projects / atlas\"",
-          "04 技能与工具: \"~ / projects / atlas\"",
-          "05 设置: \"支持 Max\"",
+          "03 运行详情: \"模型\"",
+          "04 技能与工具: \"模型\"",
+          "05 设置: \"查看完整内容（还有 8 行）\"",
           "06 窗口壳: \"查看完整内容（还有 8 行）\""
         ],
         "各屏辅助最低对比度": [
           "01 工作台: 3.17 (13 处)",
-          "00 令牌: 3.17 (99 处)",
+          "00 令牌: 3.17 (102 处)",
           "01b 源码态: 3.17 (13 处)",
-          "03 运行详情: 3.5 (32 处)",
-          "04 技能与工具: 3.17 (33 处)",
-          "05 设置: 3.5 (29 处)",
+          "03 运行详情: 3.21 (40 处)",
+          "04 技能与工具: 3.17 (41 处)",
+          "05 设置: 3.17 (13 处)",
           "06 窗口壳: 3.17 (29 处)"
         ],
         "各屏排除的令牌展示值数": [
@@ -941,15 +974,17 @@
     },
     {
       "name": "遗留裁决 2：Tab 面板 role=tabpanel + aria-labelledby 闭环；aria-controls 仅激活 tab 持有且可解析（G7）",
-      "pass": true,
-      "failed": [],
+      "pass": false,
+      "failed": [
+        "恰一个激活tab"
+      ],
       "detail": {
         "存在面板": true,
         "存在tab": true,
         "每个面板有id": true,
         "每个面板有aria_labelledby": true,
         "aria_labelledby可解析到tab": true,
-        "恰一个激活tab": true,
+        "恰一个激活tab": false,
         "激活tab带aria_controls": true,
         "非激活tab不带aria_controls": true,
         "出现的aria_controls均可解析": true
@@ -970,8 +1005,10 @@
   ],
   "summary": {
     "assertions": 21,
-    "passed": 21,
-    "failed": 0,
-    "failedNames": []
+    "passed": 20,
+    "failed": 1,
+    "failedNames": [
+      "遗留裁决 2：Tab 面板 role=tabpanel + aria-labelledby 闭环；aria-controls 仅激活 tab 持有且可解析（G7）"
+    ]
   }
 }
