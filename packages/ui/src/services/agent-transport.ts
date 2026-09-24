@@ -57,6 +57,12 @@ export interface SessionListResult {
   sessions: SessionSummary[];
 }
 
+/** `POST /cwd` 的成功返回（D7）：新 cwd + 该目录的信任门结论（UI 据此在提示里补「未信任」说明） */
+export interface CwdSwitchResult {
+  cwd: string;
+  trust: { trusted: boolean } | null;
+}
+
 export interface AgentTransport {
   /** 发送一条用户消息 */
   sendMessage(text: string): Promise<void>;
@@ -78,6 +84,12 @@ export interface AgentTransport {
   loadSession(id: string): Promise<SessionLoadResult>;
   /** 续接最近一次会话（只读） */
   continueRecentSession(): Promise<SessionLoadResult>;
+  /**
+   * 运行期热切换工作目录（D7，2026-09-24 裁决）：`dir=null` = core 默认目录
+   * （`process.cwd()`）。成功后 core 会经 SSE 广播 `cwd_changed`（UI 重拉清单）。
+   * 流式中（409）/ 目录无效（400）抛错，错误文案取 core 的 `{ error }` 原文。
+   */
+  switchCwd(dir: string | null): Promise<CwdSwitchResult>;
 
   /* ------------------------------------------------- C5 · 04/05 屏数据源 */
   /** 04 屏：扩展 / 提示词 / 技能三类（已按信任门过滤项目本地资源） */
@@ -317,6 +329,36 @@ export class HttpAgentTransport implements AgentTransport {
 
   continueRecentSession(): Promise<SessionLoadResult> {
     return this.post<SessionLoadResult>("/sessions/continue-recent", {});
+  }
+
+  /**
+   * D7：不通用 `this.post` —— 它对非 200 只给 `core /cwd -> 409`，丢掉 core 的
+   * `{ error }` 友好文案（流式中 / 目录无效），而这两类失败 UI 要原样提示给用户。
+   */
+  async switchCwd(dir: string | null): Promise<CwdSwitchResult> {
+    const res = await fetch(`${this.cfg.baseUrl}/cwd`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeader() },
+      body: JSON.stringify(dir === null ? {} : { dir }),
+    });
+    const body = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      cwd?: unknown;
+      trust?: unknown;
+      error?: unknown;
+    } | null;
+    if (!res.ok || !body?.ok || typeof body.cwd !== "string") {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `切换工作目录失败（HTTP ${res.status}）`);
+    }
+    const trust = body.trust;
+    return {
+      cwd: body.cwd,
+      trust:
+        trust && typeof trust === "object" && typeof (trust as { trusted?: unknown }).trusted === "boolean"
+          ? (trust as { trusted: boolean })
+          : null,
+    };
   }
 
   /* ------------------------------------------------------------------ C5 */

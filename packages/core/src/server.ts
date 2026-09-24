@@ -20,7 +20,7 @@ import path from "node:path";
 import { toAgentEvent } from "./adapt.ts";
 import type { AgentEvent, ModelTestRequest, ProviderModelsRequest, PutProvidersRequest } from "./contract.ts";
 import { isRecord } from "./guards.ts";
-import type { CoreRuntime } from "./session.ts";
+import { InvalidCwdError, type CoreRuntime } from "./session.ts";
 
 export interface ServerHandle {
   port: number;
@@ -63,6 +63,8 @@ const API_ROUTES = new Set([
 	"/providers/models",
 	// C6 · 04 屏工具开关接 Pi
 	"/tools/active",
+	// D7 · 工作目录运行期热切换
+	"/cwd",
 ]);
 
 /** 从 Host 头取主机名：`1.2.3.4:5190` → `1.2.3.4`；`[::1]:5190` → `::1`；`localhost` → `localhost` */
@@ -151,11 +153,14 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		}
 	};
 
-	/** core 直接生成的 AgentEvent（uiContext 授权请求 / 用量快照），已是契约形状，终态立即下发 */
+	/** core 直接生成的 AgentEvent（uiContext 授权请求 / 用量快照 / 目录热切换），已是契约形状，终态立即下发 */
 	const dispatchAgent = (e: unknown) => {
 		if (
 			isRecord(e) &&
-			(e.type === "approval_request" || e.type === "approval_settled" || e.type === "usage")
+			(e.type === "approval_request" ||
+				e.type === "approval_settled" ||
+				e.type === "usage" ||
+				e.type === "cwd_changed")
 		) {
 			flushBatch();
 			push(e);
@@ -258,6 +263,8 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				extensions: runtime.getExtensionCount(),
 				trust: runtime.getTrust(),
 				model: runtime.getActiveModel(),
+				// D7：运维可见性（流式中的会话正在生成回复；POST /cwd 据此 409）
+				streaming: runtime.isStreaming(),
 			});
 		}
 
@@ -310,6 +317,27 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			const body = (await readBody(req)) as { requestId?: string };
 			const r = runtime.cancelApproval(String(body.requestId ?? ""));
 			return json(200, { ok: true, accepted: r.accepted });
+		}
+
+		/* -----------------------------------------------------------------
+		 * D7 · 工作目录运行期热切换（POST /cwd {dir?}）
+		 * dir 缺省/空 = core 默认目录（process.cwd()）。流式中 409、目录无效 400，
+		 * 成功回 `{ ok, cwd, trust }`；同时经 SSE 广播 `cwd_changed`（多标签页同步）。
+		 * ----------------------------------------------------------------- */
+		if (req.method === "POST" && urlPath === "/cwd") {
+			const body = (await readBody(req)) as { dir?: string };
+			// 前置护栏：不偷偷中止正在生成的回复（switchCwd 内还有同判据兜底）
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再切换目录" });
+			}
+			const dir = typeof body.dir === "string" && body.dir.trim().length > 0 ? body.dir.trim() : null;
+			try {
+				const r = await runtime.switchCwd(dir);
+				return json(200, { ok: true, cwd: r.cwd, trust: r.trust });
+			} catch (e) {
+				if (e instanceof InvalidCwdError) return json(400, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
 		}
 
 		/* -----------------------------------------------------------------

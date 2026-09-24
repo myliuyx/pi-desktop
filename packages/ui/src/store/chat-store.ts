@@ -111,6 +111,12 @@ function ensureLive(): void {
       useChatStore.setState({ tokenUsage: event.usage });
       return;
     }
+    // D7：core 热切换工作目录后的广播 —— 会话清单与 liveCwd 按新目录重拉。
+    // 发起方与**其他标签页**都靠这一条同步（多标签下没有别的新目录信号）。
+    if (event.type === "cwd_changed") {
+      void useChatStore.getState().refreshSessions();
+      return;
+    }
     liveDraft = applyEvent(liveDraft, event);
     useChatStore.setState({ messages: liveDraft.messages, streaming: liveDraft.streaming });
     // C4：一轮对话结束后刷新会话清单 —— Pi 是在首条 entry 追加时才落盘会话文件，

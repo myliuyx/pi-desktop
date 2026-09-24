@@ -22,7 +22,8 @@ import { DEFAULT_WORKING_DIR } from "@/mock/settings";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { useUiStore } from "@/store/ui-store";
 import { useChatStore } from "@/store/chat-store";
-import { useNoticeStore } from "@/store/notice-store";
+import { notifyFailure, useNoticeStore } from "@/store/notice-store";
+import { getLiveTransport } from "@/services/live-transport";
 
 /**
  * 侧栏「工作目录」触发条 + **上弹**浮层（指针与键盘上都可用），设置页复用同一个浮层。
@@ -42,11 +43,18 @@ import { useNoticeStore } from "@/store/notice-store";
  *
  * ## 取值口径（本模块的另一条铁律）
  *
- * live 形态显示 **core 的真实 cwd**（`GET /sessions` 已返回，只读）；
+ * live 形态显示 **core 的真实 cwd**（`GET /sessions` 返回，`chat-store.liveCwd`）；
  * 拿不到时**显式降级**成占位文案，**绝不回落成 `uiStore.workingDir`** ——
  * 本地记录值冒充"当前会话目录"会造出一个并不存在但很像真的事实
  * （同「无可用模型时不得回落 mock modelId」）。`data-current-source` 是这条口径的
  * **唯一无歧义判据**：`unavailable` 与 `mock` 的文字可能长得一样（都可能是某个路径）。
+ *
+ * ## 选择语义（D7，2026-09-24 裁决：运行期热切换）
+ *
+ * live 下选目录 = **立即热切换**：`POST /cwd` → core 重建 cwd 绑定链（信任门照走）→
+ * SSE 广播 `cwd_changed` → `refreshSessions()` 刷新 `liveCwd`。不再有「下次启动」承诺
+ * （原「记偏好 + 提示重启」口径已废）；偏好（`uiStore.workingDir`）只剩 mock 语义。
+ * 「使用默认目录」live = 切回 core 默认（`process.cwd()`）；mock = 清除偏好。
  */
 
 /** 显示值的来源（`data-current-source` 的取值，属 §4.0 契约，不得改名） */
@@ -76,7 +84,7 @@ export interface WorkingDirectoryView {
   fullPath: string;
   /** 左侧省略后的展示值（侧栏路径行用） */
   label: string;
-  /** 本地偏好目录；`null` = 未设置（跟随 core 默认）。live 下即「下次启动带不带 CORE_CWD」；mock 下即当前展示值的直接来源 */
+  /** mock 形态的偏好目录（即当前展示值的直接来源）；`null` = 未设置（回落展示占位）。live 下本字段不参与显示（恒为真 cwd）也不参与选择（选择走 POST /cwd 热切换，D7） */
   preference: string | null;
   /** live 下 core 的真实 cwd；未拿到为 null */
   liveCwd: string | null;
@@ -289,42 +297,59 @@ export function WorkingDirectoryMenu({
   /* ------------------------------------------------------------------ 选择 */
 
   /**
-   * 记偏好目录。
+   * live 热切换（D7）：`POST /cwd` → core 重建 cwd 绑定链（信任门照走）→ SSE 广播。
+   * 成功后把**切走的旧目录**推入最近列表（一键切回），并主动重拉一次会话清单 ——
+   * `cwd_changed` 广播本来也会触发 `refreshSessions()`，这里再调是给
+   * 「SSE 短暂断线」的防御：显式反馈优先于依赖隐式通道。
+   * 失败原样透出 core 的 `{ error }` 文案（流式中 409 / 目录无效 400）。
+   */
+  async function switchLive(dir: string | null) {
+    const transport = getLiveTransport();
+    if (!transport) return;
+    const previous = liveCwd;
+    try {
+      const r = await transport.switchCwd(dir);
+      if (previous && previous !== r.cwd) useUiStore.getState().recordRecentDir(previous);
+      void useChatStore.getState().refreshSessions();
+      const trustNote = r.trust && !r.trust.trusted ? "（项目资源未信任：仅加载全局扩展）" : "";
+      useNoticeStore.getState().notify({
+        tone: "success",
+        text: `工作目录已切换：${r.cwd}${trustNote}`,
+      });
+    } catch (e) {
+      notifyFailure("切换工作目录失败", e);
+    }
+  }
+
+  /**
+   * 选一个最近目录。
    *
    * - mock：`workingDir` 就是显示值，所以**立即变**，且不弹提示（C21）；
-   * - live：真实目录是 core 的启动参数，UI **不做热切换**（D2/§六），
-   *   所以只记偏好 + **显式提示需重启生效**（D5）——不假装能热切。
+   * - live：**立即热切换**（D7，2026-09-24 裁决）—— 原「记偏好 + 提示重启生效」
+   *   （D5）已随热切换落地整体作废，不再写「下次启动」。
    */
   function chooseDir(dir: string) {
-    setWorkingDir(dir);
-    if (live && dir !== liveCwd) {
-      useNoticeStore.getState().notify({
-        tone: "info",
-        text: `已记录为下次启动目录：${dir}。重启 core 后生效：cd packages/core && CORE_CWD=${dir} npm run smoke`,
-      });
+    if (live) {
+      void switchLive(dir);
+    } else {
+      setWorkingDir(dir);
     }
     close();
     triggerRef.current?.focus();
   }
 
   /**
-   * 「使用默认目录」= **清除偏好**（2026-09-24 裁决，替代旧的「写回 DEFAULT_WORKING_DIR」）。
-   *
-   * 为什么不写任何路径：live 的「默认」是 core **未来启动时**的 `process.cwd()`，
-   * UI 此刻拿不到 —— 写死某个值（如 mock 占位 `DEFAULT_WORKING_DIR`，`~` 路径在
-   * Windows 上根本不存在）只会造出一个不存在但很像真的偏好。清除后 core 侧
-   * `CORE_CWD` 缺省 ⇒ 自动回落 pi 自己的 `process.cwd()`，语义才是真的「用默认」。
-   *
-   * - live：弹提示说明重启后不带 `CORE_CWD`（对齐 chooseDir 的显式反馈）；
-   * - mock：偏好即显示值，清除立即生效，不弹提示（C21 先例）。
+   * 「使用默认目录」：
+   * - live = **热切回 core 默认**（`process.cwd()`，即 CORE_CWD 缺省时的启动值，D7）；
+   * - mock = 清除偏好（2026-09-24 裁决，替代更早的「写回 DEFAULT_WORKING_DIR」——
+   *   `~` 占位路径在 Windows 上根本不存在，落盘就是造一个很像真的假事实），
+   *   显示值当场回落占位值，立即生效不弹提示（C21 先例）。
    */
   function chooseDefault() {
-    clearWorkingDir();
     if (live) {
-      useNoticeStore.getState().notify({
-        tone: "info",
-        text: "已恢复默认：下次启动 core 不设置 CORE_CWD，将以 core 启动时所在目录（process.cwd()）为工作目录",
-      });
+      void switchLive(null);
+    } else {
+      clearWorkingDir();
     }
     close();
     triggerRef.current?.focus();
@@ -391,7 +416,7 @@ export function WorkingDirectoryMenu({
       size="sm"
       data-testid="settings-change-dir"
       className="shrink-0"
-      title={live ? "选择工作目录（下次启动 core 时使用）" : "选择工作目录"}
+      title={live ? "切换工作目录（立即生效）" : "选择工作目录"}
       aria-haspopup="menu"
       aria-expanded={open}
       aria-controls={open ? menuTestId : undefined}
@@ -461,41 +486,29 @@ export function WorkingDirectoryMenu({
               {restRecents.length > 0 ? (
                 <>
                   <div className="my-1 border-t border-border-subtle" />
-                  {restRecents.map((dir, index) => {
-                    /*
-                     * 「下次启动」只在 live 且**偏好 ≠ 真实目录**时有信息量；
-                     * 两者相同时不显示（否则等于告诉用户一句废话）。
-                     * 偏好项**不占勾位**：live 下真实目录与偏好是两个概念，
-                     * 出现两个 ✓ 会让用户分不清哪个是"现在"，§4.6 明令禁止。
-                     */
-                    const pending = live && dir === preference && dir !== liveCwd;
-                    return (
-                      <button
-                        key={dir}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={false}
-                        tabIndex={-1}
-                        data-testid={`sidebar-working-directory-recent-${index}`}
-                        title={dir}
-                        onClick={() => chooseDir(dir)}
-                        className={cn(menuItemClass, "text-text-secondary")}
-                      >
-                        <Icon icon={Check} size={14} className="invisible shrink-0" />
-                        <span className="min-w-0 flex-1 truncate font-mono text-xs">
-                          {truncatePathTail(dir)}
-                        </span>
-                        {pending ? (
-                          <span
-                            data-testid={`sidebar-working-directory-recent-${index}-pending`}
-                            className="shrink-0 text-xs text-text-tertiary"
-                          >
-                            下次启动
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
+                  {/*
+                   * 偏好项**不占勾位**：live 下真实目录与偏好是两个概念，
+                   * 出现两个 ✓ 会让用户分不清哪个是"现在"，§4.6 明令禁止。
+                   * （原「下次启动」角标随 D7 热切换语义整体退场。）
+                   */}
+                  {restRecents.map((dir, index) => (
+                    <button
+                      key={dir}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={false}
+                      tabIndex={-1}
+                      data-testid={`sidebar-working-directory-recent-${index}`}
+                      title={dir}
+                      onClick={() => chooseDir(dir)}
+                      className={cn(menuItemClass, "text-text-secondary")}
+                    >
+                      <Icon icon={Check} size={14} className="invisible shrink-0" />
+                      <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                        {truncatePathTail(dir)}
+                      </span>
+                    </button>
+                  ))}
                 </>
               ) : null}
 

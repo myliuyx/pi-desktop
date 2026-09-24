@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-24T15:18:41.632Z",
+  "startedAt": "2026-09-24T16:42:46.993Z",
   "steps": [
     {
       "name": "C1_实测",
@@ -272,6 +272,8 @@
         "点选索引": 1,
         "目标目录": "/probe/beta",
         "点前首行": "/probe/very/long/working/directory/path/that/exceeds/thirty-two/characters",
+        "apiCwd": null,
+        "点后首行": "/probe/beta",
         "workingDirStorage": "/probe/beta",
         "menuGone": true,
         "focusOnTrigger": true,
@@ -633,7 +635,7 @@
       }
     },
     {
-      "name": "C7 点「使用默认目录」⇒ 清除偏好（localStorage[working-dir] 移除）；recentDirs 不含 mock 占位值；mock：首行回落 DEFAULT_WORKING_DIR；live：首行不变（真 cwd）、无「下次启动」角标、只有一个 ✓",
+      "name": "C7 mock：点「使用默认目录」⇒ 清除偏好（localStorage[working-dir] 移除）；recentDirs 不含 mock 占位值；首行回落 DEFAULT_WORKING_DIR",
       "pass": true,
       "failed": [],
       "detail": {
@@ -645,7 +647,7 @@
       }
     },
     {
-      "name": "C8 依次选多个目录 ⇒ 存储 recentDirs 只留 5 条、最新在最上、无重复；再次选择后：mock 该目录成为首行、live 该目录获得「下次启动」角标",
+      "name": "C8 依次选多个目录 ⇒ 存储 recentDirs 只留 5 条、最新在最上、无重复；再次选择后该目录成为首行",
       "pass": true,
       "failed": [],
       "detail": {

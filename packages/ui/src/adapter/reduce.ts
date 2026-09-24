@@ -285,5 +285,13 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 	 */
 	case "usage":
 		return state;
+
+	/*
+	 * cwd_changed 是「工作目录已热切换」信号（D7），reducer 只维护消息树 → 原样返回。
+	 * 真正的消费在 store 层（chat-store 收到后 refreshSessions 重拉清单与 liveCwd）。
+	 * 同 usage：判别联合的新成员必须显式列出，否则 TS2366 + 运行时 undefined。
+	 */
+	case "cwd_changed":
+		return state;
 }
 }

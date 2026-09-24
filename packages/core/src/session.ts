@@ -75,6 +75,16 @@ export interface CoreRuntime {
 	getExtensionCount(): number | null;
 	/** 会话工作目录（`/sessions` 响应里带上，便于复核「列的是哪个目录的会话」） */
 	getCwd(): string;
+	/** 会话是否正在生成回复（POST /cwd 的 409 护栏判据；会话未就绪时恒 false） */
+	isStreaming(): boolean;
+	/**
+	 * 运行期热切换工作目录（2026-09-24 D7 裁决，解禁原「不做热切换」）。
+	 * `dir=null` = core 默认目录（`process.cwd()`，即 CORE_CWD 缺省时的启动值）。
+	 * 成功 = 重建 cwd 绑定链（settings / 资源加载 / 信任门 / 会话）并广播 `cwd_changed`；
+	 * 原会话按 Pi 规则留在原目录。目录无效抛 `InvalidCwdError`（端点回 400）；
+	 * 流式中抛普通 Error（端点前置判据回 409）。
+	 */
+	switchCwd(dir: string | null): Promise<{ cwd: string; trust: TrustDecision }>;
 	/**
 	 * 当前生效模型；**无可用模型时为 null**（2026-09-24 起服务允许无模型启动，
 	 * 此时服务可用、可进设置页配置，只是还不能对话）。`/health` 用它做运维可见性。
@@ -138,6 +148,9 @@ export interface CoreBootstrap {
 	/** 会话初始化完成（含信任门裁决）。失败时 reject。 */
 	ready: Promise<void>;
 }
+
+/** `switchCwd` 的可预期失败（目录不存在 / 不是目录）：server 据此回 400，与意外错误（500）区分 */
+export class InvalidCwdError extends Error {}
 
 export interface CreateRuntimeOptions {
 	agentDir?: string;
@@ -224,7 +237,8 @@ function readDefaultModel(agentDir: string): { provider: string; modelId: string
 export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstrap {
 	const agentDir = opts.agentDir ?? path.join(os.homedir(), ".pi", "agent");
 	fs.mkdirSync(agentDir, { recursive: true });
-	const cwd = opts.cwd ?? process.cwd();
+	// D7：let（原 const）—— switchCwd 运行期热切换会改写它；启动值 = opts.cwd ?? process.cwd()
+	let cwd = opts.cwd ?? process.cwd();
 
 	/*
 	 * models.json 路径解析提前到外层，这样 `GET /providers` 即使会话尚未就绪也能读到文件
@@ -361,6 +375,88 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		},
 	});
 
+	/*
+	 * 项目引导（cwd 绑定链）—— 启动与运行期热切换（switchCwd，D7）**共用同一条路**，
+	 * 保证「切换后的目录」与「启动时的目录」行为完全一致（同一信任门、同一资源过滤口径）。
+	 *
+	 * 产物全部 cwd 绑定：SettingsManager → DefaultResourceLoader（信任门在其 reload
+	 * 两段式里裁决）→ createAgentSession → bindExtensions → 事件订阅。
+	 * **不改任何全局可变状态**：产物交调用方换引用（先换后 dispose 旧实例，rebuildSession 同规），
+	 * 失败时半成品会话就地回收、旧会话不动。
+	 * 前置条件：modelRuntime / activeModel 已就绪（ready 流程先于本函数）。
+	 */
+	const bootProject = async (
+		dir: string,
+	): Promise<{
+		session: AgentSession;
+		settingsManager: SettingsManager;
+		resourceLoader: DefaultResourceLoader;
+		trust: TrustDecision;
+		extensionCount: number;
+	}> => {
+		if (!modelRuntime) throw new Error("modelRuntime 未就绪，无法引导项目会话");
+		const modelRuntimeRef = modelRuntime;
+		const settingsManagerCreated = SettingsManager.create(dir, agentDir);
+		// ★ 信任门 A3：SDK 的默认 reload 不传 resolveProjectTrust（= 无门），
+		//   所以这里自建 loader 并显式走 Pi 的两段式（resource-loader.ts:263-273）。
+		const loader = new DefaultResourceLoader({ cwd: dir, agentDir, settingsManager: settingsManagerCreated });
+		let decision: TrustDecision | null = null;
+		await loader.reload({
+			resolveProjectTrust: async ({ extensionsResult }: { extensionsResult: LoadExtensionsResult }) => {
+				decision = await resolveProjectTrust({
+					cwd: dir,
+					settingsManager: settingsManagerCreated,
+					// 与扩展提问共用同一条通道（SSE 下发 approval_request → POST /approve 回收）
+					ask: (title, options, timeoutMs) => bridge.ask(title, options, timeoutMs),
+					timeoutMs: opts.trustTimeoutMs ?? DEFAULT_TRUST_TIMEOUT_MS,
+				});
+				console.log(
+					`[core] 信任门：cwd=${decision.cwd} defaultProjectTrust=${decision.defaultProjectTrust} ` +
+						`trusted=${decision.trusted} reason=${decision.reason} asked=${decision.asked} ` +
+						`bootstrap扩展数=${extensionsResult.extensions?.length ?? 0} 耗时=${decision.elapsedMs}ms`,
+				);
+				return decision.trusted;
+			},
+		});
+		if (!decision) throw new Error("信任门未产出结论（loader.reload 未回调 resolveProjectTrust）");
+		const trustDecision: TrustDecision = decision;
+
+		const created = await createAgentSession({
+			// 无模型时**整个字段省略**（贴合 d.ts 的 `model?` 可选语义），SDK 自行走
+			// findInitialModel → 拿不到就只给 modelFallbackMessage
+			...(activeModel ? { model: activeModel } : {}),
+			modelRuntime: modelRuntimeRef,
+			agentDir,
+			cwd: dir,
+			settingsManager: settingsManagerCreated,
+			resourceLoader: loader,
+		});
+		// SDK 的提示（如 "No models available. ..."）原样转出，便于运维定位
+		if (created.modelFallbackMessage) console.warn(`[core] ${created.modelFallbackMessage}`);
+
+		try {
+			if (disposed) throw new Error("core 已停机，放弃挂接新会话");
+			// ★ 关键一步（S3 §2.4 hasUI 陷阱）：不注入 uiContext 则 hasUI=false，
+			//   扩展（如 permission-gate）会走「无 UI 直接 block」分支 ——
+			//   命令静默失败、UI 侧看不到任何授权卡。
+			await created.session.bindExtensions({ uiContext: bridge.uiContext, mode: "rpc" });
+			created.session.subscribe((event: unknown) => {
+				trackUsage(event);
+				emitRaw(event);
+			});
+		} catch (e) {
+			created.session.dispose();
+			throw e;
+		}
+		return {
+			session: created.session,
+			settingsManager: settingsManagerCreated,
+			resourceLoader: loader,
+			trust: trustDecision,
+			extensionCount: created.extensionsResult.extensions?.length ?? 0,
+		};
+	};
+
 	const ready = (async (): Promise<void> => {
 		const modelsPath = resolvedModelsPath ?? resolveModelsPath(agentDir);
 		const runtime = await ModelRuntime.create({ modelsPath });
@@ -407,61 +503,18 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 
 		if (process.platform === "win32" && opts.shellPath) mergeShellPath(agentDir, opts.shellPath);
 
-		// ★ 信任门 A3：SDK 的默认 reload 不传 resolveProjectTrust（= 无门），
-		//   所以这里自建 loader 并显式走 Pi 的两段式（resource-loader.ts:263-273）。
-		const settingsManagerCreated = SettingsManager.create(cwd, agentDir);
-		settingsManager = settingsManagerCreated;
-		const loader = new DefaultResourceLoader({ cwd, agentDir, settingsManager: settingsManagerCreated });
-		await loader.reload({
-			resolveProjectTrust: async ({ extensionsResult }: { extensionsResult: LoadExtensionsResult }) => {
-				trust = await resolveProjectTrust({
-					cwd,
-					settingsManager: settingsManagerCreated,
-					// 与扩展提问共用同一条通道（SSE 下发 approval_request → POST /approve 回收）
-					ask: (title, options, timeoutMs) => bridge.ask(title, options, timeoutMs),
-					timeoutMs: opts.trustTimeoutMs ?? DEFAULT_TRUST_TIMEOUT_MS,
-				});
-				console.log(
-					`[core] 信任门：cwd=${trust.cwd} defaultProjectTrust=${trust.defaultProjectTrust} ` +
-						`trusted=${trust.trusted} reason=${trust.reason} asked=${trust.asked} ` +
-						`bootstrap扩展数=${extensionsResult.extensions?.length ?? 0} 耗时=${trust.elapsedMs}ms`,
-				);
-				return trust.trusted;
-			},
-		});
-		resourceLoader = loader;
-
-		const created = await createAgentSession({
-			// 无模型时**整个字段省略**（贴合 d.ts 的 `model?` 可选语义），SDK 自行走
-			// findInitialModel → 拿不到就只给 modelFallbackMessage
-			...(model ? { model } : {}),
-			modelRuntime: runtime,
-			agentDir,
-			cwd,
-			settingsManager: settingsManagerCreated,
-			resourceLoader: loader,
-		});
-		session = created.session;
-		extensionCount = created.extensionsResult.extensions?.length ?? 0;
-		// SDK 的提示（如 "No models available. ..."）原样转出，便于运维定位
-		if (created.modelFallbackMessage) console.warn(`[core] ${created.modelFallbackMessage}`);
-
-		if (disposed) {
-			session.dispose();
-			return;
-		}
-
-		// ★ 关键一步（S3 §2.4 hasUI 陷阱）：不注入 uiContext 则 hasUI=false，
-		//   扩展（如 permission-gate）会走「无 UI 直接 block」分支 —— 命令静默失败、
-		//   UI 侧看不到任何授权卡。
-		await session.bindExtensions({ uiContext: bridge.uiContext, mode: "rpc" });
-		session.subscribe((event: unknown) => {
-			trackUsage(event);
-			emitRaw(event);
-		});
+		// cwd 绑定链走 bootProject（与 switchCwd 共用，见其注释）；产物在此换全局引用
+		const boot = await bootProject(cwd);
+		session = boot.session;
+		settingsManager = boot.settingsManager;
+		resourceLoader = boot.resourceLoader;
+		trust = boot.trust;
+		extensionCount = boot.extensionCount;
 		console.log(
 			`[core] 会话就绪：加载到扩展 ${extensionCount} 个` +
-				(model ? `；当前模型 ${model.provider}/${model.id}` : "；当前无模型（待设置页配置）"),
+				(activeModel
+					? `；当前模型 ${activeModel.provider}/${activeModel.id}`
+					: "；当前无模型（待设置页配置）"),
 		);
 	})();
 
@@ -508,6 +561,57 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		console.log(`[core] 已切换活动会话：${sessionFile}`);
 	};
 
+	/*
+	 * 运行期热切换工作目录（2026-09-24 D7 裁决，解禁原「不做清单 #1」）：
+	 * UI 点「使用默认目录」/ 最近目录**立即生效**，不再承诺「下次启动」。
+	 *
+	 * 实现 = cwd 绑定链整体重建：`bootProject(新目录)` 产出全新的 settings / loader /
+	 * 信任门 / 会话，成功后一次性换引用 → 广播 `cwd_changed` → 最后 dispose 旧会话
+	 * （rebuildSession 同规：先换后丢）。bootProject 失败时旧会话原样保留 ——
+	 * 绝不出现「新目录没建成、旧会话也丢了」的两头空。
+	 *
+	 * - `dir=null` = core 默认目录（`process.cwd()`，即 CORE_CWD 缺省时的启动值）；
+	 * - 流式中拒绝（不偷偷中止正在生成的回复；端点另有前置判据回 409，这里是兜底）；
+	 * - 同目录 no-op（不重建）；
+	 * - 目录无效抛 `InvalidCwdError`（端点回 400，UI 原样透出文案）；
+	 * - 未信任目录沿启动同一条信任门：bridge.ask 实时弹卡，拒绝/超时 = 按不信任加载
+	 *   （**切换不失败**，与启动语义一致：信任只影响项目本地资源的加载与过滤）。
+	 */
+	const switchCwd = async (dir: string | null): Promise<{ cwd: string; trust: TrustDecision }> => {
+		await ready;
+		if (session?.isStreaming) {
+			throw new Error("会话正在生成回复，请先停止再切换目录");
+		}
+		const target = path.resolve(dir ?? process.cwd());
+		let st: fs.Stats;
+		try {
+			st = fs.statSync(target);
+		} catch {
+			throw new InvalidCwdError(`目录不存在：${target}`);
+		}
+		if (!st.isDirectory()) throw new InvalidCwdError(`不是目录：${target}`);
+		if (target === cwd) {
+			if (!trust) throw new Error("信任门未就绪");
+			return { cwd, trust };
+		}
+		const previousCwd = cwd;
+		const previousSession = session;
+		const boot = await bootProject(target);
+		session = boot.session;
+		settingsManager = boot.settingsManager;
+		resourceLoader = boot.resourceLoader;
+		trust = boot.trust;
+		extensionCount = boot.extensionCount;
+		cwd = target;
+		// 用量按新会话（空壳）重置；广播放在 dispose 旧会话**之后**，
+		// 避免 UI 收到事件来拉清单时旧会话还占着位置（时序可观测的假状态）
+		resetUsageFromSession();
+		previousSession?.dispose();
+		emitAgent({ type: "cwd_changed", cwd: target });
+		console.log(`[core] 工作目录已切换：${previousCwd} → ${target}`);
+		return { cwd: target, trust: boot.trust };
+	};
+
 	const runtime: CoreRuntime = {
 		prompt: async (text: string) => {
 			await ready;
@@ -532,6 +636,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		getTrust: () => trust,
 		getExtensionCount: () => extensionCount,
 		getCwd: () => cwd,
+		isStreaming: () => session?.isStreaming ?? false,
+		switchCwd,
 		getActiveModel: () => {
 			// 与 contextWindow 同口径：占位模型（provider="unknown"）归一成 null
 			const m = usableModel() ?? (activeModel && modelRuntime?.getModel(activeModel.provider, activeModel.id) ? activeModel : null);

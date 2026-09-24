@@ -300,7 +300,9 @@ export type AgentEvent =
       type: "approval_settled";
       requestId: string;
       resolution: "accepted" | "cancelled";
-    };
+    }
+  /** 新增：工作目录已热切换（D7，POST /cwd 成功后广播；UI 收到后重拉会话清单与 cwd 展示） */
+  | { type: "cwd_changed"; cwd: string };
 
 /* ---------------------------------------------------------------------------
  * C6 · 04 屏工具开关（`GET /tools/active` / `POST /tools/active {names}`）

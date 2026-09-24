@@ -6,11 +6,13 @@
  *
  * 规格：`.plan/task-sidebar-dir-menu.md`
  * - §4.0 接口冻结 = testid / role / `data-current-source` / 端口 的**唯一权威来源**；
- * - §七 验收 = C1–C16（通用，两形态都跑）+ C17–C22（形态差异）。
+ * - §七 验收 = C1–C16（通用，两形态都跑）+ C17–C22（形态差异）+ C24/C25（D7 热切换）。
  *
  * 覆盖矩阵
  * ├─ mock（dev server :5180 + CDP 9348）：C1–C16 + C21
- * └─ live（core :5380 + CDP 9349，先 `npm run build`）：C1–C16 + C17/C18/C19/C20/C22
+ * └─ live（core :5380 + CDP 9349，先 `npm run build`）：C1–C16 + C17/C18/C19/C20/C22 + C24/C25
+ *    （D7 · 2026-09-24 起点选目录 = 运行期热切换：C19 点最近目录立即切换、
+ *     C7-live 点默认目录切回 process.cwd()；C24 目录无效 400；C25 流式中 409 · 最佳努力）
  *
  * 用法
  *   # 前置：packages/ui 起 dev server（默认 :5180）
@@ -111,12 +113,11 @@ const MOCK_LONG_DIR = "/probe/very/long/working/directory/path/that/exceeds/thir
 /** mock 的短目录夹具（点击后验"短路径不截尾"与"首行立即变"） */
 const MOCK_SHORT_DIRS = ["/probe/alpha", "/probe/beta"];
 /**
- * live 的偏好夹具：`working-dir` 故意设为与真 cwd 不同的目录，
- * 这样 C19 的「下次启动」角标 / notice 才有可观测前提；
- * 同时让 C17 的「未回落成本地偏好」这条断言真正有鉴别力（否则等于没测）。
+ * live 的偏好夹具：`working-dir` 故意设为与真 cwd 不同的目录。
+ * D7 起它**只剩一个用途**：证明 UI 不会回落到这个本地存储值（C17 的鉴别力来源）——
+ * live 下选择已改为热切换，偏好存储不再被改写（C19 断言这一点）。
  */
 const LIVE_PREF_DIR = "/probe/pref-other";
-const LIVE_OTHER_DIR = "/probe/other-2";
 
 /** C8 的 7 条夹具（含 1 条重复）：去重后 6 条，截 5 条 → d6..d2 */
 const C8_SEED = [
@@ -427,6 +428,15 @@ async function runLive() {
   const cwdRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dir-menu-cwd-fixture-"));
   const cwdFixture = path.join(cwdRoot, "workspace");
   fs.mkdirSync(cwdFixture, { recursive: true });
+  /*
+   * ★ D7：点「最近目录」= 立即热切换 ⇒ 种子里的最近目录**必须是真实存在的目录**
+   * （旧口径只测偏好记录，假路径即可；现在假路径会吃 core 的 400）。alpha/beta 就是
+   * 给 C19 / C6 用的两个真实可切换目标，且都与启动 cwd（workspace）不同。
+   */
+  const alphaDir = path.join(cwdRoot, "alpha");
+  const betaDir = path.join(cwdRoot, "beta");
+  fs.mkdirSync(alphaDir, { recursive: true });
+  fs.mkdirSync(betaDir, { recursive: true });
   const coreDefaultCwd = coreDir; // core 以 cwd: coreDir 启动 ⇒ 缺省 CORE_CWD 时 process.cwd() 就是它
   const fixtureDiffersFromDefault = cwdFixture !== coreDefaultCwd;
   console.log(
@@ -449,9 +459,12 @@ async function runLive() {
       const env = {
         mode: "live",
         route: "/?live=1",
-        seed: { working: LIVE_PREF_DIR, recent: [LIVE_OTHER_DIR, LIVE_PREF_DIR] },
+        seed: { working: LIVE_PREF_DIR, recent: [alphaDir, betaDir] },
         expectedFull: cwdFixture,
         coreDefaultCwd,
+        // C24 要用的「不存在目录」与 C19/C6 的真实切换目标（进 evidence 便于复核）
+        alphaDir,
+        betaDir,
         // 供 C18 / C22 使用的子 core 启动器（也写进 cores 以便 finally 收尸）
         launch: (opts) => {
           const c = launchCore({ ...opts, agentDir });
@@ -545,7 +558,56 @@ async function runLive() {
       await coreD.close();
       cores.splice(cores.indexOf(coreD), 1);
 
-      /* 所有判据（含 C18/C22/C23）跑完，统一落盘一次 */
+      /* ---------------- C24：POST /cwd 指向不存在的目录（D7 · 目录无效 400） ---------------- */
+      {
+        const missingDir = path.join(tmpRoot, "no-such-dir-for-switch");
+        const beforeCwd = (await coreGet(LIVE_ORIGIN, "/sessions"))?.cwd ?? null;
+        const r400 = await corePost(LIVE_ORIGIN, "/cwd", { dir: missingDir });
+        const afterCwd = (await coreGet(LIVE_ORIGIN, "/sessions"))?.cwd ?? null;
+        failures += checkLive(ctx, "C24", "core（D7）：POST /cwd 指向不存在的目录 ⇒ 400 + {error} 点名目录 + cwd 不变", {
+          状态码400: r400?.status === 400,
+          有error文案: typeof r400?.json?.error === "string" && r400.json.error.length > 0,
+          error点名了目录: String(r400?.json?.error ?? "").includes(missingDir),
+          cwd保持不变: beforeCwd !== null && afterCwd === beforeCwd,
+        }, { 请求目录: missingDir, 响应: r400?.json ?? null, 切换前cwd: beforeCwd, 切换后cwd: afterCwd });
+      }
+
+      /* ---------------- C25：流式中 POST /cwd ⇒ 409（D7 · 最佳努力） ---------------- */
+      /*
+       * 护栏判据：会话正在生成回复时切换必须被拒。需要真实模型产出一段可见时长的流式输出，
+       * 若 10s 内 /health.streaming 未变 true（模型不可用/响应过快/无网络），记「不适用」跳过
+       * —— 本判据**绝不因环境而假红**，但也因此只在模型可用时提供真证据。
+       */
+      {
+        await corePost(LIVE_ORIGIN, "/prompt", {
+          text: "请从 1 数到 300，每行一个数字，不要任何解释或额外内容",
+        });
+        let streamed = false;
+        for (let i = 0; i < 40; i++) {
+          await sleep(250);
+          const h = await coreGet(LIVE_ORIGIN, "/health");
+          if (h?.streaming === true) {
+            streamed = true;
+            break;
+          }
+        }
+        if (!streamed) {
+          ctx.record("C25_不适用", {
+            说明: "10s 内 /health.streaming 未变 true（模型不可用或响应过快），流式 409 护栏未实测",
+          });
+        } else {
+          const otherDir = env.betaDir;
+          const r409 = await corePost(LIVE_ORIGIN, "/cwd", { dir: otherDir });
+          await corePost(LIVE_ORIGIN, "/abort", {});
+          failures += checkLive(ctx, "C25", "core（D7）：会话流式生成中 POST /cwd ⇒ 409 + 拒绝文案", {
+            状态码409: r409?.status === 409,
+            有拒绝文案: typeof r409?.json?.error === "string" && r409.json.error.length > 0,
+            文案提到停止: /停止/.test(String(r409?.json?.error ?? "")),
+          }, { 目标目录: otherDir, 响应: r409?.json ?? null });
+        }
+      }
+
+      /* 所有判据（含 C18/C22/C23/C24/C25）跑完，统一落盘一次 */
       finalize(ctx);
     });
 
@@ -557,7 +619,7 @@ async function runLive() {
     {
       const ev = JSON.parse(readText(path.join(uiPkgDir, LIVE_EVIDENCE)) || "{}");
       const names = (ev.assertions ?? []).map((a) => a.name);
-      const required = ["C18", "C22", "C23"];
+      const required = ["C18", "C22", "C23", "C24"];
       const missing = required.filter((id) => !names.some((n) => n.startsWith(`${id} `)));
       if (missing.length) {
         console.error(
@@ -565,7 +627,7 @@ async function runLive() {
         );
         failures += 1;
       } else {
-        console.log(`[dir-menu:live] 证据完整性：C18/C22/C23 均已落盘（共 ${names.length} 条断言）`);
+        console.log(`[dir-menu:live] 证据完整性：C18/C22/C23/C24 均已落盘（共 ${names.length} 条断言）`);
       }
     }
   } catch (e) {
@@ -623,6 +685,13 @@ async function runSuite(ctx, env) {
   await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: HELPERS });
 
   const isLive = env.mode === "live";
+
+  /*
+   * live 的「当前 cwd」跟踪器（D7）：热切换判据会真实改变 core 的 cwd，
+   * 后续判据（C8/C9 重载后等首行落定）要等**当前值**而不是启动值。
+   * mock 形态恒等于 expectedFull，跟踪器无效果。
+   */
+  let liveCwdNow = env.expectedFull;
 
   /* ---------- 0. 播种 localStorage，再进正式形态 ---------- */
   // 先在 origin 上落一页，才能写 localStorage（同源限制）
@@ -1025,9 +1094,12 @@ async function runSuite(ctx, env) {
       设置弹窗仍在: b.exists === true && b.dialogStillOpen === true,
       关闭设置后弹窗已收起: c.dialogClosed === true,
       关闭设置后设置面板不残留: c.settingsMenuGone === true,
-      // mock 下选择即生效、无「重启」语义；live 下才提示「下次启动 core 时使用」
+      // mock 下选择即生效、无「重启」语义；live 下 D7 热切换：提示「立即生效」且**不再有**「下次启动」
       ...(isLive
-        ? { live设置更改按钮提示重启: /下次启动|重启/.test(clickedChange.title ?? "") }
+        ? {
+            live设置更改按钮提示立即生效: /立即生效/.test(clickedChange.title ?? ""),
+            live设置更改按钮无下次启动语义: !/下次启动|重启/.test(clickedChange.title ?? ""),
+          }
         : { mock设置更改按钮不提示重启: !/下次启动|重启/.test(clickedChange.title ?? "") }),
     }, { a, clickedChange, b, c });
   }
@@ -1055,12 +1127,18 @@ async function runSuite(ctx, env) {
     });
   }
 
-  /* =============================================================== C19（live） */
+  /* =============================================================== C19（live · D7 热切换） */
   if (!isLive) {
     noteSkipped("C19", "形态差异判据，仅在 live 形态执行");
   } else {
     await openMenu(cdp);
     const before = await readPanelState(cdp);
+    /*
+     * ★ D7（2026-09-24 裁决）：点最近目录 = **立即热切换**，不再有「下次启动」承诺。
+     * 目标取种子的第一个最近目录 —— 它是**真实存在的目录**（runLive 里 mkdir 的 alpha；
+     * 假路径会吃 core 的 400，见 C24）。切换是异步重建（bootProject），先等首行落定再读面板。
+     */
+    const target = env.seed.recent[0];
     await clickTestId(cdp, "sidebar-working-directory-recent-0");
     await sleep(450);
     const afterClick = await cdp.eval(`(() => ({
@@ -1068,40 +1146,32 @@ async function runSuite(ctx, env) {
       notice: ${NOTICE_PROBE},
       workingDirStorage: localStorage.getItem('working-dir'),
     }))()`);
+    const switched = await waitForPathTitle(cdp, target, 30000);
+    const api = await coreGet(LIVE_ORIGIN, "/sessions");
     await openMenu(cdp);
     const after = await readPanelState(cdp);
     const notice = afterClick.notice;
     const noticeTexts = notice.items.map((n) => n.text).join(" | ");
-    fails += check("C19", "live：点最近目录 ⇒ 首行不变（仍真 cwd）+ 弹 notice 提示需 CORE_CWD 重启 + 偏好项出「下次启动」灰字且不出现第二个 ✓", {
-      点击前首行是真cwd: before.currentPath === env.expectedFull,
-      点击前角标只在偏好项上:
-        before.pending.length === 1 &&
-        before.pending[0].text === "下次启动" &&
-        before.pending[0].ownerPath === env.seed.working,
+    liveCwdNow = target;
+    fails += check("C19", "live（D7 热切换）：点最近目录 ⇒ cwd **立即切换**（面板首行与 GET /sessions 的 cwd 都变）+ 旧目录进最近区 + 成功 notice；偏好存储不被改写、无「下次启动」角标、仍只有一个 ✓", {
+      点击前首行是启动cwd: before.currentPath === env.expectedFull,
+      点击前无下次启动角标: before.pending.length === 0,
       点击后面板关闭: afterClick.menuGone === true,
-      点击后偏好已记下: afterClick.workingDirStorage === LIVE_OTHER_DIR,
-      弹出了notice: notice.count > 0 || notice.bodyTextHasCoreCwd,
-      notice文案含CORE_CWD:
-        notice.items.some((t) => t.text.includes("CORE_CWD")) || notice.bodyTextHasCoreCwd,
-      notice提示需重启:
-        notice.items.some((t) => /重启/.test(t.text)) ||
-        (notice.bodyTextHasCoreCwd && notice.bodyTextHasRestart),
-      点击后首行不变: after.currentPath === env.expectedFull,
-      "点击后data_current_source仍为live": after.source === "live",
-      只有一个勾_无第二个:
-        after.checkedTrueCount === 1 && after.recentChecked.every((c) => c !== "true"),
-      角标指向新偏好:
-        after.pending.length === 1 &&
-        after.pending[0].text === "下次启动" &&
-        after.pending[0].ownerPath === LIVE_OTHER_DIR,
+      偏好存储未被改写: afterClick.workingDirStorage === env.seed.working,
+      面板首行已切到目标: switched.ok === true && after.currentPath === target,
+      "GET_sessions的cwd已切换": api?.cwd === target,
+      弹出了成功notice: notice.count > 0,
+      notice含已切换: /已切换/.test(noticeTexts),
+      旧目录进最近区: after.recentPaths.includes(env.expectedFull),
+      全面板仍只有一个勾: after.checkedTrueCount === 1,
       运行中角标仍在: after.badgeRunning === true,
-    }, { before, afterClick, after, notice文案: noticeTexts });
+    }, { before, afterClick, after, switched, apiCwd: api?.cwd ?? null, 目标: target, notice文案: noticeTexts });
   }
 
   /* =============================================================== C6 */
   {
     await openMenu(cdp);
-    // 刻意选**最后一个**最近目录（不是 0）：live 下 C19 刚把 recent-0 记成偏好，
+    // 刻意选**最后一个**最近目录（不是 0）：live 下 C19 刚把 recent-0 的目录切成当前，
     // 若这里再点同一条，就成了「点了个没变化的值」——判据会退化成只测"关不关面板"。
     const st = await readPanelState(cdp);
     const idx = Math.max(0, st.recentPaths.length - 1);
@@ -1114,13 +1184,39 @@ async function runSuite(ctx, env) {
       focusOnTrigger: document.activeElement === window.__DM.trigger(),
       active: window.__DM.activeId(),
     }))()`);
-    fails += check("C6", "选一项后：localStorage[working-dir] 变更 + 面板关闭 + 焦点回到触发条", {
-      "按钮可点": clicked === true,
-      "localStorage_working_dir已是所选值": target !== null && r.workingDirStorage === target,
-      所选值确实与点前不同: target !== null && target !== st.currentPath,
-      面板已关闭: r.menuGone === true,
-      焦点回到触发条: r.focusOnTrigger === true,
-    }, { 点选索引: idx, 目标目录: target, 点前首行: st.currentPath, ...r });
+    let switched = { ok: true, got: null };
+    let apiCwd = null;
+    if (isLive) {
+      // live（D7）：点击 = 立即热切换；等 core 的面板首行落定后再核对 API cwd。
+      // ⚠️ 种子最近目录都是真实目录（runLive mkdir），否则这里会吃 400。
+      switched = await waitForPathTitle(cdp, target, 30000);
+      apiCwd = (await coreGet(LIVE_ORIGIN, "/sessions"))?.cwd ?? null;
+      liveCwdNow = target;
+    }
+    await openMenu(cdp);
+    const st2 = await readPanelState(cdp);
+    await ensureClosed(cdp);
+    fails += check(
+      "C6",
+      isLive
+        ? "live（D7 热切换）：选一项后 ⇒ cwd 立即切换（面板首行与 GET /sessions 均变）+ 面板关闭 + 焦点回到触发条"
+        : "选一项后：localStorage[working-dir] 变更 + 面板关闭 + 焦点回到触发条",
+      {
+        "按钮可点": clicked === true,
+        ...(isLive
+          ? {
+              面板首行已切到目标: switched.ok === true && st2.currentPath === target,
+              "GET_sessions的cwd已切换": apiCwd === target,
+            }
+          : {
+              "localStorage_working_dir已是所选值": target !== null && r.workingDirStorage === target,
+            }),
+        所选值确实与点前不同: target !== null && target !== st.currentPath,
+        面板已关闭: r.menuGone === true,
+        焦点回到触发条: r.focusOnTrigger === true,
+      },
+      { 点选索引: idx, 目标目录: target, 点前首行: st.currentPath, apiCwd, 点后首行: st2.currentPath, ...r },
+    );
   }
 
   /* =============================================================== C7 */
@@ -1128,37 +1224,51 @@ async function runSuite(ctx, env) {
     await openMenu(cdp);
     const clicked = await clickTestId(cdp, "sidebar-working-directory-default");
     await sleep(400);
-    const stored = await cdp.eval(`(() => ({
-      workingDir: localStorage.getItem('working-dir'),
-      recent: (() => { try { const v = JSON.parse(localStorage.getItem('recent-dirs') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })(),
-    }))()`);
-    await openMenu(cdp);
-    const panel = await readPanelState(cdp);
-    await ensureClosed(cdp);
-    /*
-     * ★ 2026-09-24 裁决改写：「使用默认目录」= **清除偏好**，不再写回任何路径 ——
-     * live 的「默认」是 core 未来启动时的 `process.cwd()`，UI 此刻拿不到；写死
-     * mock 占位值只会落盘一个不存在但很像真的偏好（旧断言已随之作废）。
-     * 新口径：偏好键被**移除**（`localStorage[working-dir] === null`）；
-     * recentDirs **不含**占位值（不再推入假目录，存储里残留的也会被 store 读取侧滤掉）；
-     * mock：首行回落 DEFAULT_WORKING_DIR、最近区不重复出现它；
-     * live：首行恒为真 cwd（§4.6 只读真相）、全面板**无**「下次启动」角标、仍只有一个 ✓。
-     */
-    fails += check("C7", "点「使用默认目录」⇒ 清除偏好（localStorage[working-dir] 移除）；recentDirs 不含 mock 占位值；mock：首行回落 DEFAULT_WORKING_DIR；live：首行不变（真 cwd）、无「下次启动」角标、只有一个 ✓", {
-      "按钮可点": clicked === true,
-      偏好键已移除: stored.workingDir === null,
-      recentDirs不含mock占位值: !stored.recent.includes(DEFAULT_WORKING_DIR),
-      ...(isLive
-        ? {
-            live_首行仍是真实cwd: panel.currentPath === env.expectedFull,
-            live_无下次启动角标: panel.pending.length === 0,
-            live_只有一个勾: panel.checkedTrueCount === 1,
-          }
-        : {
-            mock_面板首行是默认值: panel.currentPath === DEFAULT_WORKING_DIR,
-            mock_最近区不重复出现当前项: !panel.recentPaths.includes(DEFAULT_WORKING_DIR),
-          }),
-    }, { ...stored, 面板: panel, 期望默认值: DEFAULT_WORKING_DIR });
+    if (isLive) {
+      /*
+       * ★ live（D7 热切换）：点「使用默认目录」= POST /cwd(null) ⇒ core 切回自己的
+       * process.cwd()。切换是异步重建，先等首行落定，再核对 API cwd 与面板结构。
+       * 此时偏好存储（working-dir）**不该被动过**——live 选择不再写偏好。
+       */
+      const switched = await waitForPathTitle(cdp, env.coreDefaultCwd, 30000);
+      const stored = await cdp.eval(`(() => ({
+        workingDir: localStorage.getItem('working-dir'),
+        recent: (() => { try { const v = JSON.parse(localStorage.getItem('recent-dirs') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })(),
+      }))()`);
+      const apiCwd = (await coreGet(LIVE_ORIGIN, "/sessions"))?.cwd ?? null;
+      await openMenu(cdp);
+      const panel = await readPanelState(cdp);
+      await ensureClosed(cdp);
+      liveCwdNow = env.coreDefaultCwd;
+      fails += check("C7", "live（D7 热切换）：点「使用默认目录」⇒ cwd 立即切回 core 默认（process.cwd()）；旧目录进最近区；无「下次启动」角标；只有一个 ✓；recentDirs 不含 mock 占位值", {
+        "按钮可点": clicked === true,
+        面板首行是core默认cwd: switched.ok === true && panel.currentPath === env.coreDefaultCwd,
+        "GET_sessions的cwd是core默认": apiCwd === env.coreDefaultCwd,
+        旧目录进最近区: panel.recentPaths.includes(env.expectedFull),
+        无下次启动角标: panel.pending.length === 0,
+        只有一个勾: panel.checkedTrueCount === 1,
+        recentDirs不含mock占位值: !stored.recent.includes(DEFAULT_WORKING_DIR),
+      }, { stored, 面板: panel, apiCwd, 期望默认: env.coreDefaultCwd, switched });
+    } else {
+      const stored = await cdp.eval(`(() => ({
+        workingDir: localStorage.getItem('working-dir'),
+        recent: (() => { try { const v = JSON.parse(localStorage.getItem('recent-dirs') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } })(),
+      }))()`);
+      await openMenu(cdp);
+      const panel = await readPanelState(cdp);
+      await ensureClosed(cdp);
+      /*
+       * ★ 2026-09-24 裁决改写：「使用默认目录」= **清除偏好**，不再写回任何路径 ——
+       * mock 的「默认」= 展示回落占位值（DEFAULT_WORKING_DIR 仅展示，不进存储）。
+       */
+      fails += check("C7", "mock：点「使用默认目录」⇒ 清除偏好（localStorage[working-dir] 移除）；recentDirs 不含 mock 占位值；首行回落 DEFAULT_WORKING_DIR", {
+        "按钮可点": clicked === true,
+        偏好键已移除: stored.workingDir === null,
+        recentDirs不含mock占位值: !stored.recent.includes(DEFAULT_WORKING_DIR),
+        mock_面板首行是默认值: panel.currentPath === DEFAULT_WORKING_DIR,
+        mock_最近区不重复出现当前项: !panel.recentPaths.includes(DEFAULT_WORKING_DIR),
+      }, { ...stored, 面板: panel, 期望默认值: DEFAULT_WORKING_DIR });
+    }
   }
 
   /* =============================================================== C8 */
@@ -1171,46 +1281,51 @@ async function runSuite(ctx, env) {
     })()`);
     await ctx.open(env.route);
     await cdp.eval(HELPERS);
-    if (isLive) await waitForPathTitle(cdp, env.expectedFull, 25000);
+    if (isLive) await waitForPathTitle(cdp, liveCwdNow, 25000);
     await openMenu(cdp);
     const first = await readPanelState(cdp);
-    await clickTestId(cdp, `sidebar-working-directory-recent-${C8_CLICK_INDEX}`);
-    await sleep(450);
-    await openMenu(cdp);
-    const second = await readPanelState(cdp);
+    let second = null;
+    if (!isLive) {
+      await clickTestId(cdp, `sidebar-working-directory-recent-${C8_CLICK_INDEX}`);
+      await sleep(450);
+      await openMenu(cdp);
+      second = await readPanelState(cdp);
+    }
     const stored = await cdp.eval(`(() => {
       try { const v = JSON.parse(localStorage.getItem('recent-dirs') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
     })()`);
     await ensureClosed(cdp);
     /*
-     * ★ 2026-09-24 主控修正口径（同 C7）：「上限 5」的计数对象是**存储 recentDirs**；
-     * 面板显示 = 首行（当前）+ 最近区（存储去掉当前项），当前项被点击后**移到首行**、
-     * 不再占最近区一位 —— 这是 §4.6「不许两个 ✓」+ §4.8「当前目录恒置顶」的必然结果。
-     * 所以「再次选择后置顶且仍只有 5 条」的正确断法 = 存储置顶且 5 条、
-     * 面板首行 = 所点目录、最近区 = 存储去掉首行（顺序一致）。
+     * ★ 口径（同 §4.8）：「上限 5」的计数对象是**存储 recentDirs**；
+     * 面板显示 = 首行（当前）+ 最近区（存储去掉当前项）。
+     * ★ D7 拆分：再次选择的**点击**子步骤只在 mock 执行 —— live 的点击 = 立即热切换
+     * （C8_SEED 是假路径，点了会吃 400，且热切换已由 C19/C6 覆盖）；
+     * 存储的上限/去重/置顶逻辑两形态同源（lib/recent-dirs），mock 全量断言即可覆盖。
      */
     const clickedDir = C8_EXPECT_FIRST[C8_CLICK_INDEX];
-    /*
-     * 「再次选择后首行是所点目录」**只在 mock 成立**；live 下首行恒为真实 cwd（§4.6），
-     * 所点目录的变化形态 = 获得「下次启动」角标（ownerPath 断它）。
-     */
-    fails += check("C8", "依次选多个目录 ⇒ 存储 recentDirs 只留 5 条、最新在最上、无重复；再次选择后：mock 该目录成为首行、live 该目录获得「下次启动」角标", {
-      只留5条: first.recentPaths.length === 5,
-      最新在最上: JSON.stringify(first.recentPaths) === JSON.stringify(C8_EXPECT_FIRST),
-      无重复_首次: new Set(first.recentPaths).size === first.recentPaths.length,
-      ...(isLive
-        ? {
-            live_首行仍是真实cwd: second.currentPath === env.expectedFull,
-            live_所点目录获得角标: second.pending.some((p) => p.ownerPath === clickedDir && p.text === "下次启动"),
-          }
-        : {
-            mock_再次选择后首行是所点目录: second.currentPath === clickedDir,
-          }),
-      再次选择后存储置顶且5条: stored[0] === clickedDir && stored.length === 5,
-      再次选择后存储无重复: new Set(stored).size === stored.length,
-      最近区等于存储去掉当前项: JSON.stringify(second.recentPaths) === JSON.stringify(stored.filter((d) => d !== second.currentPath)),
-      当前项不出现在最近区: !second.recentPaths.includes(second.currentPath),
-    }, { 首次: first, 再次: second, "localStorage_recent_dirs": stored, 夹具: C8_SEED, 期望首次: C8_EXPECT_FIRST, 所点目录: clickedDir });
+    fails += check(
+      "C8",
+      isLive
+        ? "live：播 7 条夹具（含重复）⇒ 面板最近区只留 5 条、最新在最上、无重复（选择动作=热切换，已由 C19/C6 覆盖）"
+        : "依次选多个目录 ⇒ 存储 recentDirs 只留 5 条、最新在最上、无重复；再次选择后该目录成为首行",
+      {
+        只留5条: first.recentPaths.length === 5,
+        最新在最上: JSON.stringify(first.recentPaths) === JSON.stringify(C8_EXPECT_FIRST),
+        无重复_首次: new Set(first.recentPaths).size === first.recentPaths.length,
+        ...(isLive
+          ? {}
+          : {
+              mock_再次选择后首行是所点目录: second.currentPath === clickedDir,
+              再次选择后存储置顶且5条: stored[0] === clickedDir && stored.length === 5,
+              再次选择后存储无重复: new Set(stored).size === stored.length,
+              最近区等于存储去掉当前项:
+                JSON.stringify(second.recentPaths) ===
+                JSON.stringify(stored.filter((d) => d !== second.currentPath)),
+              当前项不出现在最近区: !second.recentPaths.includes(second.currentPath),
+            }),
+      },
+      { 首次: first, 再次: second, localStorage_recent_dirs: stored, 夹具: C8_SEED, 期望首次: C8_EXPECT_FIRST, 所点目录: clickedDir },
+    );
   }
 
   /* =============================================================== C21（mock） */
@@ -1273,7 +1388,8 @@ async function runSuite(ctx, env) {
     const beforeCount = exceptions.length;
     await ctx.open(env.route);
     await cdp.eval(HELPERS);
-    if (isLive) await waitForPathTitle(cdp, env.expectedFull, 25000);
+    // live：等 cwd 落定（D7 起可能已被前面的热切换判据改写，等**当前值**而非启动值）
+    if (isLive) await waitForPathTitle(cdp, liveCwdNow, 25000);
     const page = await cdp.eval(`(() => ({
       shell: !!window.__DM.q('[data-testid="window-shell"]'),
       sidebar: !!window.__DM.q('[data-testid="sidebar"]'),
@@ -1426,6 +1542,26 @@ async function coreGet(origin, p) {
   try {
     const res = await fetch(`${origin}${p}`, { headers: { Authorization: `Bearer ${LIVE_TOKEN}` } });
     return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** POST 版：C24/C25 要断言**状态码**（400/409），与 coreGet 的「只看 JSON」不同 */
+async function corePost(origin, p, body) {
+  try {
+    const res = await fetch(`${origin}${p}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${LIVE_TOKEN}` },
+      body: JSON.stringify(body ?? {}),
+    });
+    let json = null;
+    try {
+      json = await res.json();
+    } catch {
+      /* 无响应体 */
+    }
+    return { status: res.status, json };
   } catch {
     return null;
   }

@@ -242,6 +242,14 @@ interface UiState {
   setWorkingDir: (dir: string) => void;
 
   /**
+   * 只把目录推入最近记录（不动 `workingDir` 偏好）。
+   *
+   * 为什么单独一个 action（D7）：live 热切换后偏好语义已退场（选了立即生效，
+   * 没有「下次启动」可记），但「切走之前的旧目录」要进最近列表——一键切回。
+   */
+  recordRecentDir: (dir: string) => void;
+
+  /**
    * 清除工作目录偏好（「使用默认目录」的落地语义，2026-09-24 裁决）。
    *
    * ⚠️ **不写任何路径**：live 的「默认」是 core 未来启动时的 `process.cwd()`，
@@ -376,6 +384,12 @@ export const useUiStore = create<UiState>((set, get) => ({
       window.localStorage.removeItem(WORKING_DIR_STORAGE_KEY);
     }
     set({ workingDir: null });
+  },
+
+  recordRecentDir: (dir) => {
+    const recentDirs = pushRecentDir(get().recentDirs, dir);
+    writeRecentDirs(recentDirs);
+    set({ recentDirs });
   },
 
   recentDirs: readRecentDirsForStore(),
