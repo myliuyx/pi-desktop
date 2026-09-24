@@ -19,6 +19,9 @@
  *    按 id/name 不区分大小写匹配，上限 20 条，返回元数据供「填入模型信息」。
  * 7. **测试（D7）**：用请求体里的 provider/model 配置构造一次性最小请求（max_tokens:1），
  *    返回 ok/latency/error；**不落盘、不改当前选择**。
+ * 8. **非契约字段保留（S-extra）**：PUT 是契约形状的全量重建，但保存前会读回磁盘现状，
+ *    把 provider / model 级**契约之外**的字段按 id 原样并回（契约字段以请求为准）；
+ *    磁盘文件解析失败则拒绝保存（与 GET 同口径，绝不覆盖读不懂的旧文件）。
  *
  * 安全面：本模块只负责数据与协议；Bearer 401 / Host 403 由 server.ts 中间件统一覆盖。
  */
@@ -128,9 +131,47 @@ export function parseJsonc(text: string): unknown {
 		out += ch;
 		i++;
 	}
-	// 去尾逗号：`,` 后仅空白再接 `}` 或 `]`
-	out = out.replace(/,(\s*[}\]])/g, "$1");
+	// 去尾逗号：`,` 后仅空白再接 `}` 或 `]`。
+	// 此刻 out 已无注释、只剩字符串字面量（原样拷贝）与结构字符——二趟扫描逐字符处理：
+	// 字符串内部原样保留（内容里的 ", }" / ",]" 是数据，不能动），只删结构位置的尾逗号。
+	out = stripTrailingCommas(out);
 	return JSON.parse(out);
+}
+
+/** 去掉对象/数组字面量后的尾逗号；字符串字面量内部原样跳过（不含注释，勿在此语义外复用） */
+function stripTrailingCommas(text: string): string {
+	let res = "";
+	let i = 0;
+	while (i < text.length) {
+		const ch = text[i];
+		if (ch === '"') {
+			// 字符串字面量（含转义）原样拷贝
+			res += ch;
+			i++;
+			while (i < text.length) {
+				res += text[i];
+				if (text[i] === "\\" && i + 1 < text.length) {
+					res += text[i + 1];
+					i += 2;
+					continue;
+				}
+				i++;
+				if (text[i - 1] === '"') break;
+			}
+			continue;
+		}
+		if (ch === ",") {
+			let j = i + 1;
+			while (j < text.length && /\s/.test(text[j])) j++;
+			if (j < text.length && (text[j] === "}" || text[j] === "]")) {
+				i++; // 丢掉尾逗号
+				continue;
+			}
+		}
+		res += ch;
+		i++;
+	}
+	return res;
 }
 
 /* ---------------------------------------------------------------------------
@@ -231,7 +272,10 @@ function nativeModelToEntry(rec: NativeModelRecord): ProviderModelEntry {
 	};
 }
 
-/** ProviderEntry → 原生 provider 记录（剔除 id/enabled；保留全部 model 原生字段） */
+/**
+ * ProviderEntry → 原生 provider 记录（剔除 id/enabled）。
+ * **只产出契约字段**——非契约字段无法经 UI 往返，由 `mergeExtras` 在保存时从磁盘并回。
+ */
 function entryToNativeProvider(p: ProviderEntry): NativeProviderRecord {
 	return {
 		name: p.name,
@@ -257,54 +301,104 @@ function entryToNativeProvider(p: ProviderEntry): NativeProviderRecord {
 	};
 }
 
-/** 读取并合并 models.json + sidecar → ProviderEntry[] */
+/* ---------------------------------------------------------------------------
+ * 非契约字段保留（S-extra）：契约形状往返会把磁盘上的未知字段冲掉，此处并回
+ * ------------------------------------------------------------------------- */
+
+/** provider / model 在契约里表达出的全部字段（其余键视为「非契约」原样保留） */
+const CONTRACT_PROVIDER_KEYS = new Set(["name", "baseUrl", "apiKey", "api", "headers", "models"]);
+const CONTRACT_MODEL_KEYS = new Set([
+	"id",
+	"name",
+	"reasoning",
+	"input",
+	"contextWindow",
+	"maxTokens",
+	"cost",
+	"headers",
+	"compat",
+	"endpointOverride",
+]);
+
+/**
+ * 把磁盘旧记录里**契约之外**的字段并回新记录（请求侧永远赢契约字段）：
+ * - provider 级：新记录没有的键原样搬入（如 Pi 未来新增的原生字段）；
+ * - model 级：按 model id 对位，同样只搬非契约键（model 被删除则随行消失，属预期）。
+ * 新建 provider（磁盘上没有旧记录）无从合并，保持纯契约形状——UI 本就表达不了额外字段。
+ */
+function mergeExtras(rec: NativeProviderRecord, prev: NativeProviderRecord | undefined): NativeProviderRecord {
+	if (!prev) return rec;
+	for (const [k, v] of Object.entries(prev)) {
+		if (!CONTRACT_PROVIDER_KEYS.has(k) && !(k in rec)) rec[k] = v;
+	}
+	const prevModels = new Map<string, NativeModelRecord>();
+	if (Array.isArray(prev.models)) {
+		for (const m of prev.models as NativeModelRecord[]) {
+			if (m && typeof m === "object" && typeof m.id === "string") prevModels.set(m.id, m);
+		}
+	}
+	if (Array.isArray(rec.models)) {
+		rec.models = rec.models.map((m) => {
+			const prevM = prevModels.get(m.id);
+			if (!prevM) return m;
+			const merged: NativeModelRecord = { ...m };
+			for (const [k, v] of Object.entries(prevM)) {
+				if (!CONTRACT_MODEL_KEYS.has(k) && !(k in merged)) merged[k] = v;
+			}
+			return merged;
+		});
+	}
+	return rec;
+}
+
+/** 读取 models.json / sidecar 的 providers Record 映射（模块级：GET 合并与 PUT 保留非契约字段共用） */
 /**
  * ⚠️ 解析失败必须**抛出**，不能静默当空清单：
  * 「读不到 / 读不懂」与「清单确实是空的」是两回事。若把坏文件当成空清单返回，
  * UI 会显示「没有 Provider」，用户一点保存就把还躺在磁盘上的旧配置整份覆盖掉。
  * 据此 server 层把它转成结构化 `{ error }`（200 + error，不是 500），UI 回落 mock 并提示。
  */
+function readProviderRecordMap(
+	p: string | null,
+	label: string,
+	required: boolean,
+): Record<string, NativeProviderRecord> {
+	if (!p) {
+		if (required) throw new Error(`未找到 ${label}（无法读取）`);
+		return {};
+	}
+	let raw: string;
+	try {
+		raw = fs.readFileSync(p, "utf8");
+	} catch (e) {
+		if (required) throw new Error(`读取 ${label} 失败：${e instanceof Error ? e.message : String(e)}`);
+		return {};
+	}
+	let parsed: unknown;
+	try {
+		parsed = parseJsonc(raw);
+	} catch (e) {
+		throw new Error(
+			`${label} 解析失败（JSON / JSONC 语法错误，请检查文件内容）：${
+				e instanceof Error ? e.message : String(e)
+			}`,
+		);
+	}
+	if (parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).providers) {
+		const providers = (parsed as { providers: unknown }).providers;
+		if (providers && typeof providers === "object") {
+			return providers as Record<string, NativeProviderRecord>;
+		}
+	}
+	return {};
+}
+
 function readMergedProviders(
 	modelsPath: string | null,
 	sidecarPath: string | null,
 ): ProviderEntry[] {
-	const readRecordMap = (
-		p: string | null,
-		label: string,
-		required: boolean,
-	): Record<string, NativeProviderRecord> => {
-		if (!p) {
-			if (required) throw new Error(`未找到 ${label}（无法读取）`);
-			return {};
-		}
-		let raw: string;
-		try {
-			raw = fs.readFileSync(p, "utf8");
-		} catch (e) {
-			if (required) throw new Error(`读取 ${label} 失败：${e instanceof Error ? e.message : String(e)}`);
-			return {};
-		}
-		let parsed: unknown;
-		try {
-			parsed = parseJsonc(raw);
-		} catch (e) {
-			throw new Error(
-				`${label} 解析失败（JSON / JSONC 语法错误，请检查文件内容）：${
-					e instanceof Error ? e.message : String(e)
-				}`,
-			);
-		}
-		if (parsed && typeof parsed === "object" && (parsed as Record<string, unknown>).providers) {
-			const providers = (parsed as { providers: unknown }).providers;
-			if (providers && typeof providers === "object") {
-				return providers as Record<string, NativeProviderRecord>;
-			}
-		}
-		return {};
-	};
-
-	const enabled = readRecordMap(modelsPath, "models.json", true);
-	const disabled = readRecordMap(sidecarPath, "models-disabled.json", false);
+	const enabled = readProviderRecordMap(modelsPath, "models.json", true);
+	const disabled = readProviderRecordMap(sidecarPath, "models-disabled.json", false);
 	const entries: ProviderEntry[] = [];
 
 	for (const [id, rec] of Object.entries(enabled)) {
@@ -458,10 +552,17 @@ export function createProvidersController(deps: ProvidersControllerDeps): Provid
 		}
 		if (!Array.isArray(req.providers)) throw new Error("请求体缺少 providers 数组");
 
+		// S-extra：保存前读回磁盘现状，把非契约字段并回（解析失败直接抛——
+		// 与 GET 同口径：绝不把「读不懂的旧文件」整份覆盖掉）。同 id 两文件都有时启用侧优先。
+		const prevOnDisk = {
+			...readProviderRecordMap(sidecarPath, "models-disabled.json", false),
+			...readProviderRecordMap(modelsPath, "models.json", true),
+		};
+
 		const enabled: Record<string, NativeProviderRecord> = {};
 		const disabled: Record<string, NativeProviderRecord> = {};
 		for (const p of req.providers) {
-			const rec = entryToNativeProvider(p);
+			const rec = mergeExtras(entryToNativeProvider(p), prevOnDisk[p.id]);
 			if (p.enabled) enabled[p.id] = rec;
 			else disabled[p.id] = rec;
 		}

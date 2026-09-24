@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5194",
-  "startedAt": "2026-09-23T14:40:16.845Z",
+  "startedAt": "2026-09-24T04:30:15.218Z",
   "steps": [
     {
       "name": "store 已挂载 / 等待到的清单条数",
@@ -21,7 +21,7 @@
         ],
         "storeSummaries": [
           {
-            "id": "01a0ceb5-c723-70f3-abf4-adf8b2f629b8",
+            "id": "01a0d1ad-a413-752a-9723-3572807e0c56",
             "title": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。",
             "messageCount": 3,
             "updatedAtType": "number"
@@ -33,13 +33,14 @@
       "name": "加载后的 store / DOM 快照",
       "value": {
         "storeCount": 2,
-        "liveSessionId": "01a0ceb5-c723-70f3-abf4-adf8b2f629b8",
+        "liveSessionId": "01a0d1ad-a413-752a-9723-3572807e0c56",
         "streaming": false,
         "tokenUsage": {
-          "input": 1676,
-          "output": 28,
-          "total": 1704,
-          "contextWindow": 128000
+          "input": 1675,
+          "output": 31,
+          "total": 1706,
+          "contextWindow": 1000000,
+          "contextTokens": 1706
         },
         "sessionTitle": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。",
         "roles": [
@@ -52,14 +53,14 @@
         ],
         "domItems": [
           {
-            "id": "m-ed9c29b4",
+            "id": "m-2990db9a",
             "role": "user",
             "text": "这是C4-UI-探针：只回复两个字「收到」，不要调用任何工具。"
           },
           {
-            "id": "m-0bb7ce66",
+            "id": "m-f4b29964",
             "role": "assistant",
-            "text": "思考过程\n\nThe user says this is a C4-UI probe: only reply with t"
+            "text": "思考过程\n\nThe user says this is a C4-UI probe and asks me to onl"
           }
         ],
         "listTotal": "2"

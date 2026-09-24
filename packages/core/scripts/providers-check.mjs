@@ -18,6 +18,8 @@
  *   ⑨ 坏文件：models.json 非法 ⇒ 结构化 `{error}` 且**不 500**；
  *   ⑩ 目录检索 `GET /models/catalog?q=`：命中 / 上限 20 / 字段完整；
  *   ⑪ 模型测试 `POST /models/test`：真实请求 ok / 不可达端点 ok=false 带 error / 缺参 400；
+ *   ⑬ JSONC 字符串内容不被去尾逗号误伤：name 含 `, }` / `,]` 字样仍原样读回；
+ *   ⑭ 非契约字段保留（S-extra）：provider/model 级契约之外的字段，PUT 保存后从磁盘并回；
  *   ⑫ 安全三件套：无 token 401、错 Host 403、PUT 缺数组 400。
  *
  * 夹具：**全部落在系统临时目录**（含 models.json 与 agentDir），绝不碰 `pi/_poc/models.json`——
@@ -537,6 +539,96 @@ try {
 		sidecarCleared.status === 200 &&
 			(sidecarCleared.json?.providers ?? []).some((p) => p.id === "ark-coding"),
 		sidecarCleared.json?.providers?.map((p) => p.id),
+	);
+
+	/* ------------------------- ⑬ JSONC 字符串内容不被去尾逗号误伤 + ⑭ 非契约字段保留 */
+	const NAME_WITH_COMMA = "A, } B";
+	const MODEL_NAME_WITH_COMMA = "m,] n";
+	writeModels(`{
+  "providers": {
+    "ark-coding": {
+      "name": "${NAME_WITH_COMMA}",
+      "baseUrl": "${ARK.baseUrl}",
+      "apiKey": "$ARK_API_KEY",
+      "api": "openai-completions",
+      "models": [
+        { "id": "deepseek-v4-flash", "name": "${MODEL_NAME_WITH_COMMA}", },
+      ],
+    },
+  },
+}
+`);
+	const commaGet = await getProviders();
+	const commaHit = (commaGet.json?.providers ?? []).find((p) => p.id === "ark-coding");
+	evidence.judgments["⑬字符串内逗号"] = { status: commaGet.status, body: commaGet.json };
+	check(
+		"⑬JSONC 字符串值里的 `, }` 不被去尾逗号误伤（provider.name 原样读回）",
+		commaGet.status === 200 && !commaGet.json?.error && commaHit?.name === NAME_WITH_COMMA,
+		{ name: commaHit?.name, error: commaGet.json?.error },
+	);
+	check(
+		"⑬model.name 里的 `,]` 同理（字符串内部是数据，不是语法）",
+		commaHit?.models?.[0]?.name === MODEL_NAME_WITH_COMMA,
+		commaHit?.models?.[0]?.name,
+	);
+
+	const EXTRA_PROVIDER = { customExtra: { keep: true, nested: { n: 1 } } };
+	const EXTRA_MODEL = { internalNote: "do-not-drop", legacyFlags: [1, 2] };
+	writeModels(
+		JSON.stringify(
+			{
+				providers: {
+					"ark-coding": {
+						name: "ark-coding",
+						baseUrl: ARK.baseUrl,
+						apiKey: "$ARK_API_KEY",
+						api: "openai-completions",
+						headers: {},
+						...EXTRA_PROVIDER,
+						models: [{ ...ARK.models[0], ...EXTRA_MODEL }],
+					},
+				},
+			},
+			null,
+			2,
+		),
+	);
+	// 模拟 UI 形状的保存请求：只含契约字段（UI 表达不了 extra），只改契约字段 name
+	const putExtras = await putProviders([{ ...ARK, name: "ark-coding-with-extras" }]);
+	const fileAfterExtras = readModelsFile()?.providers?.["ark-coding"];
+	evidence.judgments["⑭非契约字段保留"] = {
+		put: putExtras.json,
+		file: fileAfterExtras,
+	};
+	check(
+		"⑭PUT 200 且 ok=true（带额外字段的文件可正常解析保存）",
+		putExtras.status === 200 && putExtras.json?.ok === true,
+		{ status: putExtras.status, error: putExtras.json?.error },
+	);
+	check(
+		"⑭provider 级非契约字段保存后原样保留（customExtra 深度不变）",
+		JSON.stringify(fileAfterExtras?.customExtra) === JSON.stringify(EXTRA_PROVIDER.customExtra),
+		{ 期望: EXTRA_PROVIDER.customExtra, 实际: fileAfterExtras?.customExtra ?? null },
+	);
+	check(
+		"⑭model 级非契约字段按 id 对位保留（internalNote / legacyFlags）",
+		fileAfterExtras?.models?.[0]?.internalNote === EXTRA_MODEL.internalNote &&
+			JSON.stringify(fileAfterExtras?.models?.[0]?.legacyFlags) === JSON.stringify(EXTRA_MODEL.legacyFlags),
+		{ 实际: fileAfterExtras?.models?.[0] ?? null },
+	);
+	check(
+		"⑭契约字段仍以请求为准（name 已改、model 规格字段未被 extra 合并污染）",
+		fileAfterExtras?.name === "ark-coding-with-extras" &&
+			fileAfterExtras?.models?.[0]?.contextWindow === ARK.models[0].contextWindow &&
+			fileAfterExtras?.models?.[0]?.maxTokens === ARK.models[0].maxTokens,
+		{ name: fileAfterExtras?.name, model: fileAfterExtras?.models?.[0] },
+	);
+	const extrasReread = await getProviders();
+	check(
+		"⑭保存后 GET 仍正常（extra 不进契约响应，但解析不炸）",
+		extrasReread.status === 200 &&
+			(extrasReread.json?.providers ?? []).some((p) => p.id === "ark-coding"),
+		extrasReread.json?.providers?.map((p) => p.id),
 	);
 
 	/* --------------------------------------------- ⑫ 安全三件套 */
