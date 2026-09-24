@@ -19,7 +19,8 @@ export interface Notice {
 
 interface NoticeState {
   notices: Notice[];
-  notify: (input: { tone: NoticeTone; text: string; timeoutMs?: number }) => void;
+  /** 返回新提示的 id —— 供调用方在恢复时精确 dismiss（既有忽略返回值的调用方不受影响） */
+  notify: (input: { tone: NoticeTone; text: string; timeoutMs?: number }) => string;
   dismiss: (id: string) => void;
 }
 
@@ -33,6 +34,7 @@ export const useNoticeStore = create<NoticeState>((set, get) => ({
     set((state) => ({ notices: [...state.notices, { id, tone, text }] }));
     const ms = timeoutMs ?? (tone === "danger" ? 0 : 5000);
     if (ms > 0) setTimeout(() => get().dismiss(id), ms);
+    return id;
   },
   dismiss: (id) => set((state) => ({ notices: state.notices.filter((n) => n.id !== id) })),
 }));

@@ -109,7 +109,6 @@ export class HttpAgentTransport implements AgentTransport {
   private hooks: TransportHooks = {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
-  private everConnected = false;
   private outageNotified = false;
 
   constructor(private readonly cfg: LiveConfig) {}
@@ -166,9 +165,8 @@ export class HttpAgentTransport implements AgentTransport {
         this.scheduleReconnect();
         return;
       }
-      // 连上：首次之后的重连成功才提示恢复
-      if (this.everConnected) this.hooks.onConnectionRestored?.();
-      this.everConnected = true;
+      // 连上：以「是否通知过断线」为恢复信号 —— 首次连接即失败再重试成功也能提示恢复
+      if (this.outageNotified) this.hooks.onConnectionRestored?.();
       this.reconnectAttempts = 0;
       this.outageNotified = false;
       const reader = res.body.getReader();
@@ -211,7 +209,6 @@ export class HttpAgentTransport implements AgentTransport {
       this.reconnectTimer = null;
     }
     this.reconnectAttempts = 0;
-    this.everConnected = false;
     this.outageNotified = false;
   }
 

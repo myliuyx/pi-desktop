@@ -17,6 +17,7 @@ import {
 import { useUiStore } from "@/store/ui-store";
 import { useModelsStore } from "@/store/models-store";
 import { notifyFailure } from "@/store/notice-store";
+import { pickActiveThinking } from "@/lib/thinking";
 
 /**
  * 设置弹窗 · 「常规」Tab。
@@ -62,8 +63,8 @@ export function SettingsGeneralTab() {
     if (live) void ensureModels();
   }, [live, ensureModels]);
 
-  const activeThinking: ThinkingLevel | null = live
-    ? ((liveModels?.settings.thinkingLevel ?? liveModels?.thinkingLevel ?? null) as ThinkingLevel | null)
+  const activeThinking: ThinkingLevel = live
+    ? pickActiveThinking(liveModels, thinkingLevel)
     : thinkingLevel;
 
   const selectThinking = (level: ThinkingLevel) => {
