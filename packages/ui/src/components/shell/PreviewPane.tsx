@@ -48,6 +48,14 @@ const PREVIEW_TABS = [
  * - 源码态：Shiki 高亮（--shiki-* 双主题变量，切主题无需重高亮）+ CSS counter 行号 + 复制。
  * 折叠时整个 aside 照旧收 0 宽，Tab 内容随 overflow-hidden 裁掉，无需特殊处理。
  *
+ * ## live 缺省折叠 + 未选文件空态（2026-09-25 裁决）
+ *
+ * - 缺省折叠：`ui-store.readStoredPreviewCollapsed` —— 从未显式设置时 live 默认收 0 宽
+ *   （mock 仍默认展开，`accept:m3` 的「默认态」断言依赖）；显式存过的选择两形态都尊重。
+ * - live 且未选文件：渲染 `preview-empty` 空态（指路侧栏文件树），**不渲染 mock 双 Tab** ——
+ *   假产物/假源码在 live 下属于「用假数据冒充现状」；mock 形态双 Tab 原样保留，
+ *   故 `?preview=` 参数在 live 下成为 no-op（Tab 不渲染，状态写入无落点）。
+ *
  * ## 文件形态（dir-file-preview 批次；2026-09-25 二轮：效果/源码双 Tab）
  *
  * `ui-store.previewFilePath` 非空（且 live 形态）时，整个内容区二选一顶替既有两 Tab：
@@ -58,7 +66,8 @@ const PREVIEW_TABS = [
  *   名条里带「预览效果 / 预览源码」双 Tab，打开默认落在**效果**态（mock 语义：点开即看
  *   渲染结果，源码是第二视图）；其余文件（ts/json/…）只有源码形态，**不渲染 Tab**
  *   （没有第二视图就不给哑 Tab，同 mock 哑交互禁令）；
- * - 关闭（`preview-file-close`）清空选择，回到既有两 Tab；
+ * - 关闭（`preview-file-close`）清空选择**并直接收起预览区**（2026-09-25 用户裁决——
+ *   live 下 × 的落点是收起而非空态；下次手动展开看到的是 live 空态）；
  * - 自动刷新：`chat-store.fsVersion` 变化（agent 跑完一轮 / SSE 广播）重拉当前文件——
  *   agent 刚改完的文件，预览里看到的就是新内容；cwd 热切换则清空选择（旧目录的路径不再诚实）。
  *
@@ -84,7 +93,8 @@ export const PreviewPane = forwardRef<HTMLElement, PreviewPaneProps>(function Pr
 
   // 文件形态双门槛：previewFilePath 只可能来自文件树点击（live），isLiveEnabled 再挡一层
   // SSR / mock 残留。用局部 null 归一而非布尔，让 JSX 里的路径窄化天然成立。
-  const openedFilePath = isLiveEnabled() ? previewFilePath : null;
+  const live = isLiveEnabled();
+  const openedFilePath = live ? previewFilePath : null;
 
   return (
     <aside
@@ -111,8 +121,22 @@ export const PreviewPane = forwardRef<HTMLElement, PreviewPaneProps>(function Pr
       {openedFilePath !== null ? (
         <FilePreviewView
           path={openedFilePath}
-          onClose={() => setPreviewFilePath(null)}
+          onClose={() => {
+            // 2026-09-25 用户裁决：× = 清空文件选择 + **直接收起预览区**（原行为只清空、
+            // 退回空态后还得再点一次标题栏才收）。× 只在展开态可点到，防御性判断保留；
+            // 收起走 togglePreview，持久化口径与手动收起一致。
+            setPreviewFilePath(null);
+            if (!useUiStore.getState().previewCollapsed) useUiStore.getState().togglePreview();
+          }}
         />
+      ) : live ? (
+        /*
+         * ★ 2026-09-25（live 空态裁决）：live 形态不再渲染 mock 双 Tab ——
+         * `buildPreviewHtml` 的假产物/假源码在 live 下属于「用假数据冒充现状」，
+         * 文件预览上线后 live 预览区的唯一真实内容就是文件，未选文件时给诚实空态。
+         * mock 形态双 Tab 原样保留（accept:m3 验收面 + 01b 屏 `?preview=` 参数）。
+         */
+        <PreviewEmptyState />
       ) : (
         <>
           <div
@@ -165,6 +189,19 @@ export const PreviewPane = forwardRef<HTMLElement, PreviewPaneProps>(function Pr
     </aside>
   );
 });
+
+/** live 未选文件的空态：不给任何 mock 内容，只指路侧栏文件树（2026-09-25 live 空态裁决） */
+function PreviewEmptyState() {
+  return (
+    <div
+      data-testid="preview-empty"
+      className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+    >
+      <Icon icon={File} size={28} className="text-text-tertiary" />
+      <p className="text-sm text-text-tertiary">在左侧文件树点击文件以预览</p>
+    </div>
+  );
+}
 
 /** shiki 未就绪前的纯文本兜底（与 Markdown 的 CodeBlock 同策略，避免空白闪烁） */
 function escapeHtml(code: string): string {

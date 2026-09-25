@@ -24,6 +24,7 @@ import {
   readRecentDirs,
   writeRecentDirs,
 } from "@/lib/recent-dirs";
+import { isLiveEnabled } from "@/lib/feature-flags";
 
 export type Theme = "light" | "dark";
 export type ThemeSource = "user" | "system";
@@ -47,10 +48,31 @@ function readStoredTheme(): Theme | null {
   return stored === "light" || stored === "dark" ? stored : null;
 }
 
-/** 折叠状态存 "0" / "1"：与主题同理，缺省即展开 */
+/** 折叠状态存 "0" / "1"：与主题同理，缺省即展开（侧栏用；预览区走下方专用读取，缺省口径不同） */
 function readStoredFlag(key: string): boolean {
   if (typeof window === "undefined") return false;
   return window.localStorage.getItem(key) === "1";
+}
+
+/**
+ * 预览区折叠缺省值（2026-09-25 裁决：live 默认不展示预览区）。
+ *
+ * 与 `readStoredFlag`（侧栏共用，「缺省即展开」）的口径差异及原因：
+ * - live 形态的预览区没有可展示的真实内容 —— mock 双 Tab 是 `buildPreviewHtml`
+ *   的假产物（live 下渲染它属于「用假数据冒充现状」），唯一真实内容是文件，
+ *   而文件要等用户去文件树点 ⇒ **从未显式设置时 live 默认折叠**，
+ *   点文件时由 WorkingDirFileTree 自动展开；
+ * - mock 形态缺省仍展开 —— mock 是设计验收形态，`accept:m3` 的
+ *   「3-1a 默认态」断言依赖预览区默认可见；
+ * - 显式存过的 "0"（展开）/"1"（折叠）两种形态都尊重 —— 手动选择优先于缺省
+ *   （`persistFlag` 写盘口径不变，本函数只是换了缺省值的解释）。
+ */
+function readStoredPreviewCollapsed(): boolean {
+  if (typeof window === "undefined") return false;
+  const stored = window.localStorage.getItem(PREVIEW_STORAGE_KEY);
+  if (stored === "0") return false;
+  if (stored === "1") return true;
+  return isLiveEnabled();
 }
 
 /** 预览 Tab 存字面值：与 readStoredTheme 同理，非法值一律视为缺省 */
@@ -320,7 +342,7 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   sidebarCollapsed: readStoredFlag(SIDEBAR_STORAGE_KEY),
-  previewCollapsed: readStoredFlag(PREVIEW_STORAGE_KEY),
+  previewCollapsed: readStoredPreviewCollapsed(),
 
   toggleSidebar: () => {
     const sidebarCollapsed = !get().sidebarCollapsed;
@@ -434,7 +456,7 @@ export function initTheme(): void {
     theme,
     themeSource: stored ? "user" : "system",
     sidebarCollapsed: readStoredFlag(SIDEBAR_STORAGE_KEY),
-    previewCollapsed: readStoredFlag(PREVIEW_STORAGE_KEY),
+    previewCollapsed: readStoredPreviewCollapsed(),
     previewTab: readStoredPreviewTab() ?? "effect",
     // M4：工具开关 / 设置字段同样在首帧前确定，避免"先渲染默认值再跳变"
     enabledTools: readEnabledTools(),
