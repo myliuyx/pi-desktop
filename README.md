@@ -109,6 +109,7 @@ cd ../desktop      && npm ci && npm run dist    # 产物在 release/
 | `packages/core` | `npm run check:c3`~`c6` | 授权 / 会话 / 资源 / 端到端验收 |
 | `packages/core` | `npm run check:sessions-new` `check:sessions-load` | 惰性建会话 / 「点开即切」验收 |
 | `packages/core` | `npm run check:run-dir` | `CORE_RUN_DIR` 覆盖口验收 |
+| `packages/core` | `npm run check:fs-list` | `/fs/list` 目录浏览端点验收（dir-picker） |
 | `packages/core` | `npm run security-check` / `smoke:check` | 安全三件套 / 真实会话冒烟 |
 | `packages/desktop` | `npm run dev` / `smoke` / `dist` | 开发窗口 / 无窗口冒烟 / 打安装包 |
 

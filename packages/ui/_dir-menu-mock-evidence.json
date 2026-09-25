@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-24T16:42:46.993Z",
+  "startedAt": "2026-09-25T03:05:25.391Z",
   "steps": [
     {
       "name": "C1_实测",
@@ -437,6 +437,69 @@
       }
     },
     {
+      "name": "C26_实测",
+      "value": {
+        "opened": {
+          "exists": true,
+          "visible": true,
+          "inert": false
+        },
+        "openedState": {
+          "hint": true,
+          "loading": false,
+          "empty": false,
+          "truncated": false,
+          "errorText": null,
+          "inputValue": "",
+          "entryNames": [],
+          "confirmDisabled": true
+        },
+        "after": {
+          "triggerPath": "F:\\dir-menu-fake-target",
+          "workingDirStorage": "F:\\dir-menu-fake-target",
+          "recentStorage": "[\"F:\\\\dir-menu-fake-target\",\"/probe/d6\",\"/probe/d2\",\"/probe/d5\",\"/probe/d4\"]"
+        },
+        "panelAfter": {
+          "source": "mock",
+          "currentPath": "F:\\dir-menu-fake-target",
+          "currentChecked": "true",
+          "recentPaths": [
+            "/probe/d6",
+            "/probe/d2",
+            "/probe/d5",
+            "/probe/d4"
+          ],
+          "recentChecked": [
+            "false",
+            "false",
+            "false",
+            "false"
+          ],
+          "pending": [],
+          "checkedTrueCount": 1,
+          "badgeRunning": false
+        },
+        "recentFirst": "F:\\dir-menu-fake-target",
+        "typedDir": "F:\\dir-menu-fake-target"
+      }
+    },
+    {
+      "name": "C27_实测",
+      "value": {
+        "before27": "F:\\dir-menu-fake-target",
+        "after27": {
+          "triggerPath": "F:\\dir-menu-fake-target",
+          "workingDirStorage": "F:\\dir-menu-fake-target"
+        },
+        "closed27": {
+          "exists": false,
+          "visible": false,
+          "inert": null
+        },
+        "typedDir": "F:\\dir-menu-fake-target"
+      }
+    },
+    {
       "name": "C20_不适用",
       "value": {
         "mode": "mock",
@@ -676,6 +739,33 @@
       }
     },
     {
+      "name": "C26 mock：自定义路径 ⇒ 弹窗打开（manual 模式无列表）+ 菜单面板随弹窗关闭；手输路径确认 ⇒ 偏好立即变 + recent-dirs 首位收编",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "弹窗可见": true,
+        "关闭态inert已解除": true,
+        "manual提示存在": true,
+        "无浏览列表条目": true,
+        "菜单面板已随弹窗关闭": true,
+        "确认后弹窗关闭": true,
+        "首行变为手输路径": true,
+        "触发条同步变化": true,
+        "偏好已写": true,
+        "recent-dirs首位收编": true
+      }
+    },
+    {
+      "name": "C27 mock：弹窗取消 ⇒ 弹窗关闭、侧栏路径与偏好均不变",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "取消后弹窗关闭": true,
+        "路径不变": true,
+        "偏好不变": true
+      }
+    },
+    {
       "name": "C9 recent-dirs 写成非法 JSON 后重载 ⇒ 页面正常、最近目录回落空数组、无未捕获异常",
       "pass": true,
       "failed": [],
@@ -689,8 +779,8 @@
     }
   ],
   "summary": {
-    "assertions": 17,
-    "passed": 17,
+    "assertions": 19,
+    "passed": 19,
     "failed": 0,
     "failedNames": []
   }

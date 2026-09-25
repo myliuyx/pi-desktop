@@ -233,6 +233,46 @@ window.__DM = {
       badgeRunning: !!p.querySelector('[data-testid="sidebar-working-directory-current-badge"]'),
     };
   },
+  /*
+   * dir-picker 弹窗（dir-picker 批次）：Dialog 常驻 DOM —— 关闭态是 opacity-0 + inert，
+   * 「存在」≠「可见」，判可见必须查 computed opacity（elementFromPoint 同一条纪律）。
+   */
+  picker: () => {
+    const el = document.querySelector('[data-testid="dir-picker"]');
+    if (!el) return { exists: false, visible: false, inert: null };
+    return {
+      exists: true,
+      visible: getComputedStyle(el).opacity === '1',
+      inert: el.hasAttribute('inert'),
+    };
+  },
+  pickerState: () => {
+    const q = (t) => document.querySelector('[data-testid="' + t + '"]');
+    const input = q('dir-picker-input');
+    const confirm = q('dir-picker-confirm');
+    const err = q('dir-picker-error');
+    return {
+      hint: !!q('dir-picker-manual-hint'),
+      loading: !!q('dir-picker-loading'),
+      empty: !!q('dir-picker-empty'),
+      truncated: !!q('dir-picker-truncated'),
+      errorText: err ? (err.textContent || '').trim() : null,
+      inputValue: input ? input.value : null,
+      entryNames: [...document.querySelectorAll('[data-testid^="dir-picker-entry-"]')].map(
+        (el) => (el.textContent || '').trim(),
+      ),
+      confirmDisabled: confirm ? confirm.disabled : null,
+    };
+  },
+  /* React 受控输入必须走原生 setter + input 事件，直接赋值会被 React 重渲染抹掉 */
+  setPickerInput: (v) => {
+    const input = document.querySelector('[data-testid="dir-picker-input"]');
+    if (!input) return false;
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    setter.call(input, v);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  },
   lum: (colorStr) => {
     const nums = (colorStr.match(/[\\d.]+/g) || ['0','0','0']).map(Number);
     const f = (c) => { c = c / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
@@ -344,6 +384,48 @@ async function clickTestId(cdp, testid) {
   );
 }
 
+/* ---------------------------------------------------------------------------
+ * dir-picker 弹窗等待器（dir-picker 批次）
+ * Dialog 常驻 DOM：可见性必须查 opacity；加载态必须等 inputValue 落定 /
+ * 错误文案出现 —— 「loading=false 且 entries 还是旧值」的空窗期不能当判据采样点。
+ * ------------------------------------------------------------------------- */
+
+/** 等 dir-picker 进入指定可见态（true=打开 / false=关闭）。
+ * ★ 关闭判据必须含「已卸载」（条件渲染下关闭即不在 DOM）——只认 `visible===false`
+ *   会把「不存在」永远当「还没关」，白等满超时（2026-09-25 实踩：等掉整个 notice 寿命）。 */
+async function waitForPicker(cdp, visible, timeout = 6000) {
+  const t0 = Date.now();
+  for (;;) {
+    const st = (await cdp.eval(`window.__DM.picker()`)) ?? { exists: false, visible: false };
+    const isClosed = !st.exists || st.visible === false;
+    if (visible ? st.exists === true && st.visible === true : isClosed) return st;
+    if (Date.now() - t0 > timeout) return st;
+    await sleep(150);
+  }
+}
+
+/** 等弹窗输入框变成期望值（= 本轮 listDirs 已完成且结果已回显） */
+async function waitForPickerInput(cdp, expected, timeout = 8000) {
+  const t0 = Date.now();
+  for (;;) {
+    const st = await cdp.eval(`window.__DM.pickerState()`);
+    if (st && !st.loading && st.inputValue === expected) return st;
+    if (Date.now() - t0 > timeout) return st;
+    await sleep(200);
+  }
+}
+
+/** 等弹窗出现错误文案（转到失败；core 的 {error} 原文透传完成） */
+async function waitForPickerError(cdp, timeout = 8000) {
+  const t0 = Date.now();
+  for (;;) {
+    const st = await cdp.eval(`window.__DM.pickerState()`);
+    if (st && !st.loading && typeof st.errorText === "string" && st.errorText.length > 0) return st;
+    if (Date.now() - t0 > timeout) return st;
+    await sleep(200);
+  }
+}
+
 /** 等触发条路径的 title 变成期望全文（live 拿 cwd 是异步的） */
 async function waitForPathTitle(cdp, expectedFull, timeout = 25000) {
   const t0 = Date.now();
@@ -437,6 +519,10 @@ async function runLive() {
   const betaDir = path.join(cwdRoot, "beta");
   fs.mkdirSync(alphaDir, { recursive: true });
   fs.mkdirSync(betaDir, { recursive: true });
+  /* dir-picker 批次（C28–C30）：cwdFixture 内的确定性子目录 —— 弹窗打开时列表里必有它。
+     注意 alpha/beta 是 cwdFixture 的**兄弟**（切换目标），不能当列表条目用。 */
+  const pickerSubDir = path.join(cwdFixture, "sub-for-picker");
+  fs.mkdirSync(pickerSubDir, { recursive: true });
   const coreDefaultCwd = coreDir; // core 以 cwd: coreDir 启动 ⇒ 缺省 CORE_CWD 时 process.cwd() 就是它
   const fixtureDiffersFromDefault = cwdFixture !== coreDefaultCwd;
   console.log(
@@ -607,7 +693,92 @@ async function runLive() {
         }
       }
 
-      /* 所有判据（含 C18/C22/C23/C24/C25）跑完，统一落盘一次 */
+      /* ---------------- C28–C30：自定义路径弹窗（dir-picker 批次，live=浏览模式） ---------------- */
+      /*
+       * C18 曾把浏览器导航到 DEFAULTCWD_ORIGIN（其子 core 已关），先回主 core 同源页面。
+       * ★ 此时 coreA 的 cwd **不是**启动值 cwdFixture —— runSuite 的 live 判据
+       *   （C8「使用默认目录」）已把它热切到 core 默认（packages/core）。先把 cwd
+       *   复位回夹具（与 C6/C19 同一条 POST /cwd 热切换链路，等侧栏 title 落定），
+       *   C28 的「列表含夹具子目录」才有确定性夹具可断言。
+       */
+      await navigateHard(ctx, `${LIVE_ORIGIN}/?live=1`);
+      const cwdReset = await corePost(LIVE_ORIGIN, "/cwd", { dir: cwdFixture });
+      if (!cwdReset || cwdReset.status !== 200) {
+        throw new Error(`C28 前置：cwd 复位失败 ${JSON.stringify(cwdReset)}`);
+      }
+      await waitForPathTitle(cdpOf(ctx), cwdFixture, 25000);
+
+      const expectedSub = pickerSubDir;
+      await openMenu(cdpOf(ctx));
+      await clickTestId(cdpOf(ctx), "sidebar-working-directory-custom");
+      const c28picker = await waitForPicker(cdpOf(ctx), true);
+      const c28menuGone = await cdpOf(ctx).eval(`!window.__DM.panel()`);
+      const c28state = await waitForPickerInput(cdpOf(ctx), cwdFixture);
+      failures += checkLive(ctx, "C28", "live：自定义路径 ⇒ 浏览模式弹窗（起始目录=core cwd，D6）+ 菜单面板随弹窗关闭 + 列表含夹具子目录", {
+        弹窗可见: c28picker.exists === true && c28picker.visible === true,
+        菜单面板已随弹窗关闭: c28menuGone === true,
+        输入框起始为core_cwd: c28state.inputValue === cwdFixture,
+        列表含夹具子目录: c28state.entryNames.includes("sub-for-picker"),
+        无manual提示: c28state.hint === false,
+      }, { picker: c28picker, state: c28state, 起始期望: cwdFixture, 夹具子目录: expectedSub });
+
+      /* C29（D8）：点入子目录 → 输入框跟随 → 确认 ⇒ 走既有 chooseDir = 热切换 + 成功 notice */
+      const subIndex = c28state.entryNames.indexOf("sub-for-picker");
+      await clickTestId(cdpOf(ctx), `dir-picker-entry-${subIndex}`);
+      const c29state = await waitForPickerInput(cdpOf(ctx), expectedSub);
+      await clickTestId(cdpOf(ctx), "dir-picker-confirm");
+      const c29closed = await waitForPicker(cdpOf(ctx), false);
+      /* switchCwd 要重建整个 Pi 会话（bootProject + 信任门），耗时可能远超固定 sleep ——
+         notice 轮询必须与侧栏落定**交织**进行：以「title 已变」为切换完成的锚，
+         完成后再给 5s 宽限。宽限锚必须是「落定时刻」而不是循环起点（boot 慢时
+         起点已被吃掉大半）；也不能只给孤立上限——notice 会先于轮询结束自然过期
+         （成功 notice 寿命恰 5s，2026-09-25 实踩：等待器超时 6s + 宽限错锚双重叠加）。 */
+      let c29notice = null;
+      {
+        const t0 = Date.now();
+        let settledAt = null;
+        for (;;) {
+          c29notice = await cdpOf(ctx).eval(NOTICE_PROBE);
+          const texts = c29notice.items.map((n) => n.text).join(" | ");
+          if (c29notice.count > 0 && /已切换/.test(texts)) break;
+          if (!settledAt && (await cdpOf(ctx).eval(`window.__DM.pathTitle()`)) === expectedSub) {
+            settledAt = Date.now();
+          }
+          const graceOver = settledAt !== null && Date.now() - settledAt > 5000;
+          if (graceOver || Date.now() - t0 > 45_000) break;
+          await sleep(250);
+        }
+      }
+      const c29noticeTexts = c29notice.items.map((n) => n.text).join(" | ");
+      const c29wait = await waitForPathTitle(cdpOf(ctx), expectedSub, 25000);
+      failures += checkLive(ctx, "C29", "live（D8）：弹窗点入子目录并确认 ⇒ cwd 立即热切换（侧栏 title 变）+ 成功 notice + 弹窗关闭", {
+        输入框跟随子目录: c29state.inputValue === expectedSub,
+        确认后弹窗关闭: c29closed.visible === false,
+        弹出成功notice: c29notice.count > 0 && /已切换/.test(c29noticeTexts),
+        侧栏路径已热切换: c29wait.ok === true,
+      }, { state: c29state, notice文案: c29noticeTexts, waitedTitle: c29wait.got, 期望: expectedSub });
+
+      /* C30：转到非法路径 ⇒ core 400 文案原样透出；current 保持原目录（确认钮仍可点，
+         诚实语义：输入的路径没打开，确认作用于还开着的目录） */
+      await openMenu(cdpOf(ctx));
+      await clickTestId(cdpOf(ctx), "sidebar-working-directory-custom");
+      await waitForPicker(cdpOf(ctx), true);
+      // 打开时列的是新 cwd（sub-for-picker，空目录）——等它落定，别把初始空窗当判据采样点
+      await waitForPickerInput(cdpOf(ctx), expectedSub);
+      const missingPickerDir = path.join(cwdRoot, "no-such-picker-target");
+      await cdpOf(ctx).eval(`window.__DM.setPickerInput(${JSON.stringify(missingPickerDir)})`);
+      await clickTestId(cdpOf(ctx), "dir-picker-go");
+      const c30state = await waitForPickerError(cdpOf(ctx));
+      failures += checkLive(ctx, "C30", "live：弹窗转到不存在的目录 ⇒ core 错误文案原样透出 + 上一个目录仍有效（确认钮未禁用）", {
+        错误文案可见: typeof c30state.errorText === "string" && c30state.errorText.includes("目录不存在"),
+        错误点名了目录: typeof c30state.errorText === "string" && c30state.errorText.includes(missingPickerDir),
+        确认钮仍可点_current未丢: c30state.confirmDisabled === false,
+        不再是加载态: c30state.loading === false,
+      }, { state: c30state, 请求目录: missingPickerDir });
+      await clickTestId(cdpOf(ctx), "dir-picker-cancel");
+      await ensureClosed(cdpOf(ctx));
+
+      /* 所有判据（含 C18/C22/C23/C24/C25/C28/C29/C30）跑完，统一落盘一次 */
       finalize(ctx);
     });
 
@@ -619,7 +790,7 @@ async function runLive() {
     {
       const ev = JSON.parse(readText(path.join(uiPkgDir, LIVE_EVIDENCE)) || "{}");
       const names = (ev.assertions ?? []).map((a) => a.name);
-      const required = ["C18", "C22", "C23", "C24"];
+      const required = ["C18", "C22", "C23", "C24", "C28"];
       const missing = required.filter((id) => !names.some((n) => n.startsWith(`${id} `)));
       if (missing.length) {
         console.error(
@@ -627,7 +798,7 @@ async function runLive() {
         );
         failures += 1;
       } else {
-        console.log(`[dir-menu:live] 证据完整性：C18/C22/C23/C24 均已落盘（共 ${names.length} 条断言）`);
+        console.log(`[dir-menu:live] 证据完整性：C18/C22/C23/C24/C28 均已落盘（共 ${names.length} 条断言）`);
       }
     }
   } catch (e) {
@@ -1357,6 +1528,75 @@ async function runSuite(ctx, env) {
       无下次启动灰字: after.pending.length === 0 && before.pending.length === 0,
       不弹notice: afterClick.notice.count === 0 && !afterClick.notice.bodyTextHasCoreCwd,
     }, { before, afterClick, after, 点选索引: idx, 目标目录: target });
+  }
+
+  /* =============================================================== C26/C27（mock · dir-picker） */
+  if (isLive) {
+    noteSkipped("C26", "形态差异判据，仅在 mock 形态执行（live 的 picker 判据为 C28–C30）");
+    noteSkipped("C27", "同上");
+  } else {
+    const typedDir = "F:\\dir-menu-fake-target";
+    /*
+     * C26：mock 下「自定义路径…」= 纯手输模式（D2，诚实于形态——mock 没有 core 可列目录）。
+     * 打开弹窗 ⇒ 菜单面板随之关闭（D7）；确认 ⇒ 偏好立即变（既有 setWorkingDir 链路）。
+     * 「进最近区」的判据落在 **localStorage**（pushRecentDir 把新目录放首位），而不是
+     * 重开面板的 recentPaths —— 当前目录行是从最近区**排除**的（§4.6 防双 ✓），面板级
+     * 断言会因这个既有口径假红。
+     */
+    await openMenu(cdp);
+    await clickTestId(cdp, "sidebar-working-directory-custom");
+    const opened = await waitForPicker(cdp, true);
+    const menuGoneAtOpen = await cdp.eval(`!window.__DM.panel()`);
+    const openedState = await cdp.eval(`window.__DM.pickerState()`);
+    await cdp.eval(`window.__DM.setPickerInput(${JSON.stringify(typedDir)})`);
+    await clickTestId(cdp, "dir-picker-confirm");
+    const closed = await waitForPicker(cdp, false);
+    await sleep(300);
+    const after = await cdp.eval(`(() => ({
+      triggerPath: window.__DM.pathTitle(),
+      workingDirStorage: localStorage.getItem('working-dir'),
+      recentStorage: localStorage.getItem('recent-dirs'),
+    }))()`);
+    let recentFirst = null;
+    try {
+      recentFirst = JSON.parse(after.recentStorage || "[]")[0] ?? null;
+    } catch {
+      recentFirst = null;
+    }
+    await openMenu(cdp);
+    const panelAfter = await readPanelState(cdp);
+    await ensureClosed(cdp);
+    fails += check("C26", "mock：自定义路径 ⇒ 弹窗打开（manual 模式无列表）+ 菜单面板随弹窗关闭；手输路径确认 ⇒ 偏好立即变 + recent-dirs 首位收编", {
+      弹窗可见: opened.exists === true && opened.visible === true,
+      关闭态inert已解除: opened.inert === false,
+      manual提示存在: openedState.hint === true,
+      无浏览列表条目: openedState.entryNames.length === 0,
+      菜单面板已随弹窗关闭: menuGoneAtOpen === true,
+      确认后弹窗关闭: closed.visible === false,
+      首行变为手输路径: panelAfter.currentPath === typedDir,
+      触发条同步变化: after.triggerPath === typedDir,
+      偏好已写: after.workingDirStorage === typedDir,
+      "recent-dirs首位收编": recentFirst === typedDir,
+    }, { opened, openedState, after, panelAfter, recentFirst, typedDir });
+
+    // C27：取消 ⇒ 弹窗关、路径与偏好都不动
+    await openMenu(cdp);
+    await clickTestId(cdp, "sidebar-working-directory-custom");
+    await waitForPicker(cdp, true);
+    const before27 = await cdp.eval(`window.__DM.pathTitle()`);
+    await clickTestId(cdp, "dir-picker-cancel");
+    const closed27 = await waitForPicker(cdp, false);
+    await sleep(200);
+    const after27 = await cdp.eval(`(() => ({
+      triggerPath: window.__DM.pathTitle(),
+      workingDirStorage: localStorage.getItem('working-dir'),
+    }))()`);
+    await ensureClosed(cdp);
+    fails += check("C27", "mock：弹窗取消 ⇒ 弹窗关闭、侧栏路径与偏好均不变", {
+      取消后弹窗关闭: closed27.visible === false,
+      路径不变: after27.triggerPath === before27 && before27 === typedDir,
+      偏好不变: after27.workingDirStorage === typedDir,
+    }, { before27, after27, closed27, typedDir });
   }
 
   /* =============================================================== C20（live） */

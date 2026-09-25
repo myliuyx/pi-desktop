@@ -27,6 +27,14 @@ export interface DialogProps {
   footer?: ReactNode;
   /** 主体内容 */
   children?: ReactNode;
+  /**
+   * 覆盖层级 z-index（不传 = 默认 z-50，现行为零变化）。
+   * dir-picker 传 `POPOVER_Z`（60）：工作目录菜单面板也是 60，同屏防御时弹窗必须在上
+   * （task-dir-picker.md D10）。
+   */
+  zIndex?: number;
+  /** 稳定标识：供验收脚本按元素定位使用（IconButton.testId 同款先例） */
+  testId?: string;
 }
 
 /**
@@ -39,7 +47,7 @@ export interface DialogProps {
  *   关闭时给整层打 `inert`，从 Tab 序列与无障碍树里彻底移除（避免隐藏元素仍可被聚焦）。
  * - **无颜色硬编码**：遮罩用 `bg-overlay` 令牌，面板用 `bg-bg-elevated` 令牌（G1/G5）。
  */
-export function Dialog({ open, onClose, label, width, height, header, footer, children }: DialogProps) {
+export function Dialog({ open, onClose, label, width, height, header, footer, children, zIndex, testId }: DialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
@@ -101,6 +109,7 @@ export function Dialog({ open, onClose, label, width, height, header, footer, ch
       role="dialog"
       aria-modal="true"
       aria-label={label}
+      data-testid={testId}
       onKeyDown={onKeyDown}
       // 关闭时整层 inert：从 Tab 序列与无障碍树移除，避免隐藏元素仍可聚焦
       inert={open ? undefined : true}
@@ -126,6 +135,8 @@ export function Dialog({ open, onClose, label, width, height, header, footer, ch
           width,
           height,
           maxHeight: `${SETTINGS_DIALOG_MAX_HEIGHT_VH}vh`,
+          // 内联 zIndex 覆盖 class 的 z-50（不传时 undefined 无效果，走原 class）
+          zIndex,
           transitionDuration: `${duration}ms`,
         }}
       >

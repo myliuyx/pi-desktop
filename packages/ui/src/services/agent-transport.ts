@@ -63,6 +63,19 @@ export interface CwdSwitchResult {
   trust: { trusted: boolean } | null;
 }
 
+/** `GET /fs/list` 的成功返回（dir-picker 批次，契约 task-dir-picker.md §4.0） */
+export interface DirListResult {
+  /** 归一化后的绝对路径（回显到弹窗输入框） */
+  path: string;
+  /** 上一级；已在根（POSIX 根 / 盘根 / UNC 根）时为 null */
+  parent: string | null;
+  /** 仅目录，按 name 码元排序；超 500 条已被 core 截断 */
+  entries: { name: string; path: string }[];
+  truncated: boolean;
+  /** 仅 win32 且处于根目录时非 null，如 ["C:\\","D:\\"] */
+  drives: string[] | null;
+}
+
 export interface AgentTransport {
   /** 发送一条用户消息 */
   sendMessage(text: string): Promise<void>;
@@ -97,6 +110,12 @@ export interface AgentTransport {
    * 流式中（409）/ 目录无效（400）抛错，错误文案取 core 的 `{ error }` 原文。
    */
   switchCwd(dir: string | null): Promise<CwdSwitchResult>;
+  /**
+   * 目录浏览（dir-picker 批次）：`GET /fs/list?path=...`，只读列子目录。
+   * `path` 缺省（null/undefined/空串）= core 当前 cwd（服务端决定起始目录，UI 不猜）。
+   * 失败（400 目录不存在 / 403 无权限 / 网络错）抛错，文案取 core 的 `{ error }` 原文。
+   */
+  listDirs(path?: string | null): Promise<DirListResult>;
 
   /* ------------------------------------------------- C5 · 04/05 屏数据源 */
   /** 04 屏：扩展 / 提示词 / 技能三类（已按信任门过滤项目本地资源） */
@@ -379,6 +398,42 @@ export class HttpAgentTransport implements AgentTransport {
         trust && typeof trust === "object" && typeof (trust as { trusted?: unknown }).trusted === "boolean"
           ? (trust as { trusted: boolean })
           : null,
+    };
+  }
+
+  /**
+   * task-dir-picker.md §4.2：不用通用 `this.get` —— 它对非 200 只给 `core /fs/list -> 400`，
+   * 丢掉 core 的 `{ error }` 文案（「目录不存在：…」这类 UI 要原样给用户），switchCwd 同款手法。
+   */
+  async listDirs(path?: string | null): Promise<DirListResult> {
+    const query = path && path.trim().length > 0 ? `?path=${encodeURIComponent(path)}` : "";
+    const res = await fetch(`${this.cfg.baseUrl}/fs/list${query}`, { headers: this.authHeader() });
+    const body = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      path?: unknown;
+      parent?: unknown;
+      entries?: unknown;
+      truncated?: unknown;
+      drives?: unknown;
+      error?: unknown;
+    } | null;
+    if (!res.ok || !body?.ok || typeof body.path !== "string" || !Array.isArray(body.entries)) {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `读取目录失败（HTTP ${res.status}）`);
+    }
+    const entries = body.entries.filter(
+      (e): e is { name: string; path: string } =>
+        !!e &&
+        typeof e === "object" &&
+        typeof (e as { name?: unknown }).name === "string" &&
+        typeof (e as { path?: unknown }).path === "string",
+    );
+    return {
+      path: body.path,
+      parent: typeof body.parent === "string" && body.parent.length > 0 ? body.parent : null,
+      entries,
+      truncated: body.truncated === true,
+      drives: Array.isArray(body.drives) ? body.drives.filter((d): d is string => typeof d === "string") : null,
     };
   }
 

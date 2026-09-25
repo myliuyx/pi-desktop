@@ -19,6 +19,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { toAgentEvent } from "./adapt.ts";
 import type { AgentEvent, ModelTestRequest, ProviderModelsRequest, PutProvidersRequest } from "./contract.ts";
+import { DirListError, listDirectories } from "./fs-list.ts";
 import { isRecord } from "./guards.ts";
 import { InvalidCwdError, type CoreRuntime } from "./session.ts";
 
@@ -67,6 +68,8 @@ const API_ROUTES = new Set([
 	"/tools/active",
 	// D7 · 工作目录运行期热切换
 	"/cwd",
+	// dir-picker · 自定义路径弹窗的浏览数据源（只读列子目录）
+	"/fs/list",
 ]);
 
 /** 从 Host 头取主机名：`1.2.3.4:5190` → `1.2.3.4`；`[::1]:5190` → `::1`；`localhost` → `localhost` */
@@ -338,6 +341,20 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				return json(200, { ok: true, cwd: r.cwd, trust: r.trust });
 			} catch (e) {
 				if (e instanceof InvalidCwdError) return json(400, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * dir-picker · 目录浏览（GET /fs/list?path=...，task-dir-picker.md §4.1）
+		 * 只读列子目录，给「自定义路径」弹窗当数据源；可预期失败由 DirListError
+		 * 带状态码（400 不存在/不是目录、403 无权限），与意外错误 500 区分。
+		 * ----------------------------------------------------------------- */
+		if (req.method === "GET" && urlPath === "/fs/list") {
+			try {
+				return json(200, listDirectories(url.searchParams.get("path") ?? "", runtime.getCwd()));
+			} catch (e) {
+				if (e instanceof DirListError) return json(e.status, { ok: false, error: e.message });
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
 		}

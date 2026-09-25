@@ -10,6 +10,7 @@ import { Check, ChevronDown, FolderOpen, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
 import { Button } from "@/components/primitives";
+import { DirectoryPickerDialog } from "@/components/shell/DirectoryPickerDialog";
 import {
   POPOVER_Z,
   WORKING_DIR_MENU_FADE_MS,
@@ -55,6 +56,8 @@ import { getLiveTransport } from "@/services/live-transport";
  * SSE 广播 `cwd_changed` → `refreshSessions()` 刷新 `liveCwd`。不再有「下次启动」承诺
  * （原「记偏好 + 提示重启」口径已废）；偏好（`uiStore.workingDir`）只剩 mock 语义。
  * 「使用默认目录」live = 切回 core 默认（`process.cwd()`）；mock = 清除偏好。
+ * 目录来源：最近目录 / 默认目录 / **自定义路径弹窗**（dir-picker 批次——live 由 core
+ * `GET /fs/list` 浏览，mock 纯手输；确认后走的仍是同一条 chooseDir 链路，零新语义）。
  */
 
 /** 显示值的来源（`data-current-source` 的取值，属 §4.0 契约，不得改名） */
@@ -129,6 +132,8 @@ export function WorkingDirectoryMenu({
   const { source, fullPath, label, preference, liveCwd, recentDirs } = view;
 
   const [open, setOpen] = useState(false);
+  /** 「自定义路径…」弹窗（dir-picker 批次）：独立于面板的开关——面板关了弹窗不能跟着蒸发 */
+  const [pickerOpen, setPickerOpen] = useState(false);
   /** 首帧定位完成前先 `opacity-0`：否则会先闪一下未定位的面板（R3） */
   const [placed, setPlaced] = useState(false);
   const [pos, setPos] = useState({ left: 0, top: 0, width: WORKING_DIR_MENU_MIN_WIDTH });
@@ -210,6 +215,21 @@ export function WorkingDirectoryMenu({
       setOpen(false);
     }
   }, [open, isSidebar, sidebarCollapsed, settingsOpen]);
+
+  /*
+   * 弹窗关闭联动（与面板 C10 同一条纪律：收侧栏 / 关设置弹窗时，picker 一并关）。
+   * 弹窗经 Dialog 挂 body（fixed），同样脱离 `aside` 的 `aria-hidden` 管辖，
+   * 不关就是孤儿浮层。分支与面板 effect 同构：sidebar 形态顾收侧栏与设置弹窗，
+   * settings 形态只顾设置弹窗本身（mock 下 settingsOpen 恒 false，不能一刀切）。
+   */
+  useEffect(() => {
+    if (!pickerOpen) return;
+    if (isSidebar) {
+      if (sidebarCollapsed || settingsOpen) setPickerOpen(false);
+    } else if (!settingsOpen) {
+      setPickerOpen(false);
+    }
+  }, [pickerOpen, isSidebar, sidebarCollapsed, settingsOpen]);
 
   /* ------------------------------------------------------------------ 定位 */
 
@@ -356,16 +376,13 @@ export function WorkingDirectoryMenu({
   }
 
   /**
-   * 「自定义路径…」= 方案 A（§4.5）：外观与参照图一致（可点、不置灰），
-   * 点击走**显式反馈**而不是静默 —— "点了没反应"是本项目明令避免的陷阱；
-   * 但也不假装实现了选择器（浏览器套壳拿不到绝对路径，见 §六.2）。
-   * 面板**不关**：用户看到提示后可以接着选别的。
+   * 「自定义路径…」= 应用内目录选择弹窗（dir-picker 批次，task-dir-picker.md D1/D7）：
+   * 打开弹窗并**关闭菜单面板**（真弹窗与浮层菜单同屏无意义，原「提示后面板不关」
+   * 随占位提示语义整体退场）。live = browse（core 列目录）；mock = manual（纯手输，D2）。
    */
   function chooseCustom() {
-    useNoticeStore.getState().notify({
-      tone: "info",
-      text: "自定义路径：尚未接入系统目录对话框，请从最近目录或默认目录中选择",
-    });
+    setPickerOpen(true);
+    close();
   }
 
   /* ------------------------------------------------------------------ 渲染 */
@@ -430,6 +447,33 @@ export function WorkingDirectoryMenu({
   return (
     <>
       {trigger}
+      {/*
+        目录选择弹窗（条件渲染 + portal 到 body，与菜单面板同一套生命周期纪律）：
+        ★ 关闭即卸载 —— Dialog 关闭态也是 `role="dialog"`（inert + opacity-0），若常驻 DOM，
+          既有探针「文档里第一个 role=dialog = 设置弹窗」的锚点口径会被常驻 picker 读歪
+          （probe-dir-menu C13 / probe:settings 同口径）；
+        ★ portal 到 body 末尾 —— 打开时层级与菜单面板（POPOVER_Z）同层且后到在上，
+          不受侧栏内潜在层叠上下文影响（面板 C 系列同一理由）。
+        确认走既有 chooseDir：live 热切换 / mock 写偏好，选择语义零新增（D8）。
+        关闭时焦点还给触发条（G7：别落到 body，面板 Escape 同款纪律）。
+      */}
+      {pickerOpen && typeof document !== "undefined"
+        ? createPortal(
+            <DirectoryPickerDialog
+              open={pickerOpen}
+              mode={live ? "browse" : "manual"}
+              onClose={() => {
+                setPickerOpen(false);
+                triggerRef.current?.focus();
+              }}
+              onConfirm={(path) => {
+                setPickerOpen(false);
+                chooseDir(path);
+              }}
+            />,
+            document.body,
+          )
+        : null}
       {open && typeof document !== "undefined"
         ? createPortal(
             <div
