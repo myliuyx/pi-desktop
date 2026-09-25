@@ -63,14 +63,24 @@ export interface CwdSwitchResult {
   trust: { trusted: boolean } | null;
 }
 
-/** `GET /fs/list` 的成功返回（dir-picker 批次，契约 task-dir-picker.md §4.0） */
+/** `GET /fs/list` 条目（dir-tree 批次 §4.0：kind 恒返回；dir-picker 旧 core 兼容由 listDirs 归一） */
+export interface DirEntryResult {
+  name: string;
+  path: string;
+  kind: "dir" | "file";
+}
+
+/** `GET /fs/list` 的成功返回（dir-picker 批次，契约 task-dir-picker.md §4.0 / dir-tree §4.0） */
 export interface DirListResult {
   /** 归一化后的绝对路径（回显到弹窗输入框） */
   path: string;
   /** 上一级；已在根（POSIX 根 / 盘根 / UNC 根）时为 null */
   parent: string | null;
-  /** 仅目录，按 name 码元排序；超 500 条已被 core 截断 */
-  entries: { name: string; path: string }[];
+  /**
+   * 缺省仅目录（dir-picker）；`includeFiles` 时目录组在前、文件组在后，
+   * 各组按 name 码元排序；超 500 条已被 core 截断。
+   */
+  entries: DirEntryResult[];
   truncated: boolean;
   /** 仅 win32 且处于根目录时非 null，如 ["C:\\","D:\\"] */
   drives: string[] | null;
@@ -111,11 +121,13 @@ export interface AgentTransport {
    */
   switchCwd(dir: string | null): Promise<CwdSwitchResult>;
   /**
-   * 目录浏览（dir-picker 批次）：`GET /fs/list?path=...`，只读列子目录。
-   * `path` 缺省（null/undefined/空串）= core 当前 cwd（服务端决定起始目录，UI 不猜）。
+   * 目录浏览（dir-picker 批次；dir-tree 批次加 `opts.includeFiles`）：`GET /fs/list?path=...`。
+   * `path` 缺省（null/undefined/空串）= core 当前 cwd（服务端决定起始目录，UI 不猜）；
+   * `includeFiles` = 文件一并列入（目录组在前、文件组在后，task-sidebar-file-tree.md §4.0）。
+   * 旧 core 忽略该参数 ⇒ 只回目录且无 kind，此处按 "dir" 归一（§三 兼容性行）。
    * 失败（400 目录不存在 / 403 无权限 / 网络错）抛错，文案取 core 的 `{ error }` 原文。
    */
-  listDirs(path?: string | null): Promise<DirListResult>;
+  listDirs(path?: string | null, opts?: { includeFiles?: boolean }): Promise<DirListResult>;
 
   /* ------------------------------------------------- C5 · 04/05 屏数据源 */
   /** 04 屏：扩展 / 提示词 / 技能三类（已按信任门过滤项目本地资源） */
@@ -405,8 +417,12 @@ export class HttpAgentTransport implements AgentTransport {
    * task-dir-picker.md §4.2：不用通用 `this.get` —— 它对非 200 只给 `core /fs/list -> 400`，
    * 丢掉 core 的 `{ error }` 文案（「目录不存在：…」这类 UI 要原样给用户），switchCwd 同款手法。
    */
-  async listDirs(path?: string | null): Promise<DirListResult> {
-    const query = path && path.trim().length > 0 ? `?path=${encodeURIComponent(path)}` : "";
+  async listDirs(path?: string | null, opts?: { includeFiles?: boolean }): Promise<DirListResult> {
+    // 手拼 query 与原实现同款（encodeURIComponent 各段独立）；include=files 仅在显式要求时追加
+    const parts: string[] = [];
+    if (path && path.trim().length > 0) parts.push(`path=${encodeURIComponent(path)}`);
+    if (opts?.includeFiles) parts.push("include=files");
+    const query = parts.length > 0 ? `?${parts.join("&")}` : "";
     const res = await fetch(`${this.cfg.baseUrl}/fs/list${query}`, { headers: this.authHeader() });
     const body = (await res.json().catch(() => null)) as {
       ok?: boolean;
@@ -422,12 +438,13 @@ export class HttpAgentTransport implements AgentTransport {
       throw new Error(detail ?? `读取目录失败（HTTP ${res.status}）`);
     }
     const entries = body.entries.filter(
-      (e): e is { name: string; path: string } =>
+      (e): e is { name: string; path: string; kind: "dir" | "file" } =>
         !!e &&
         typeof e === "object" &&
         typeof (e as { name?: unknown }).name === "string" &&
         typeof (e as { path?: unknown }).path === "string",
-    );
+      // kind 不在准入条件里：旧 core 无该字段，下方归一补 "dir"（§三 兼容性行）
+    ).map((e) => ({ ...e, kind: (e as { kind?: unknown }).kind === "file" ? ("file" as const) : ("dir" as const) }));
     return {
       path: body.path,
       parent: typeof body.parent === "string" && body.parent.length > 0 ? body.parent : null,

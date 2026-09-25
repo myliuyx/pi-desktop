@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-25T03:05:25.391Z",
+  "startedAt": "2026-09-25T04:11:07.521Z",
   "steps": [
     {
       "name": "C1_实测",
@@ -36,16 +36,16 @@
         "trigger": {
           "left": 12,
           "right": 252,
-          "top": 580.66,
-          "bottom": 608.66,
+          "top": 582.98,
+          "bottom": 610.98,
           "width": 240,
           "height": 28
         },
         "panel": {
           "left": 12,
           "right": 252,
-          "top": 408.66,
-          "bottom": 574.91,
+          "top": 410.98,
+          "bottom": 577.23,
           "width": 240,
           "height": 166.25
         }
@@ -57,13 +57,13 @@
         "exists": true,
         "center": {
           "x": 132,
-          "y": 491.8
+          "y": 494.1
         },
         "panelRect": {
           "left": 12,
           "right": 252,
-          "top": 408.66,
-          "bottom": 574.91,
+          "top": 410.98,
+          "bottom": 577.23,
           "width": 240,
           "height": 166.25
         },

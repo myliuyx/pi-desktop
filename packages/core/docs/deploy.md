@@ -165,7 +165,7 @@ CORE_TOKEN=0f2a...full-random-long-token npm run smoke
 3. **不要裸公网直开**：`CORE_HOST=0.0.0.0` 只应配合防火墙限制在可信内网；公网可达 + token 泄漏 = 机器被完全控制。
 4. **加层防护更稳**：在反代上再加 IP 白名单、Basic Auth 或 mTLS，可以挡住"token 泄漏但没到反代这一层"的请求。
 5. **`CORE_CWD` 最小权限**：它决定 agent 可读写的文件范围，别指向含敏感凭据的目录。
-6. **`GET /fs/list`（dir-picker 批次）**：只读列子目录名（不返回文件内容），供「自定义路径」弹窗浏览。它与 agent 执行 shell 同受 token 保护，且能力严格弱于后者——token 持有者的能力边界不因它扩大。
+6. **`GET /fs/list`（dir-picker 批次；`?include=files` 为 dir-tree 批次扩展）**：只读列名字——缺省仅子目录，`include=files` 时普通文件一并列入（仅名字，不返回文件内容/大小/时间），分别供「自定义路径」弹窗与侧栏文件树使用。它与 agent 执行 shell 同受 token 保护，且能力严格弱于后者——token 持有者的能力边界不因它扩大。
 
 ---
 

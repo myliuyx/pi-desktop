@@ -57,6 +57,14 @@ export interface ChatState {
    * 不许回落成 `uiStore.workingDir` —— 那是本地偏好，不是当前会话目录。
    */
   liveCwd: string | null;
+  /**
+   * 文件树刷新时钟（dir-tree 批次 D3）：`refreshSessions()` **成功**一次就 +1。
+   * 触发点因此全覆盖：启动 / SSE `cwd_changed`（含多标签广播）/ `agent_settled` /
+   * 流式发送完成 / 手动重拉。侧栏文件树订阅它做自动重拉（保持展开集）；
+   * cwd 变化另走 `liveCwd` 通道（清空展开集重置树）。失败不 bump —— core 不可达时
+   * 不制造重拉风暴；mock 恒 0（组件本就不渲染）。
+   */
+  fsVersion: number;
   /** 重新拉取会话清单（live 形态；mock 形态是空操作），顺带刷新 `liveCwd` */
   refreshSessions: () => void;
   /** 按 id 打开历史会话（live 形态；mock 形态是空操作） */
@@ -372,6 +380,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessionSummaries: [],
   liveSessionId: null,
   liveCwd: null,
+  fsVersion: 0,
 
   refreshSessions: () => {
     const transport = getLiveTransport();
@@ -379,8 +388,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     void transport
       .listSessions()
       .then(({ cwd, sessions }) => {
-        // cwd 与清单同批写入：两者都来自那一次 `GET /sessions`，不会错配
-        useChatStore.setState({ sessionSummaries: sessions, liveCwd: cwd });
+        // cwd 与清单同批写入：两者都来自那一次 `GET /sessions`，不会错配；
+        // fsVersion 同批 +1（dir-tree 批次 D3）——文件树以它为「重拉」时钟
+        useChatStore.setState((state) => ({
+          sessionSummaries: sessions,
+          liveCwd: cwd,
+          fsVersion: state.fsVersion + 1,
+        }));
       })
       .catch((e) => {
         console.error("[live] listSessions 失败:", e);

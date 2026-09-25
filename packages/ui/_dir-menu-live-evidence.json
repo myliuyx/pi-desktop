@@ -1,12 +1,12 @@
 {
   "origin": "http://127.0.0.1:5380",
-  "startedAt": "2026-09-25T03:03:55.016Z",
+  "startedAt": "2026-09-25T04:12:06.399Z",
   "steps": [
     {
       "name": "live_cwd_到达观测",
       "value": {
         "ok": true,
-        "got": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace"
+        "got": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace"
       }
     },
     {
@@ -26,7 +26,7 @@
           "haspopup": "menu",
           "expandedClosed": "false",
           "controlsWhenClosed": false,
-          "title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
+          "title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
           "focusable": true
         },
         "open": {
@@ -43,16 +43,16 @@
         "trigger": {
           "left": 12,
           "right": 252,
-          "top": 580.66,
-          "bottom": 608.66,
+          "top": 582.98,
+          "bottom": 610.98,
           "width": 240,
           "height": 28
         },
         "panel": {
           "left": 12,
           "right": 252,
-          "top": 408.66,
-          "bottom": 574.91,
+          "top": 410.98,
+          "bottom": 577.23,
           "width": 240,
           "height": 166.25
         }
@@ -64,13 +64,13 @@
         "exists": true,
         "center": {
           "x": 132,
-          "y": 491.8
+          "y": 494.1
         },
         "panelRect": {
           "left": 12,
           "right": 252,
-          "top": 408.66,
-          "bottom": 574.91,
+          "top": 410.98,
+          "bottom": 577.23,
           "width": 240,
           "height": 166.25
         },
@@ -90,7 +90,7 @@
         "curDisabled": "true",
         "curChecked": "true",
         "curMark": true,
-        "curPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
+        "curPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
         "recentCount": 2,
         "recentRole": "menuitemradio",
         "recentCheckedAttr": "false",
@@ -114,7 +114,7 @@
         "浅色": {
           "theme": "light",
           "pathEl": {
-            "text": "…enu-cwd-fixture-N3r9td\\workspac",
+            "text": "…enu-cwd-fixture-zFEwAe\\workspac",
             "contrast": 5.42
           },
           "defaultItem": {
@@ -129,7 +129,7 @@
         "深色": {
           "theme": "dark",
           "pathEl": {
-            "text": "…enu-cwd-fixture-N3r9td\\workspac",
+            "text": "…enu-cwd-fixture-zFEwAe\\workspac",
             "contrast": 5.68
           },
           "defaultItem": {
@@ -151,16 +151,16 @@
       "name": "C16_实测",
       "value": {
         "exists": true,
-        "text": "…enu-cwd-fixture-N3r9td\\workspace",
-        "title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
-        "triggerTitle": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
+        "text": "…enu-cwd-fixture-zFEwAe\\workspace",
+        "title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
+        "triggerTitle": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
         "scrollWidth": 200,
         "clientWidth": 180,
         "className": "min-w-0 flex-1 truncate font-mono text-xs",
         "triggerScrollWidth": 240,
         "triggerClientWidth": 240,
-        "期望全文": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
-        "期望文字": "…enu-cwd-fixture-N3r9td\\workspace",
+        "期望全文": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
+        "期望文字": "…enu-cwd-fixture-zFEwAe\\workspace",
         "全路径长度": 71
       }
     },
@@ -251,7 +251,7 @@
           "hitInMenu": true,
           "sidebarMenuStillGone": true,
           "dialogStillOpen": true,
-          "text": "…enu-cwd-fixture-N3r9td\\workspace运行中…ir-menu-cwd-fixture-N3r9td\\alpha…dir-menu-c"
+          "text": "…enu-cwd-fixture-zFEwAe\\workspace运行中…ir-menu-cwd-fixture-zFEwAe\\alpha…dir-menu-c"
         },
         "c": {
           "dialogClosed": true,
@@ -263,11 +263,11 @@
       "name": "C17_实测",
       "value": {
         "source": "live",
-        "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
+        "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
         "currentChecked": "true",
         "recentPaths": [
-          "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha",
-          "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\beta"
+          "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha",
+          "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\beta"
         ],
         "recentChecked": [
           "false",
@@ -276,10 +276,10 @@
         "pending": [],
         "checkedTrueCount": 1,
         "badgeRunning": true,
-        "期望": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
+        "期望": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
         "本地偏好": "/probe/pref-other",
         "core默认cwd": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
-        "触发条title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace"
+        "触发条title": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace"
       }
     },
     {
@@ -287,11 +287,11 @@
       "value": {
         "before": {
           "source": "live",
-          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
+          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
           "currentChecked": "true",
           "recentPaths": [
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha",
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\beta"
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha",
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\beta"
           ],
           "recentChecked": [
             "false",
@@ -309,12 +309,12 @@
               {
                 "testid": "notice-stack",
                 "tone": null,
-                "text": "工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha"
+                "text": "工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha"
               },
               {
                 "testid": "notice-item",
                 "tone": "success",
-                "text": "工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha"
+                "text": "工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha"
               }
             ],
             "bodyTextHasCoreCwd": false,
@@ -324,11 +324,11 @@
         },
         "after": {
           "source": "live",
-          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha",
+          "currentPath": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha",
           "currentChecked": "true",
           "recentPaths": [
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\beta"
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\beta"
           ],
           "recentChecked": [
             "false",
@@ -340,21 +340,21 @@
         },
         "switched": {
           "ok": true,
-          "got": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha"
+          "got": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha"
         },
-        "apiCwd": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha",
-        "目标": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha",
-        "notice文案": "工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha | 工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha"
+        "apiCwd": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha",
+        "目标": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha",
+        "notice文案": "工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha | 工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha"
       }
     },
     {
       "name": "C6_实测",
       "value": {
         "点选索引": 1,
-        "目标目录": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\beta",
-        "点前首行": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha",
-        "apiCwd": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\beta",
-        "点后首行": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\beta",
+        "目标目录": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\beta",
+        "点前首行": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha",
+        "apiCwd": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\beta",
+        "点后首行": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\beta",
         "workingDirStorage": "/probe/pref-other",
         "menuGone": true,
         "focusOnTrigger": true,
@@ -367,9 +367,9 @@
         "stored": {
           "workingDir": "/probe/pref-other",
           "recent": [
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\beta",
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha",
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace"
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\beta",
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha",
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace"
           ]
         },
         "面板": {
@@ -377,9 +377,9 @@
           "currentPath": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
           "currentChecked": "true",
           "recentPaths": [
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\beta",
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\alpha",
-            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace"
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\beta",
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\alpha",
+            "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace"
           ],
           "recentChecked": [
             "false",
@@ -505,17 +505,17 @@
       "name": "console_errors_全程",
       "value": {
         "consoleErrors": [
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at mE.connectSse (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:53:3302)\n    at mE.subscribe (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:53:3044)\n    at vE (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:56:8208)\n    at http://127.0.0.1:5380/assets/index-xILyPnMQ.js:57:3312",
-          "[live] listSessions 失败: TypeError: Failed to fetch\n    at mE.get (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:56:531)\n    at mE.listSessions (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:56:1570)\n    at Object.refreshSessions (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:57:2154)\n    at http://127.0.0.1:5380/assets/index-xILyPnMQ.js:57:3338",
-          "[live] 启动加载最近会话失败: TypeError: Failed to fetch\n    at mE.get (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:56:531)\n    at mE.listSessions (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:56:1570)\n    at http://127.0.0.1:5380/assets/index-xILyPnMQ.js:57:3421\n    at http://127.0.0.1:5380/assets/index-xILyPnMQ.js:57:3772",
-          "[live] /models 失败: TypeError: Failed to fetch\n    at mE.get (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:56:531)\n    at mE.listModels (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:56:3340)\n    at Object.refresh (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:349:11521)\n    at ensure (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:349:11451)\n    at http://127.0.0.1:5380/assets/index-xILyPnMQ.js:349:12088\n    at dr (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:48:96199)\n    at zg (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:48:119607)\n    at Sn (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:48:119380)\n    at zg (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:48:120826)\n    at Sn (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:48:119380)",
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at mE.connectSse (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:53:3302)\n    at http://127.0.0.1:5380/assets/index-xILyPnMQ.js:53:2881",
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at mE.connectSse (http://127.0.0.1:5380/assets/index-xILyPnMQ.js:53:3302)\n    at http://127.0.0.1:5380/assets/index-xILyPnMQ.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at bE.connectSse (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:53:3302)\n    at bE.subscribe (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:53:3044)\n    at kE (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:56:8358)\n    at http://127.0.0.1:5380/assets/index-DBEAMOa3.js:57:3353",
+          "[live] listSessions 失败: TypeError: Failed to fetch\n    at bE.get (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:56:531)\n    at bE.listSessions (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:56:1570)\n    at Object.refreshSessions (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:57:2166)\n    at http://127.0.0.1:5380/assets/index-DBEAMOa3.js:57:3379",
+          "[live] 启动加载最近会话失败: TypeError: Failed to fetch\n    at bE.get (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:56:531)\n    at bE.listSessions (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:56:1570)\n    at http://127.0.0.1:5380/assets/index-DBEAMOa3.js:57:3462\n    at http://127.0.0.1:5380/assets/index-DBEAMOa3.js:57:3813",
+          "[live] /models 失败: TypeError: Failed to fetch\n    at bE.get (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:56:531)\n    at bE.listModels (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:56:3490)\n    at Object.refresh (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:354:11521)\n    at ensure (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:354:11451)\n    at http://127.0.0.1:5380/assets/index-DBEAMOa3.js:354:12088\n    at hr (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:48:96199)\n    at Mg (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:48:119607)\n    at Sn (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:48:119380)\n    at Mg (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:48:120826)\n    at Sn (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:48:119380)",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at bE.connectSse (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:53:3302)\n    at http://127.0.0.1:5380/assets/index-DBEAMOa3.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at bE.connectSse (http://127.0.0.1:5380/assets/index-DBEAMOa3.js:53:3302)\n    at http://127.0.0.1:5380/assets/index-DBEAMOa3.js:53:2881",
           "[live] SSE 异常: TypeError: network error",
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at mE.connectSse (http://127.0.0.1:5381/assets/index-xILyPnMQ.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-xILyPnMQ.js:53:2881",
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at mE.connectSse (http://127.0.0.1:5381/assets/index-xILyPnMQ.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-xILyPnMQ.js:53:2881",
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at mE.connectSse (http://127.0.0.1:5381/assets/index-xILyPnMQ.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-xILyPnMQ.js:53:2881",
-          "[live] SSE 异常: TypeError: Failed to fetch\n    at mE.connectSse (http://127.0.0.1:5381/assets/index-xILyPnMQ.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-xILyPnMQ.js:53:2881"
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at bE.connectSse (http://127.0.0.1:5381/assets/index-DBEAMOa3.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-DBEAMOa3.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at bE.connectSse (http://127.0.0.1:5381/assets/index-DBEAMOa3.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-DBEAMOa3.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at bE.connectSse (http://127.0.0.1:5381/assets/index-DBEAMOa3.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-DBEAMOa3.js:53:2881",
+          "[live] SSE 异常: TypeError: Failed to fetch\n    at bE.connectSse (http://127.0.0.1:5381/assets/index-DBEAMOa3.js:53:3302)\n    at http://127.0.0.1:5381/assets/index-DBEAMOa3.js:53:2881"
         ],
         "exceptions": []
       }
@@ -544,29 +544,29 @@
         "source": "live",
         "apiCwd": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
         "期望": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
-        "C17夹具": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace"
+        "C17夹具": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace"
       }
     },
     {
       "name": "C22_实测",
       "value": {
-        "不存在的CORE_CWD": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-6zZZ8j\\definitely-missing-dir",
+        "不存在的CORE_CWD": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-ZjZOMJ\\definitely-missing-dir",
         "期望回落值": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
         "警告行": [
-          "[core] 警告: CORE_CWD=\"C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-6zZZ8j\\definitely-missing-dir\" 不是存在的目录，已回落 process.cwd()=\"F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core\""
+          "[core] 警告: CORE_CWD=\"C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-ZjZOMJ\\definitely-missing-dir\" 不是存在的目录，已回落 process.cwd()=\"F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core\""
         ],
         "核心cwd回落行": [
-          "[core] 警告: CORE_CWD=\"C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-6zZZ8j\\definitely-missing-dir\" 不是存在的目录，已回落 process.cwd()=\"F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core\"",
+          "[core] 警告: CORE_CWD=\"C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-ZjZOMJ\\definitely-missing-dir\" 不是存在的目录，已回落 process.cwd()=\"F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core\"",
           "[core] 工作目录: F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
-          "[core] 信任门：cwd=F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core defaultProjectTrust=never trusted=true reason=no-project-resources asked=false bootstrap扩展数=0 耗时=1ms"
+          "[core] 信任门：cwd=F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core defaultProjectTrust=never trusted=true reason=no-project-resources asked=false bootstrap扩展数=0 耗时=0ms"
         ],
         "sessions.cwd": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
         "日志尾部": [
-          "[core] 警告: CORE_CWD=\"C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-6zZZ8j\\definitely-missing-dir\" 不是存在的目录，已回落 process.cwd()=\"F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core\"",
+          "[core] 警告: CORE_CWD=\"C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-ZjZOMJ\\definitely-missing-dir\" 不是存在的目录，已回落 process.cwd()=\"F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core\"",
           "[core] 工作目录: F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
           "[core] 监听 http://127.0.0.1:5382  (SSE: /events, 健康: /health)",
           "[core] 同源托管 UI: F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\ui\\dist",
-          "[core] 信任门：cwd=F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core defaultProjectTrust=never trusted=true reason=no-project-resources asked=false bootstrap扩展数=0 耗时=1ms",
+          "[core] 信任门：cwd=F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core defaultProjectTrust=never trusted=true reason=no-project-resources asked=false bootstrap扩展数=0 耗时=0ms",
           "[core] 会话就绪：加载到扩展 0 个；当前模型 ark-coding/deepseek-v4-flash",
           ""
         ]
@@ -595,10 +595,10 @@
     {
       "name": "C24_实测",
       "value": {
-        "请求目录": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-6zZZ8j\\no-such-dir-for-switch",
+        "请求目录": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-ZjZOMJ\\no-such-dir-for-switch",
         "响应": {
           "ok": false,
-          "error": "目录不存在：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-6zZZ8j\\no-such-dir-for-switch"
+          "error": "目录不存在：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-ZjZOMJ\\no-such-dir-for-switch"
         },
         "切换前cwd": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core",
         "切换后cwd": "F:\\DevelopWork\\WorkBuddyWork\\Tiktok_auto\\packages\\core"
@@ -624,14 +624,14 @@
           "empty": false,
           "truncated": false,
           "errorText": null,
-          "inputValue": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
+          "inputValue": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
           "entryNames": [
             "sub-for-picker"
           ],
           "confirmDisabled": false
         },
-        "起始期望": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace",
-        "夹具子目录": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace\\sub-for-picker"
+        "起始期望": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace",
+        "夹具子目录": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace\\sub-for-picker"
       }
     },
     {
@@ -643,13 +643,13 @@
           "empty": true,
           "truncated": false,
           "errorText": null,
-          "inputValue": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace\\sub-for-picker",
+          "inputValue": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace\\sub-for-picker",
           "entryNames": [],
           "confirmDisabled": false
         },
-        "notice文案": "工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace\\sub-for-picker | 工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace\\sub-for-picker",
-        "waitedTitle": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace\\sub-for-picker",
-        "期望": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\workspace\\sub-for-picker"
+        "notice文案": "工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace\\sub-for-picker | 工作目录已切换：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace\\sub-for-picker",
+        "waitedTitle": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace\\sub-for-picker",
+        "期望": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\workspace\\sub-for-picker"
       }
     },
     {
@@ -660,12 +660,12 @@
           "loading": false,
           "empty": false,
           "truncated": false,
-          "errorText": "目录不存在：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\no-such-picker-target",
-          "inputValue": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\no-such-picker-target",
+          "errorText": "目录不存在：C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\no-such-picker-target",
+          "inputValue": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\no-such-picker-target",
           "entryNames": [],
           "confirmDisabled": false
         },
-        "请求目录": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-N3r9td\\no-such-picker-target"
+        "请求目录": "C:\\Users\\myliu\\AppData\\Local\\Temp\\dir-menu-cwd-fixture-zFEwAe\\no-such-picker-target"
       }
     }
   ],

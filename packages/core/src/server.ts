@@ -347,12 +347,19 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 
 		/* -----------------------------------------------------------------
 		 * dir-picker · 目录浏览（GET /fs/list?path=...，task-dir-picker.md §4.1）
-		 * 只读列子目录，给「自定义路径」弹窗当数据源；可预期失败由 DirListError
-		 * 带状态码（400 不存在/不是目录、403 无权限），与意外错误 500 区分。
+		 * 只读列名字，给「自定义路径」弹窗（仅目录）与侧栏文件树（dir-tree 批次
+		 * task-sidebar-file-tree.md，?include=files 时文件一并列入）当数据源；
+		 * 可预期失败由 DirListError 带状态码（400 不存在/不是目录、403 无权限），
+		 * 与意外错误 500 区分。
 		 * ----------------------------------------------------------------- */
 		if (req.method === "GET" && urlPath === "/fs/list") {
+			// 参数口径沿用 /sessions 的 all=1 先例：精确匹配才生效，其它取值同缺省（仅目录）
+			const includeFiles = url.searchParams.get("include") === "files";
 			try {
-				return json(200, listDirectories(url.searchParams.get("path") ?? "", runtime.getCwd()));
+				return json(
+					200,
+					listDirectories(url.searchParams.get("path") ?? "", runtime.getCwd(), { includeFiles }),
+				);
 			} catch (e) {
 				if (e instanceof DirListError) return json(e.status, { ok: false, error: e.message });
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });

@@ -16,6 +16,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { usePrefersReducedMotion } from "@/lib/use-prefers-reduced-motion";
 import { Icon, type LucideIcon } from "@/components/common/icons";
 import { WorkingDirectoryMenu } from "@/components/shell/WorkingDirectoryMenu";
+import { WorkingDirFileTree } from "@/components/shell/WorkingDirFileTree";
 import { isLiveEnabled } from "@/lib/feature-flags";
 import { useUiStore } from "@/store/ui-store";
 import { useChatStore } from "@/store/chat-store";
@@ -310,6 +311,13 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
              *   连同上两层 `overflow-hidden` 一起裁掉，见 WorkingDirectoryMenu 文件头）。
              */}
             <WorkingDirectoryMenu workingDirectory={workingDirectory} />
+            {/*
+             * ★ 2026-09-25 文件树（dir-tree 批次，task-sidebar-file-tree.md）：
+             * 触发条**之后**的兄弟节点，渲染门槛在组件内部（mock / SSR / liveCwd 未拿到
+             * 都返回 null，文档序与 `check:sidebar-layout` 的既有断言零影响）；
+             * 滚动沿用本容器的 overflow-y-auto，不新增滚动边界。
+             */}
+            <WorkingDirFileTree />
           </div>
         </section>
       </div>
