@@ -172,9 +172,11 @@ export function DirectoryPickerDialog({ open, onClose, onConfirm, mode }: Direct
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onInputKeyDown}
           />
+          {/* shrink-0：输入框 w-full 撑爆 flex 行时收缩全由 min-w-0 输入框吸收，按钮文字不换行 */}
           <Button
             variant="secondary"
             size="sm"
+            className="shrink-0 whitespace-nowrap"
             data-testid="dir-picker-go"
             disabled={loading || input.trim().length === 0}
             onClick={() => void navigate(input)}
