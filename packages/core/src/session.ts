@@ -96,7 +96,11 @@ export interface CoreRuntime {
 	 * ----------------------------------------------------------------------- */
 	/** 当前工作目录的会话清单（`all=true` 走 `listAll`，跨项目目录） */
 	listSessions(options?: { all?: boolean }): Promise<SessionSummary[]>;
-	/** 按 id 加载单个会话的 `Message[]`（找不到返回 null → 端点回 404） */
+	/**
+	 * 按 id 加载单个会话的 `Message[]`（找不到返回 null → 端点回 404）。
+	 * **同时把活动会话切过去**（遗留 #8 修复，2026-09-25）：点开历史会话后续写 prompt
+	 * 必须落在所看会话。同文件 / 流式中 no-op（rebuildSession 同款手势）。
+	 */
 	loadSession(id: string): Promise<SessionLoadResult | null>;
 	/**
 	 * 续接最近一次会话。C6 起**会重建活动 AgentSession**（§1.2）：
@@ -706,7 +710,23 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		},
 		loadSession: async (id) => {
 			await ready;
-			return loadSessionById(sessionRef(), id, { contextWindow: contextWindow() })?.result ?? null;
+			const loaded = loadSessionById(sessionRef(), id, { contextWindow: contextWindow() });
+			if (!loaded) return null;
+			/*
+			 * 遗留 #8 修复（2026-09-25）：点开历史会话 = 切换活动会话。
+			 * 此前 /sessions/load 纯只读 —— 界面看的是 A，后续 /prompt 却落进旧活动会话 B
+			 * （2026-09-25 临时实例实测：S1(mc=3)、S2(mc=3)、活动=S2，load(S1) 后发言 ⇒
+			 * S1 不变、S2(mc=5)，用户会在 S2 里看到一段没发生过的对话，而 S1 里发的消息刷新即失）。
+			 * 切换手势与 continue-recent / newSession 同款（rebuildSession，公开路径）。
+			 * 护栏：① 同文件 no-op（看的就是当前活动会话，重建纯属浪费）；
+			 * ② 流式中跳过重建、只读返回 —— 不打断正在生成的回复
+			 *   （UI 的 loadSessionById 本就先 abort 再 load，正常路径必切，此条只防竞态/直连）。
+			 */
+			const currentFile = session?.sessionManager.getSessionFile();
+			if (loaded.path && loaded.path !== currentFile && !session?.isStreaming) {
+				await rebuildSession(loaded.path);
+			}
+			return loaded.result;
 		},
 		continueRecentSession: async () => {
 			await ready;
