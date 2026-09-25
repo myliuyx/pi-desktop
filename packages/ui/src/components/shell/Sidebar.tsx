@@ -135,6 +135,7 @@ export interface SidebarProps extends HTMLAttributes<HTMLElement> {
  * │   ├── 历史会话区 (flex:2 / min-h-0 / overflow-hidden)
  * │   │   └── 会话列表 (flex-1 / min-h-0 / overflow-y-auto)
  * │   └── 工作目录区 (flex:1 / min-h-0 / overflow-hidden)
+ * │       ├── 触发条=当前目录行 (固定，不随树滚 —— 2026-09-25 挪出滚动容器)
  * │       └── 工作目录内容 (flex-1 / min-h-0 / overflow-y-auto)
  * └── footer                                ← 兄弟节点，通底贴边
  * ```
@@ -297,25 +298,23 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
           }}
         >
           <SectionLabel icon={FolderOpen} label="工作目录" />
+          {/*
+           * ★ 2026-09-24 改造（U1/U2/U5）：原本是纯展示 `div` + 一个**哑按钮**「打开文件夹」
+           *   （`onClick={onOpenFolder}`，全部 4 个调用点都没传），合成**可点击的触发条**。
+           * ★ 2026-09-25 滚动修复：触发条**固定在滚动容器之外**——此前它与文件树同在下方
+           *   `overflow-y-auto` 里，树一长往下滚目录名行就跟着滚出视野。
+           *   上弹面板仍 portal 到 `body`（本区被 section/aside 两层 `overflow-hidden` 包着，
+           *   原地 absolute 依旧会被裁，见 WorkingDirectoryMenu 文件头）。
+           */}
+          <WorkingDirectoryMenu workingDirectory={workingDirectory} />
           <div
             data-testid="sidebar-working-directory-content"
             className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden"
           >
             {/*
-             * ★ 2026-09-24 改造（U1/U2/U5）：
-             * - 这里原本是一个纯展示 `div` + 一个**哑按钮**「打开文件夹」
-             *   （`onClick={onOpenFolder}`，而 `onOpenFolder` 在全部 4 个调用点都没传）；
-             *   现在合成一个**可点击的触发条**：点击上弹工作目录菜单。
-             * - 触发条**必须留在本容器内部**（`sidebar-layout-check.mjs` 断言文档序），
-             *   而上弹的面板 portal 到 `body`（否则会被本容器的 `overflow-y-auto`
-             *   连同上两层 `overflow-hidden` 一起裁掉，见 WorkingDirectoryMenu 文件头）。
-             */}
-            <WorkingDirectoryMenu workingDirectory={workingDirectory} />
-            {/*
              * ★ 2026-09-25 文件树（dir-tree 批次，task-sidebar-file-tree.md）：
-             * 触发条**之后**的兄弟节点，渲染门槛在组件内部（mock / SSR / liveCwd 未拿到
-             * 都返回 null，文档序与 `check:sidebar-layout` 的既有断言零影响）；
-             * 滚动沿用本容器的 overflow-y-auto，不新增滚动边界。
+             * 渲染门槛在组件内部（mock / SSR / liveCwd 未拿到都返回 null）；
+             * 树的滚动由本容器 overflow-y-auto 独自承担，不新增滚动边界。
              */}
             <WorkingDirFileTree />
           </div>

@@ -31,8 +31,9 @@ import { getLiveTransport } from "@/services/live-transport";
  *
  * ## 为什么必须 portal（本次最大的技术坑）
  *
- * 触发条位于 `sidebar-working-directory-content`（`overflow-y-auto`）内部，
- * 而外层 `sidebar-working-directory-section` 与 `aside` **也都是 `overflow-hidden`**。
+ * 触发条在工作目录区内，而该区与外层 `aside` **都是 `overflow-hidden`**
+ * （2026-09-25 起触发条固定在 `sidebar-working-directory-content` 滚动容器之外、
+ * 分区头部——此前它还兼在该滚动容器内部，裁剪层级只多不少）。
  * 照抄 ChipMenu 的原地 `absolute bottom-full`，面板会落在容器的**负坐标区被逐层裁掉**。
  * 更坑的是：**被裁时 `getBoundingClientRect()` 照样返回正常数值** ——
  * "量得到"不等于"看得见"，所以这里的判据只能是 `elementFromPoint`（验收 C4）。

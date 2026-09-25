@@ -144,9 +144,11 @@ try {
   const workingContentIndex = indexOfTestId(html, "sidebar-working-directory-content");
   const pathIndex = indexOfTestId(html, "sidebar-working-directory");
   const footerIndex = indexOfTestId(html, "sidebar-check-footer");
+  // 2026-09-25 滚动修复：触发条（当前目录行）挪到滚动容器**之前**固定，
+  // 不再随文件树滚出视野 ⇒ 断言从 workingContent < path 反转为 path < workingContent。
   check(
-    "侧栏顺序保持：操作区 → 历史区 → 工作目录区 → Footer",
-    contentIndex < historyIndex && historyIndex < workingSectionIndex && workingSectionIndex < workingContentIndex && workingContentIndex < pathIndex && pathIndex < footerIndex,
+    "侧栏顺序保持：操作区 → 历史区 → 工作目录区（触发条 → 滚动内容）→ Footer",
+    contentIndex < historyIndex && historyIndex < workingSectionIndex && workingSectionIndex < pathIndex && pathIndex < workingContentIndex && workingContentIndex < footerIndex,
     JSON.stringify({ contentIndex, historyIndex, workingSectionIndex, workingContentIndex, pathIndex, footerIndex }),
   );
 } finally {

@@ -27,8 +27,9 @@
  * ══════════════════════════════════════════════════════════════════════════════
  * ★★★ C4 是全篇最关键的判据，**不要"优化"掉它** ★★★
  * ══════════════════════════════════════════════════════════════════════════════
- * 触发条位于 `sidebar-working-directory-content`（`overflow-y-auto`）内部，外层
- * `sidebar-working-directory-section` / `aside` **也都是 overflow-hidden**（规格 §4.7）。
+ * 触发条在侧栏工作目录区内，`sidebar-working-directory-section` / `aside`
+ * **都是 overflow-hidden**（规格 §4.7；2026-09-25 起触发条已挪出滚动容器固定在分区头部，
+ * 但仍在这两层 overflow-hidden 之内）。
  * 原地 `absolute bottom-full` 的上弹面板会落在容器的**负坐标区**被直接裁掉。
  *
  * 关键：那不是"没渲染"，是"渲染了但看不见" —— 被祖先裁掉的元素
