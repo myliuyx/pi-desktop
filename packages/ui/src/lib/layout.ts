@@ -119,6 +119,13 @@ export const MESSAGE_GAP = 20;
 /** 消息内容最大宽度（避免超宽屏下一行过长） */
 export const MESSAGE_MAX_WIDTH = 720;
 
+/**
+ * 新建会话页（NewSessionHero）建议卡区的最大宽度。
+ * 取值对照参照图的两卡总宽（≈656px，task-new-session-page.md §4.1）：
+ * 比消息列（720）略窄，居中后视觉更聚焦。
+ */
+export const NEW_SESSION_COLUMN_WIDTH = 656;
+
 /** Composer 输入框最小高度（单行态） */
 export const COMPOSER_MIN_HEIGHT = 44;
 

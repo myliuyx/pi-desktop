@@ -5,6 +5,7 @@ import { useChatStore } from "@/store/chat-store";
 import { Composer } from "@/components/chat/Composer";
 import { ComposerToolbar } from "@/components/chat/ComposerToolbar";
 import { MessageList } from "@/components/chat/MessageList";
+import { NewSessionHero, NEW_SESSION_COMPOSER_PLACEHOLDER } from "@/components/chat/NewSessionHero";
 
 export type WorkspaceAreaProps = HTMLAttributes<HTMLElement>;
 
@@ -23,6 +24,7 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
   ref,
 ) {
   const messages = useChatStore((state) => state.messages);
+  const newSessionDraft = useChatStore((state) => state.newSessionDraft);
 
   return (
     <main
@@ -35,7 +37,12 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
       )}
       {...rest}
     >
-      <MessageList messages={messages} />
+      {/*
+       * 新建会话草稿态（task-new-session-page.md §4.2）：整块二选一顶替 MessageList，
+       * Composer / 工具条原位保留 —— 侧栏、标题栏、预览区对这次切换零感知。
+       * 旧空态（`?empty=1` 的 `empty-state`，m5 5-7 锚）只服务非草稿空消息路径，不经这里。
+       */}
+      {newSessionDraft ? <NewSessionHero /> : <MessageList messages={messages} />}
 
       {/* 底部固定区：输入框 + 工具条。左右与底部与消息流同一边距。
           ★ 保持全宽（2026-09-22 二次裁决：输入区还原原样，仅消息流居中）。
@@ -51,7 +58,8 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
           gap: COMPOSER_TOOLBAR_GAP,
         }}
       >
-        <Composer />
+        {/* 草稿态换图中文案（D5）；其余路径不传 prop，占位零变化 */}
+        <Composer placeholder={newSessionDraft ? NEW_SESSION_COMPOSER_PLACEHOLDER : undefined} />
         <ComposerToolbar />
       </div>
     </main>

@@ -50,6 +50,8 @@ const API_ROUTES = new Set([
 	"/sessions",
 	"/sessions/load",
 	"/sessions/continue-recent",
+	// 新建（换入）空白活动会话（task-new-session-page.md D7）
+	"/sessions/new",
 	// C5 · 04/05 屏数据源
 	"/resources",
 	"/models",
@@ -377,6 +379,21 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				return json(200, { ok: true, ...result });
 			} catch (e) {
 				return json(500, { ok: false, error: String(e) });
+			}
+		}
+
+		// 新建（换入）空白活动会话（task-new-session-page.md D7）：只换内存活动会话，
+		// Pi 首条 entry 追加时才落盘文件 —— 调用时机由 UI 把握（草稿态首条消息发送时）。
+		if (req.method === "POST" && urlPath === "/sessions/new") {
+			// 前置护栏：不偷偷中止正在生成的回复（runtime.newSession 内还有同判据兜底）
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再新建会话" });
+			}
+			try {
+				const id = await runtime.newSession();
+				return json(200, { ok: true, id });
+			} catch (e) {
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
 		}
 

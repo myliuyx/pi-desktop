@@ -9,8 +9,10 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  CircleCheck,
   Clock,
   Code,
+  Code2,
   Copy,
   Cpu,
   Database,
@@ -27,6 +29,7 @@ import {
   PanelLeftClose,
   PanelRightClose,
   Pencil,
+  PenLine,
   Play,
   Plus,
   RefreshCw,
@@ -114,4 +117,8 @@ export const ICON_INVENTORY: Array<{ name: string; icon: LucideIcon }> = [
   { name: "Bookmark", icon: Bookmark },
   { name: "Bell", icon: Bell },
   { name: "MoreHorizontal", icon: MoreHorizontal },
+  // 新建会话页（task-new-session-page.md）：三张建议卡的图标
+  { name: "Code2", icon: Code2 },
+  { name: "CircleCheck", icon: CircleCheck },
+  { name: "PenLine", icon: PenLine },
 ];

@@ -61,6 +61,20 @@ export interface ChatState {
   refreshSessions: () => void;
   /** 按 id 打开历史会话（live 形态；mock 形态是空操作） */
   loadSessionById: (id: string, title?: string) => void;
+
+  /* ---------------------------------------------------- 新建会话草稿（task-new-session-page.md） */
+  /**
+   * 新建会话草稿态：点了「新建会话」但**还没有真实对话**。true 时 WorkspaceArea 用
+   * NewSessionHero 顶替 MessageList；不对应任何 core 会话（点击零网络请求），
+   * 只有草稿态首条 sendMessage 才触发 live 的建会话（先 POST /sessions/new，D6）。
+   */
+  newSessionDraft: boolean;
+  /**
+   * 进入草稿态：中止进行中的流式（与 loadSessionById 同口径）→ 清空消息区 →
+   * 归零 tokenUsage（不清零会显示上一会话的用量 = 假事实，D9）→ live 同时清
+   * `liveSessionId`（侧栏不再高亮旧会话）。**不发起任何网络请求**。
+   */
+  startNewSession: () => void;
 }
 
 /* ---------------------------------------------------------------------------
@@ -183,6 +197,31 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sendMessage: (text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+
+    /*
+     * ★ 新建会话草稿的首条消息（task-new-session-page.md §4.4 · D6 语义核心）：
+     * live 在**此刻**才"创建"会话 —— 先 POST /sessions/new 换入新活动会话（返回新 id），
+     * 成功才递入下方既有链路；失败则保持草稿原样（消息未上屏、hero 还在、可重试），
+     * 绝不把消息静默打进上一个活动会话。mock 无会话概念，清位即走既有模拟流式。
+     */
+    if (get().newSessionDraft) {
+      const transport = getLiveTransport();
+      if (transport) {
+        void (async () => {
+          try {
+            const { id } = await transport.newSession();
+            useChatStore.setState({ newSessionDraft: false, liveSessionId: id });
+          } catch (e) {
+            console.error("[live] newSession 失败:", e);
+            notifyFailure("新会话创建失败，消息未发送", e);
+            return;
+          }
+          useChatStore.getState().sendMessage(text);
+        })();
+        return;
+      }
+      set({ newSessionDraft: false });
+    }
 
     // ★ live 分支：经 core 连真实模型（reducer 由 applyEvent 在订阅里驱动，不在此预建 assistant 占位）
     const transport = getLiveTransport();
@@ -323,6 +362,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streaming: false,
       sessionTitle: session.title,
       tokenUsage: computeTokens(session.messages),
+      // 载入会话即离开新建会话草稿态（?stress / ?empty 也走这里 ⇒ 旧锚路径自动落 false）
+      newSessionDraft: false,
     });
   },
 
@@ -357,8 +398,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamMsgId = null;
     }
     void transport.abort().catch(() => {});
-    // 乐观先切标题与「当前会话」（消息体等 core 回来再填），避免点击后长时间无反馈
-    set((state) => ({ streaming: false, liveSessionId: id, sessionTitle: title ?? state.sessionTitle }));
+    // 乐观先切标题与「当前会话」（消息体等 core 回来再填），避免点击后长时间无反馈；
+    // 点开历史会话即离开草稿态（否则草稿的空消息区会顶掉载入的内容）
+    set((state) => ({
+      streaming: false,
+      liveSessionId: id,
+      sessionTitle: title ?? state.sessionTitle,
+      newSessionDraft: false,
+    }));
     void transport
       .loadSession(id)
       .then((loaded) => {
@@ -393,6 +440,36 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streaming: false,
       sessionTitle: INITIAL_SESSION_TITLE,
       tokenUsage: INITIAL_TOKEN_USAGE,
+      liveSessionId: null,
+      newSessionDraft: false,
+    });
+  },
+
+  /* ---------------------------------------------- 新建会话草稿（task-new-session-page.md） */
+
+  newSessionDraft: false,
+
+  startNewSession: () => {
+    // 流式中先中止（与 loadSessionById 同口径）：mock 停模拟流，live 打 /abort
+    if (activeStream) {
+      activeStream.abort();
+      activeStream = null;
+      streamMsgId = null;
+    }
+    const transport = getLiveTransport();
+    if (transport) {
+      void transport.abort().catch(() => {});
+      // live 草稿基线同步清空：后续 reducer 事件从「空消息 + 新 user 消息」起累计
+      //（sendMessage 的 live 分支会以 get().messages 为基线重建，这里保证它是 []）
+      liveDraft = createDraft([]);
+    }
+    set({
+      messages: [],
+      streaming: false,
+      newSessionDraft: true,
+      // 草稿没有历史用量：不清零会一直显示上一个会话的数字（假事实，D9）
+      tokenUsage: { input: 0, output: 0, total: 0, contextWindow: INITIAL_TOKEN_USAGE.contextWindow },
+      // mock 形态本就恒 null，无条件清空即无行为差异；live 借此去掉侧栏旧会话高亮
       liveSessionId: null,
     });
   },
@@ -430,7 +507,8 @@ if (typeof window !== "undefined") {
             useChatStore.getState().loadSessionById(latest.id, latest.title);
           } else {
             liveDraft = createDraft([]);
-            useChatStore.setState({ messages: [], sessionTitle: "新会话", streaming: false });
+            // D8：live 首启无历史会话 ⇒ 直接进新建会话草稿态（hero），不再是旧空态
+            useChatStore.setState({ messages: [], sessionTitle: "新会话", streaming: false, newSessionDraft: true });
           }
         } catch (e) {
           console.error("[live] 启动加载最近会话失败:", e);

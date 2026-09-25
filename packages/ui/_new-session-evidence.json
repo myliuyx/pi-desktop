@@ -1,0 +1,308 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-25T00:33:00.819Z",
+  "steps": [
+    {
+      "name": "N6_按钮原始观测",
+      "value": {
+        "label": "新建会话",
+        "title": "新建会话",
+        "hasHover": true,
+        "hasActive": true,
+        "hasTransition": true
+      }
+    },
+    {
+      "name": "N1_hero原始观测",
+      "value": {
+        "exists": true,
+        "visibleHeight": 634,
+        "messageListAbsent": true,
+        "emptyStateAbsent": true,
+        "cardsPresent": true,
+        "cards": [
+          {
+            "tag": "DIV",
+            "title": "读懂这个代码库",
+            "desc": "扫描项目结构与依赖，列出关键模块、入口文件和调用链，先建立一份全局认知。"
+          },
+          {
+            "tag": "DIV",
+            "title": "跑通测试并修复失败项",
+            "desc": "先复现失败用例，定位根因，再按最小改动逐个修好并跑一遍回归。"
+          },
+          {
+            "tag": "DIV",
+            "title": "实现一个小需求",
+            "desc": "描述目标即可，我先给出分步执行计划，等你确认后再动手改代码。"
+          },
+          {
+            "tag": "DIV",
+            "title": "排查最近的报错",
+            "desc": "从终端输出与日志定位根因，给出复现路径、影响范围和修复建议。"
+          }
+        ],
+        "h1": "开始一个新会话",
+        "fullText": "开始一个新会话描述你想完成的任务，Pi会先给出执行计划，再动手改代码。读懂这个代码库扫描项目结构与依赖，列出关键模块、入口文件和调用链，先建立一份全局认知。跑通测试并修复失败项先复现失败用例，定位根因，再按最小改动逐个修好并跑一遍回归。实现一个小需求描述目标即可，我先给出分步执行计划，等你确认后再动手改代码。排查最近的报错从终端输出与日志定位根因，给出复现路径、影响范围和修复建议。Enter发送·Shift+Enter换行·/唤起技能·@引用文件"
+      }
+    },
+    {
+      "name": "N2_卡片原始观测",
+      "value": [
+        {
+          "tag": "DIV",
+          "hasHoverClass": false,
+          "hasActiveClass": false,
+          "tabindex": null,
+          "cursor": "auto"
+        },
+        {
+          "tag": "DIV",
+          "hasHoverClass": false,
+          "hasActiveClass": false,
+          "tabindex": null,
+          "cursor": "auto"
+        },
+        {
+          "tag": "DIV",
+          "hasHoverClass": false,
+          "hasActiveClass": false,
+          "tabindex": null,
+          "cursor": "auto"
+        },
+        {
+          "tag": "DIV",
+          "hasHoverClass": false,
+          "hasActiveClass": false,
+          "tabindex": null,
+          "cursor": "auto"
+        }
+      ]
+    },
+    {
+      "name": "N10_草稿态用量观测",
+      "value": {
+        "input": "0",
+        "output": "0",
+        "total": "0",
+        "store": {
+          "newSessionDraft": true,
+          "streaming": false,
+          "messageCount": 0,
+          "liveSessionId": null,
+          "tokenUsage": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "N9_幂等观测",
+      "value": {
+        "beforeReclick": {
+          "newSessionDraft": true,
+          "streaming": false,
+          "messageCount": 0,
+          "liveSessionId": null,
+          "tokenUsage": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        },
+        "afterReclick": {
+          "newSessionDraft": true,
+          "streaming": false,
+          "messageCount": 0,
+          "liveSessionId": null,
+          "tokenUsage": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        },
+        "heroStill": true
+      }
+    },
+    {
+      "name": "N8_流式中止观测",
+      "value": {
+        "streamingBefore": true,
+        "afterAbort": {
+          "newSessionDraft": true,
+          "streaming": false,
+          "messageCount": 0,
+          "liveSessionId": null,
+          "tokenUsage": {
+            "input": 0,
+            "output": 0,
+            "total": 0
+          }
+        },
+        "hero": true,
+        "list": false
+      }
+    },
+    {
+      "name": "N4_草稿发送观测",
+      "value": {
+        "heroAbsent": true,
+        "listBack": true,
+        "firstIsUser": true,
+        "firstText": "帮我读懂这个代码库",
+        "draftCleared": true,
+        "placeholderRestored": true
+      }
+    },
+    {
+      "name": "N5_旧空态观测",
+      "value": {
+        "emptyExists": true,
+        "emptyText": "还没有消息在下方输入框里给 Pi 下达第一个任务，回复会出现在这里。",
+        "listExists": true,
+        "heroAbsent": true,
+        "draftOff": true
+      }
+    },
+    {
+      "name": "N7_跨屏导航观测",
+      "value": {
+        "hash": "#/workbench",
+        "hero": true,
+        "workbenchBack": true,
+        "draft": true
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "N6 按钮文案=新建会话、testid 沿用、三件套在（m5 5-5 同口径）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "按钮存在": true,
+        "文案是新建会话": true,
+        "title同文案": true,
+        "hover反馈": true,
+        "active反馈": true,
+        "transition在": true
+      }
+    },
+    {
+      "name": "N1 点按钮 → hero 出现、互斥双面不在、四卡齐全、文案逐字",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "hero存在": true,
+        "hero有高度": true,
+        "消息列表不存在": true,
+        "旧空态不存在": true,
+        "四卡齐全": true,
+        "标题逐字": true,
+        "副标题逐字": true,
+        "提示行逐字": true,
+        "四卡文案逐字": true,
+        "草稿位真值": true
+      }
+    },
+    {
+      "name": "N2 卡片纯展示：div、无 hover:/active: 类、无 tabindex、非 pointer 光标",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "四卡都是div": true,
+        "无hover类": true,
+        "无active类": true,
+        "无tabindex": true,
+        "光标非pointer": true
+      }
+    },
+    {
+      "name": "N3 草稿态 placeholder = 图中文案",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "placeholder逐字": true,
+        "非默认文案": true
+      }
+    },
+    {
+      "name": "N10 草稿态 TokenStats 归零（不显示上一会话的 12.4k/6.2k）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "输入为0": true,
+        "输出为0": true,
+        "消耗为0": true,
+        "store归零": true
+      }
+    },
+    {
+      "name": "N9 草稿态再点按钮幂等",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "hero仍在": true,
+        "草稿位不变": true,
+        "消息数不变": true,
+        "streaming为假": true
+      }
+    },
+    {
+      "name": "N8 流式中点按钮 → 中止 + 进入草稿态",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "点击前确实在流式": true,
+        "点击后streaming解除": true,
+        "进入草稿态": true,
+        "hero出现": true,
+        "消息列表被清": true
+      }
+    },
+    {
+      "name": "N4 草稿态发送 → hero 消失、用户消息上屏、placeholder 回退",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "hero消失": true,
+        "消息列表回归": true,
+        "首条是用户消息": true,
+        "首条含原文": true,
+        "草稿位清除": true,
+        "placeholder回退": true
+      }
+    },
+    {
+      "name": "N5 ?empty=1 仍是旧空态（m5 5-7 锚不受影响）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "旧空态存在": true,
+        "有提示文案": true,
+        "消息列表存在": true,
+        "hero不出现": true,
+        "草稿位关闭": true
+      }
+    },
+    {
+      "name": "N7 #/skills 点按钮 → hash 回 #/workbench 且进草稿态",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "hash回工作台": true,
+        "hero出现": true,
+        "工作台回归": true,
+        "草稿位开启": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 10,
+    "passed": 10,
+    "failed": 0,
+    "failedNames": []
+  }
+}

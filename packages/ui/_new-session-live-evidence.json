@@ -1,0 +1,142 @@
+{
+  "origin": "http://127.0.0.1:5390",
+  "startedAt": "2026-09-25T00:33:44.418Z",
+  "steps": [
+    {
+      "name": "L1_空清单启动观测",
+      "value": {
+        "heroReady": true,
+        "page": {
+          "hero": true,
+          "listAbsent": true,
+          "emptyStateAbsent": true,
+          "store": {
+            "newSessionDraft": true,
+            "streaming": false,
+            "messageCount": 0,
+            "liveSessionId": null,
+            "tokenUsage": {
+              "input": 12400,
+              "output": 6200,
+              "total": 18600
+            }
+          },
+          "placeholder": "描述你想完成的任务，或输入 / 调用某个技能…"
+        },
+        "coreSessions": []
+      }
+    },
+    {
+      "name": "L2_草稿发送观测",
+      "value": {
+        "wait": {
+          "done": true,
+          "elapsedMs": 1531,
+          "state": {
+            "newSessionDraft": false,
+            "streaming": false,
+            "messageCount": 2,
+            "liveSessionId": "01a0d5fb-8237-7684-9910-22c79ceb608a"
+          }
+        },
+        "coreSessions": [
+          {
+            "id": "01a0d5fb-8237-7684-9910-22c79ceb608a",
+            "messageCount": 3
+          }
+        ]
+      }
+    },
+    {
+      "name": "L3_点击不创建观测",
+      "value": {
+        "page": {
+          "hero": true,
+          "listAbsent": true,
+          "store": {
+            "newSessionDraft": true,
+            "streaming": false,
+            "messageCount": 0,
+            "liveSessionId": null,
+            "tokenUsage": {
+              "input": 0,
+              "output": 0,
+              "total": 0
+            }
+          }
+        },
+        "coreSessions": [
+          "01a0d5fb-8237-7684-9910-22c79ceb608a"
+        ]
+      }
+    },
+    {
+      "name": "L4_离稿出路观测",
+      "value": {
+        "done": true,
+        "state": {
+          "newSessionDraft": false,
+          "liveSessionId": "01a0d5fb-8237-7684-9910-22c79ceb608a",
+          "messageCount": 0
+        }
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "L1 live 空清单启动 ⇒ 直接进草稿态（D8）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "hero出现": true,
+        "无消息列表": true,
+        "无旧空态": true,
+        "草稿位开启": true,
+        "placeholder是草稿文案": true,
+        "core清单为空": true
+      }
+    },
+    {
+      "name": "L2 草稿态首条发送 ⇒ 此刻才创建会话（清单恰 1 条且 id 命中 liveSessionId）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "一轮完成": true,
+        "离开草稿态": true,
+        "liveSessionId非空": true,
+        "core清单恰一条": true,
+        "清单id命中": true,
+        "消息数达标": true
+      }
+    },
+    {
+      "name": "L3 有会话后点新建 ⇒ 回草稿态且 core 清单不变（点击零创建）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "hero回归": true,
+        "消息列表清空": true,
+        "草稿位开启": true,
+        "liveSessionId已清": true,
+        "core清单仍恰一条": true,
+        "仍是原会话": true
+      }
+    },
+    {
+      "name": "L4 点历史项 ⇒ 离开草稿态回到会话视图",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "草稿位关闭": true,
+        "liveSessionId回归": true,
+        "消息列表回归": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 4,
+    "passed": 4,
+    "failed": 0,
+    "failedNames": []
+  }
+}

@@ -29,8 +29,17 @@ import {
  * 几何上的「在边框内侧右下角」，而不是视觉上「看起来在旁边」。绝对定位 + 内缩
  * `COMPOSER_SEND_INSET` 能稳定满足这两条。
  */
-export const Composer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(function Composer(
-  { className, ...rest },
+export interface ComposerProps extends HTMLAttributes<HTMLDivElement> {
+  /**
+   * 覆盖占位文案（新建会话草稿态传图中文案，task-new-session-page.md §4.0 D5）。
+   * 只影响 placeholder —— aria-label / testid / 发送按钮几何 / 键盘行为等
+   * 冻结契约零改动；不传（全部既有调用点）保持原文案，行为零变化。
+   */
+  placeholder?: string;
+}
+
+export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Composer(
+  { placeholder, className, ...rest },
   ref,
 ) {
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -92,7 +101,7 @@ export const Composer = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder="给 Pi 下达任务…（Enter 发送，Shift+Enter 换行）"
+        placeholder={placeholder ?? "给 Pi 下达任务…（Enter 发送，Shift+Enter 换行）"}
         /*
          * aria-label：placeholder 随着输入消失，不是稳定的可访问名称 —— 只靠 placeholder
          * 的输入框在屏幕阅读器里是「无名控件」（G7）。这里补一个固定名称，

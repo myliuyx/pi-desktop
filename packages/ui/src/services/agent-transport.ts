@@ -85,6 +85,13 @@ export interface AgentTransport {
   /** 续接最近一次会话（只读） */
   continueRecentSession(): Promise<SessionLoadResult>;
   /**
+   * 新建（换入）一个空白活动会话（task-new-session-page.md §4.8 · D6/D7）：
+   * 只换 core 内存里的活动会话，Pi 在首条 entry 追加时才落盘文件 ——
+   * 所以调用时机是**草稿态首条消息发送时**（不是点「新建会话」按钮时）。
+   * 返回新会话 id；流式中（409）等失败抛错，文案取 core 的 `{ error }` 原文。
+   */
+  newSession(): Promise<{ id: string }>;
+  /**
    * 运行期热切换工作目录（D7，2026-09-24 裁决）：`dir=null` = core 默认目录
    * （`process.cwd()`）。成功后 core 会经 SSE 广播 `cwd_changed`（UI 重拉清单）。
    * 流式中（409）/ 目录无效（400）抛错，错误文案取 core 的 `{ error }` 原文。
@@ -329,6 +336,20 @@ export class HttpAgentTransport implements AgentTransport {
 
   continueRecentSession(): Promise<SessionLoadResult> {
     return this.post<SessionLoadResult>("/sessions/continue-recent", {});
+  }
+
+  /**
+   * task-new-session-page.md §4.8：`POST /sessions/new` 回 `{ ok, id }`。
+   * 不借用通用 `this.post` 的裸透传 —— 失败时要拿 core 的 `{ error }` 原文
+   * （「会话正在生成回复…」这类文案 UI 要原样给用户，switchCwd 同款手法）。
+   */
+  async newSession(): Promise<{ id: string }> {
+    const body = await this.post<{ ok?: boolean; id?: unknown; error?: unknown }>("/sessions/new", {});
+    if (!body?.ok || typeof body.id !== "string" || body.id.length === 0) {
+      const detail = body && typeof body.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? "新建会话失败");
+    }
+    return { id: body.id };
   }
 
   /**

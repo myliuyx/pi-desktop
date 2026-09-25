@@ -12,6 +12,7 @@
     "smoke:check": "node scripts/core-smoke.mjs",
     "check:c3": "node scripts/c3-approval-check.mjs",
     "check:c4": "node scripts/c4-sessions-check.mjs",
+    "check:sessions-new": "node scripts/sessions-new-check.mjs",
     "check:c5": "node scripts/c5-resources-models-check.mjs",
     "check:c6": "node scripts/c6-e2e-check.mjs",
     "check:providers": "node scripts/providers-check.mjs",

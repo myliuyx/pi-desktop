@@ -1,11 +1,11 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-24T14:05:33.604Z",
+  "startedAt": "2026-09-25T00:29:57.823Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 79,
+        "扫描文件数": 80,
         "hex在tokens之外": [],
         "dark变体命中": [],
         "内置调色板命中": [],
@@ -66,8 +66,8 @@
         ],
         "mode": "grid",
         "hScroll": {
-          "scrollWidth": 1440,
-          "clientWidth": 1440
+          "scrollWidth": 1424,
+          "clientWidth": 1424
         }
       }
     },
@@ -149,17 +149,17 @@
       "value": [
         {
           "os": "mac",
-          "w": 1118,
+          "w": 1102,
           "h": 408
         },
         {
           "os": "win",
-          "w": 1118,
+          "w": 1102,
           "h": 408
         },
         {
           "os": "linux",
-          "w": 1118,
+          "w": 1102,
           "h": 408
         }
       ]
@@ -167,15 +167,15 @@
     {
       "name": "5-3_06屏并排横向滚动",
       "value": {
-        "scrollWidth": 1440,
-        "clientWidth": 1440
+        "scrollWidth": 1424,
+        "clientWidth": 1424
       }
     },
     {
       "name": "5-3b_06屏单壳横向滚动",
       "value": {
-        "scrollWidth": 1440,
-        "clientWidth": 1440
+        "scrollWidth": 1424,
+        "clientWidth": 1424
       }
     },
     {
@@ -184,8 +184,8 @@
         {
           "route": "01 工作台",
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -199,8 +199,8 @@
         {
           "route": "00 令牌",
           "hScroll": {
-            "scrollWidth": 1430,
-            "clientWidth": 1430
+            "scrollWidth": 1414,
+            "clientWidth": 1414
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -212,8 +212,8 @@
         {
           "route": "01b 源码态",
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -227,8 +227,8 @@
         {
           "route": "03 运行详情",
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -242,8 +242,8 @@
         {
           "route": "04 技能与工具",
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -254,8 +254,8 @@
         {
           "route": "05 设置",
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -269,8 +269,8 @@
         {
           "route": "06 窗口壳",
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           },
           "hasNeutralIcon": true,
           "strokeSamples": [
@@ -302,15 +302,15 @@
           "auxCount": 13,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           }
         },
         {
           "route": "00 令牌",
           "theme": "dark",
           "brightBlocks": 0,
-          "measured": 205,
+          "measured": 206,
           "tokenValuesExcluded": 52,
           "bodyMin": 4.9,
           "bodyMinSample": {
@@ -319,11 +319,11 @@
             "color": "rgb(107, 147, 255)"
           },
           "auxMin": 3.17,
-          "auxCount": 102,
+          "auxCount": 104,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1430,
-            "clientWidth": 1430
+            "scrollWidth": 1414,
+            "clientWidth": 1414
           }
         },
         {
@@ -342,8 +342,8 @@
           "auxCount": 13,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           }
         },
         {
@@ -362,8 +362,8 @@
           "auxCount": 40,
           "minText": 3.21,
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           }
         },
         {
@@ -382,8 +382,8 @@
           "auxCount": 41,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           }
         },
         {
@@ -402,8 +402,8 @@
           "auxCount": 13,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           }
         },
         {
@@ -422,8 +422,8 @@
           "auxCount": 29,
           "minText": 3.17,
           "hScroll": {
-            "scrollWidth": 1440,
-            "clientWidth": 1440
+            "scrollWidth": 1424,
+            "clientWidth": 1424
           }
         }
       ]
@@ -457,7 +457,7 @@
           "hasHover": true,
           "hasActive": true,
           "hasTransition": true,
-          "name": "新建任务"
+          "name": "新建会话"
         },
         {
           "testid": "sidebar-history-item-1",
@@ -496,21 +496,21 @@
           "testid": "titlebar-toggle-sidebar",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(50, 90, 207)",
+          "outlineColor": "rgb(47, 85, 191)",
           "focusVisible": true
         },
         {
           "testid": "titlebar-toggle-theme",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(47, 85, 191)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
           "testid": "titlebar-open-settings",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(45, 77, 169)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
@@ -538,7 +538,7 @@
           "testid": "sidebar-history-item-0",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(47, 85, 191)",
+          "outlineColor": "rgb(44, 77, 169)",
           "focusVisible": true
         },
         {
@@ -559,21 +559,21 @@
           "testid": "sidebar-history-item-3",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(73, 100, 174)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-history-item-4",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(67, 100, 193)",
+          "outlineColor": "rgb(62, 99, 206)",
           "focusVisible": true
         },
         {
           "testid": "sidebar-history-item-5",
           "outlineWidth": "2px",
           "outlineStyle": "solid",
-          "outlineColor": "rgb(62, 99, 206)",
+          "outlineColor": "rgb(67, 100, 193)",
           "focusVisible": true
         },
         {
@@ -596,14 +596,14 @@
       "name": "5-7_空状态原始观测",
       "value": {
         "emptyExists": true,
-        "emptyHeight": 594,
+        "emptyHeight": 586,
         "emptyText": "还没有消息在下方输入框里给 Pi 下达第一个任务，回复会出现在这里。",
         "listExists": true,
         "totalCount": "0",
-        "listHeight": 642,
+        "listHeight": 634,
         "hScroll": {
-          "scrollWidth": 1440,
-          "clientWidth": 1440
+          "scrollWidth": 1424,
+          "clientWidth": 1424
         }
       }
     },
@@ -627,8 +627,8 @@
           },
           {
             "name": "shell-preview-note",
-            "scrollW": 191,
-            "clientW": 191,
+            "scrollW": 192,
+            "clientW": 192,
             "noOverflow": true,
             "hasTitle": true
           },
@@ -641,16 +641,16 @@
           }
         ],
         "hScroll": {
-          "scrollWidth": 1440,
-          "clientWidth": 1440
+          "scrollWidth": 1424,
+          "clientWidth": 1424
         }
       }
     },
     {
       "name": "遗留_折叠时长观测",
       "value": {
-        "sidebarTransition": "0.18s",
-        "prefersReduced": false
+        "sidebarTransition": "0.12s",
+        "prefersReduced": true
       }
     },
     {
@@ -897,7 +897,7 @@
         ],
         "各屏辅助最低对比度": [
           "01 工作台: 3.17 (13 处)",
-          "00 令牌: 3.17 (102 处)",
+          "00 令牌: 3.17 (104 处)",
           "01b 源码态: 3.17 (13 处)",
           "03 运行详情: 3.21 (40 处)",
           "04 技能与工具: 3.17 (41 处)",
@@ -965,12 +965,10 @@
     },
     {
       "name": "遗留裁决 1：reduced-motion 下折叠时长已改为 120ms（非 90ms / 非瞬间跳变）",
-      "pass": false,
-      "failed": [
-        "折叠时长为012s"
-      ],
+      "pass": true,
+      "failed": [],
       "detail": {
-        "折叠时长为012s": false,
+        "折叠时长为012s": true,
         "未出现0s或0_001s": true
       }
     },
@@ -1007,10 +1005,9 @@
   ],
   "summary": {
     "assertions": 21,
-    "passed": 19,
-    "failed": 2,
+    "passed": 20,
+    "failed": 1,
     "failedNames": [
-      "遗留裁决 1：reduced-motion 下折叠时长已改为 120ms（非 90ms / 非瞬间跳变）",
       "遗留裁决 2：Tab 面板 role=tabpanel + aria-labelledby 闭环；aria-controls 仅激活 tab 持有且可解析（G7）"
     ]
   }

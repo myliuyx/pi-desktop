@@ -31,6 +31,8 @@
     "probe:onboarding": "node scripts/probe-settings-onboarding.mjs",
     "probe:dir-menu": "node scripts/probe-dir-menu.mjs",
     "probe:dir-menu:live": "node scripts/probe-dir-menu.mjs --live",
+    "probe:new-session": "node scripts/probe-new-session.mjs",
+    "probe:new-session:live": "node scripts/probe-new-session.mjs --live",
     "shots:m1": "node scripts/m1-shots.mjs"
   },
   "dependencies": {

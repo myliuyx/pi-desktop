@@ -105,6 +105,14 @@ export interface CoreRuntime {
 	 * 重建后续写 prompt 落在同一 session 文件。无历史会话时只返回空壳、不重建。
 	 */
 	continueRecentSession(): Promise<SessionLoadResult>;
+	/**
+	 * 新建（换入）一个空白活动会话（task-new-session-page.md §4.7 · D7）：
+	 * 同 cwd 重建 AgentSession（**不带 sessionManager** ⇒ 全新空白会话），复用既有
+	 * settingsManager / resourceLoader（不走信任门、不重载资源）。**不落盘** ——
+	 * Pi 在首条 entry 追加时才写会话文件，这正是「真实发生对话才创建 session」。
+	 * 返回新会话 id；流式中抛错（端点另有前置判据回 409，这里是兜底）。
+	 */
+	newSession(): Promise<string>;
 
 	/* -------------------------------------------------------------------------
 	 * C5 · 04/05 屏数据源（`resources.ts` / `models.ts` 的转发）
@@ -612,6 +620,53 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		return { cwd: target, trust: boot.trust };
 	};
 
+	/*
+	 * 新建（换入）空白活动会话（task-new-session-page.md §4.7 · D7）：
+	 * UI 草稿态首条消息发送时调用。手势 = rebuildSession 去掉「打开旧文件」那步 ——
+	 * createAgentSession **不带 sessionManager** 即全新空白会话；settingsManager /
+	 * resourceLoader 是 cwd 绑定产物，同 cwd 直接复用（与 rebuildSession 同口径），
+	 * 不走信任门、不重载资源。半成品处置沿 bootProject 纪律：bind/subscribe 失败
+	 * 就地 dispose 新实例、旧会话原样保留；换引用顺序与 rebuildSession / switchCwd
+	 * 同规：先换 → 清用量 → 推零快照 → 最后 dispose 旧实例。
+	 */
+	const newSession = async (): Promise<string> => {
+		await ready;
+		if (session?.isStreaming) {
+			throw new Error("会话正在生成回复，请先停止再新建会话");
+		}
+		if (!modelRuntime || !settingsManager || !resourceLoader) throw new Error("会话组件未就绪，无法新建会话");
+		const created = await createAgentSession({
+			// 无模型时整个字段省略（与启动路径同语义，见 ready 内的说明）
+			...(activeModel ? { model: activeModel } : {}),
+			modelRuntime,
+			agentDir,
+			cwd,
+			settingsManager,
+			resourceLoader,
+		});
+		try {
+			if (disposed) throw new Error("core 已停机，放弃挂接新会话");
+			await created.session.bindExtensions({ uiContext: bridge.uiContext, mode: "rpc" });
+			created.session.subscribe((event: unknown) => {
+				trackUsage(event);
+				emitRaw(event);
+			});
+		} catch (e) {
+			created.session.dispose();
+			throw e;
+		}
+		const previous = session;
+		session = created.session;
+		extensionCount = created.extensionsResult.extensions?.length ?? extensionCount;
+		resetUsageFromSession();
+		// 推零快照（D9 live 半）：让 UI 的 TokenStats 立即归零，不等下一轮 usage 事件
+		emitUsage();
+		previous?.dispose();
+		const id = session.sessionManager.getSessionId();
+		console.log(`[core] 已新建会话：${id}（首条消息后才落盘）`);
+		return id;
+	};
+
 	const runtime: CoreRuntime = {
 		prompt: async (text: string) => {
 			await ready;
@@ -667,6 +722,7 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			}
 			return loaded.result;
 		},
+		newSession,
 
 		/* ------------------------------------------------------------ C5 */
 		getResources: async () => {

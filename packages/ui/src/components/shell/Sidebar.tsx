@@ -119,7 +119,6 @@ export interface SidebarProps extends HTMLAttributes<HTMLElement> {
    * `useWorkingDirectoryView` 一处解析（U5 / R9）。
    */
   workingDirectory?: string;
-  onNewTask?: () => void;
   /** 底部条带，由 WorkbenchScreen 传入以避免 Sidebar 依赖 store 的折叠样式之外的东西 */
   footer?: ReactNode;
 }
@@ -143,12 +142,25 @@ export interface SidebarProps extends HTMLAttributes<HTMLElement> {
  * display:none，验收 1-10），因此除 `whitespace-nowrap` 外不能有别的会随宽度重排的样式。
  */
 export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
-  { activeSessionId, workingDirectory, onNewTask, footer, className, ...rest },
+  { activeSessionId, workingDirectory, footer, className, ...rest },
   ref,
 ) {
   const collapsed = useUiStore((state) => state.sidebarCollapsed);
   const prefersReducedMotion = usePrefersReducedMotion();
   const [searchQuery, setSearchQuery] = useState("");
+
+  /*
+   * ★ 新建会话（task-new-session-page.md §4.5 · D1）：原来经 `onNewTask` prop 外部注入，
+   * 但全部 4 个调用点都没传 —— 哑按钮（与 dir-menu 批次删 `onOpenFolder` 同型），
+   * 现在内部直连 chat-store 的 startNewSession。从 03/04/06 屏点击时顺带把 hash
+   * 切回工作台；已在 workbench 时赋同值不触发 hashchange，幂等。
+   * 处理器只在 click 里跑，SSR（check:sidebar-layout）不经过它。
+   */
+  const startNewSession = useChatStore((state) => state.startNewSession);
+  const handleNewTask = () => {
+    startNewSession();
+    window.location.hash = "#/workbench";
+  };
 
   /*
    * ★ C4：历史会话的数据源按形态二选一（**默认 mock 一行不变**）：
@@ -209,7 +221,7 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
         style={{ padding: SIDEBAR_PADDING, gap: SIDEBAR_GAP }}
       >
         <div data-testid="sidebar-actions" className="flex shrink-0 flex-col" style={{ gap: SIDEBAR_GAP }}>
-          <MenuItem icon={Plus} label="新建任务" testId="sidebar-new-task" onClick={onNewTask} />
+          <MenuItem icon={Plus} label="新建会话" testId="sidebar-new-task" onClick={handleNewTask} />
           <div className="relative flex shrink-0 items-center">
             <span className="pointer-events-none absolute left-2 flex items-center">
               <Icon icon={Search} />
