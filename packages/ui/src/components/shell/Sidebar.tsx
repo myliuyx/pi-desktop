@@ -288,7 +288,7 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
 
         <section
           data-testid="sidebar-working-directory-section"
-          className="flex min-h-0 flex-col overflow-hidden"
+          className="flex min-h-0 flex-col overflow-hidden border-t border-border-subtle pt-1.5"
           style={{
             flexGrow: SIDEBAR_WORKING_DIRECTORY_SECTION_FLEX_GROW,
             flexBasis: SIDEBAR_SECTION_FLEX_BASIS,
