@@ -17,11 +17,12 @@ import {
   MESSAGE_LIST_PADDING,
   MESSAGE_MAX_WIDTH,
 } from "@/lib/layout";
-import type { Block, Message } from "@/mock/types";
+import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingCard } from "./ThinkingCard";
 import { PlanCard } from "./PlanCard";
 import { TerminalCard } from "./TerminalCard";
+import { ToolCallCard } from "./ToolCallCard";
 import { ApprovalCard } from "./ApprovalCard";
 
 export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
@@ -281,6 +282,19 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
 
 function MessageItem({ message }: { message: Message }) {
   const isUser = message.role === "user";
+  /*
+   * 视图层合并（2026-09-26 用户裁决）：live 的 bash 执行此前渲染两块 ——
+   * tool_call 行（bash + 命令预览）+「终端」卡；现在同一条消息内按 toolCallId
+   * 配对，渲染成**一张**一行式工具卡（ToolCallCard），终端块本身不再单独出卡。
+   * 配不上的块各走各的老组件（mock 会话的裸 terminal / stress 的裸 tool_call），
+   * m1/m2 探针的 TerminalCard 断言不受影响。
+   */
+  const pairedCallIds = new Set<string>();
+  const terminalById = new Map<string, TerminalBlock>();
+  for (const block of message.blocks) {
+    if (block.type === "tool_call" && block.toolCallId) pairedCallIds.add(block.toolCallId);
+    if (block.type === "terminal" && block.toolCallId) terminalById.set(block.toolCallId, block);
+  }
   return (
     <div
       className={cn(
@@ -288,33 +302,56 @@ function MessageItem({ message }: { message: Message }) {
         isUser ? "items-end" : "items-start",
       )}
     >
-      {message.blocks.map((block, i) => (
-        <div
-          key={i}
-          className="min-w-0"
-          style={
-            /*
-             * 我方 vs 对方的宽度语义（2026-09-22 三次裁决，参考截图：我方消息
-             * 应为紧凑气泡贴右，不占满整列）：
-             * - 对方（assistant）：width:100% 占满 720 列 —— 卡片 / 终端 / 代码块
-             *   需要整列宽度，长文本也在列内换行（2-18）。
-             * - 我方（user）：不给宽度 —— 根容器 items-end 已禁用 flex 交叉轴
-             *   stretch，块退化为 fit-content：短文本气泡只包住内容、贴右；
-             *   超长文本被 maxWidth 720 封顶后换行，不撑破容器。
-             */
-            isUser
-              ? { maxWidth: MESSAGE_MAX_WIDTH }
-              : { maxWidth: MESSAGE_MAX_WIDTH, width: "100%" }
-          }
-        >
-          <BlockView message={message} block={block} />
-        </div>
-      ))}
+      {message.blocks.map((block, i) => {
+        // 已与 tool_call 配对的终端块并入了上方的一行式工具卡，跳过避免双份渲染
+        if (block.type === "terminal" && block.toolCallId && pairedCallIds.has(block.toolCallId)) {
+          return null;
+        }
+        return (
+          <div
+            key={i}
+            className="min-w-0"
+            style={
+              /*
+               * 我方 vs 对方的宽度语义（2026-09-22 三次裁决，参考截图：我方消息
+               * 应为紧凑气泡贴右，不占满整列）：
+               * - 对方（assistant）：width:100% 占满 720 列 —— 卡片 / 终端 / 代码块
+               *   需要整列宽度，长文本也在列内换行（2-18）。
+               * - 我方（user）：不给宽度 —— 根容器 items-end 已禁用 flex 交叉轴
+               *   stretch，块退化为 fit-content：短文本气泡只包住内容、贴右；
+               *   超长文本被 maxWidth 720 封顶后换行，不撑破容器。
+               */
+              isUser
+                ? { maxWidth: MESSAGE_MAX_WIDTH }
+                : { maxWidth: MESSAGE_MAX_WIDTH, width: "100%" }
+            }
+          >
+            <BlockView
+              message={message}
+              block={block}
+              pairedTerminal={
+                block.type === "tool_call" && block.toolCallId
+                  ? terminalById.get(block.toolCallId)
+                  : undefined
+              }
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function BlockView({ message, block }: { message: Message; block: Block }) {
+function BlockView({
+  message,
+  block,
+  pairedTerminal,
+}: {
+  message: Message;
+  block: Block;
+  /** 与该 tool_call 同 toolCallId 配对的终端块（同消息内存在才传，见 MessageItem 的合并注释） */
+  pairedTerminal?: TerminalBlock;
+}) {
   switch (block.type) {
     case "text":
       return <MessageBubble block={block} role={message.role} streaming={block.streaming} />;
@@ -327,7 +364,15 @@ function BlockView({ message, block }: { message: Message; block: Block }) {
     case "approval":
       return <ApprovalCard block={block} />;
     case "tool_call":
-      return <ToolCallInline block={block} />;
+      /*
+       * 配上终端块 = 一行式工具卡（bash 执行的常态路径）；没配上（执行事件未到 /
+       * 中止流式 / stress 压测数据）回落原轻量行，行为零变化。
+       */
+      return pairedTerminal ? (
+        <ToolCallCard call={block} terminal={pairedTerminal} />
+      ) : (
+        <ToolCallInline block={block} />
+      );
     default:
       return null;
   }
