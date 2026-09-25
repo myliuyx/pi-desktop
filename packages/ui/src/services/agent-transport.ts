@@ -86,6 +86,22 @@ export interface DirListResult {
   drives: string[] | null;
 }
 
+/** `GET /fs/read` 的成功返回（dir-file-preview 批次，core 的 fs-read.ts 为权威源） */
+export interface FileReadResult {
+  /** 归一化后的绝对路径 */
+  path: string;
+  /** 文件名（basename），预览区标题直接用 */
+  name: string;
+  /** 真实文件大小（字节；truncated 时 > content 的字节数） */
+  size: number;
+  /** 内容超出 256KB 上限被截断 */
+  truncated: boolean;
+  /** 二进制时恒为空串 */
+  content: string;
+  /** 二进制文件（首 8KB 含 0x00）：预览区不渲染内容 */
+  binary: boolean;
+}
+
 export interface AgentTransport {
   /** 发送一条用户消息 */
   sendMessage(text: string): Promise<void>;
@@ -128,6 +144,12 @@ export interface AgentTransport {
    * 失败（400 目录不存在 / 403 无权限 / 网络错）抛错，文案取 core 的 `{ error }` 原文。
    */
   listDirs(path?: string | null, opts?: { includeFiles?: boolean }): Promise<DirListResult>;
+  /**
+   * 文件读取（dir-file-preview 批次）：`GET /fs/read?path=...`。
+   * 只读限长文本（256KB 上限，超限 truncated:true；二进制 binary:true 且 content 为空）。
+   * 失败（400 不存在/不是文件 / 403 无权限 / 网络错）抛错，文案取 core 的 `{ error }` 原文。
+   */
+  readFile(path: string): Promise<FileReadResult>;
 
   /* ------------------------------------------------- C5 · 04/05 屏数据源 */
   /** 04 屏：扩展 / 提示词 / 技能三类（已按信任门过滤项目本地资源） */
@@ -451,6 +473,38 @@ export class HttpAgentTransport implements AgentTransport {
       entries,
       truncated: body.truncated === true,
       drives: Array.isArray(body.drives) ? body.drives.filter((d): d is string => typeof d === "string") : null,
+    };
+  }
+
+  /**
+   * dir-file-preview：不用通用 `this.get` —— 它对非 200 只给 `core /fs/read -> 400`，
+   * 丢掉 core 的 `{ error }` 文案（「文件不存在：…」这类 UI 要原样给用户），listDirs 同款手法。
+   */
+  async readFile(path: string): Promise<FileReadResult> {
+    const res = await fetch(`${this.cfg.baseUrl}/fs/read?path=${encodeURIComponent(path)}`, {
+      headers: this.authHeader(),
+    });
+    const body = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      path?: unknown;
+      name?: unknown;
+      size?: unknown;
+      truncated?: unknown;
+      content?: unknown;
+      binary?: unknown;
+      error?: unknown;
+    } | null;
+    if (!res.ok || !body?.ok || typeof body.path !== "string" || typeof body.content !== "string") {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `读取文件失败（HTTP ${res.status}）`);
+    }
+    return {
+      path: body.path,
+      name: typeof body.name === "string" ? body.name : path.split(/[\\/]/).pop() ?? path,
+      size: typeof body.size === "number" ? body.size : 0,
+      truncated: body.truncated === true,
+      content: body.content,
+      binary: body.binary === true,
     };
   }
 

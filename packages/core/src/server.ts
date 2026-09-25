@@ -20,6 +20,7 @@ import path from "node:path";
 import { toAgentEvent } from "./adapt.ts";
 import type { AgentEvent, ModelTestRequest, ProviderModelsRequest, PutProvidersRequest } from "./contract.ts";
 import { DirListError, listDirectories } from "./fs-list.ts";
+import { FileReadError, readTextFile } from "./fs-read.ts";
 import { isRecord } from "./guards.ts";
 import { InvalidCwdError, type CoreRuntime } from "./session.ts";
 
@@ -70,6 +71,8 @@ const API_ROUTES = new Set([
 	"/cwd",
 	// dir-picker · 自定义路径弹窗的浏览数据源（只读列子目录）
 	"/fs/list",
+	// dir-file-preview · 侧栏文件树点开文件的预览数据源（只读限长文本）
+	"/fs/read",
 ]);
 
 /** 从 Host 头取主机名：`1.2.3.4:5190` → `1.2.3.4`；`[::1]:5190` → `::1`；`localhost` → `localhost` */
@@ -362,6 +365,21 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				);
 			} catch (e) {
 				if (e instanceof DirListError) return json(e.status, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * dir-file-preview · 文件读取（GET /fs/read?path=...，fs-read.ts）
+		 * 只读限长文本，给侧栏文件树点开的右侧预览区当数据源；
+		 * 可预期失败由 FileReadError 带状态码（400 不存在/不是文件、403 无权限），
+		 * 与意外错误 500 区分——/fs/list 同款分支。
+		 * ----------------------------------------------------------------- */
+		if (req.method === "GET" && urlPath === "/fs/read") {
+			try {
+				return json(200, readTextFile(url.searchParams.get("path") ?? "", runtime.getCwd()));
+			} catch (e) {
+				if (e instanceof FileReadError) return json(e.status, { ok: false, error: e.message });
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
 		}

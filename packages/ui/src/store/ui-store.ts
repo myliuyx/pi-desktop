@@ -173,6 +173,18 @@ interface UiState {
   previewTab: PreviewTab;
   setPreviewTab: (tab: PreviewTab) => void;
 
+  /**
+   * 预览区当前打开的**文件**绝对路径（dir-file-preview 批次）。
+   *
+   * - null = 文件形态未激活，预览区走既有「效果/源码」两 Tab（mock 行为零变化）；
+   * - 只在 live 形态可被置值（唯一入口是侧栏文件树的文件行点击）；
+   * - **非持久化**（与 modelId/thinkingLevel 同待遇）：路径指向 core cwd 下的文件，
+   *   跨启动还原一个可能已被删除/换目录的路径是造假事实；
+   * - cwd 热切换时由 FilePreview 清空（旧目录的路径不再诚实），见 PreviewPane。
+   */
+  previewFilePath: string | null;
+  setPreviewFilePath: (path: string | null) => void;
+
   /* -------------------------------------------------------------------------
    * 设置弹窗（第一批，D1）
    *
@@ -330,6 +342,11 @@ export const useUiStore = create<UiState>((set, get) => ({
     }
     set({ previewTab: tab });
   },
+
+  previewFilePath: null,
+
+  // 非持久化（见接口注释）：同一值重复 set 不触发订阅者（zustand Object.is 短路）
+  setPreviewFilePath: (path) => set({ previewFilePath: path }),
 
   /* --------------------------------------------------- 设置弹窗 / 模型配置 */
   settingsOpen: false,

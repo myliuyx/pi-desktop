@@ -6,6 +6,7 @@ import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
 import type { DirEntryResult } from "@/services/agent-transport";
 import { useChatStore } from "@/store/chat-store";
+import { useUiStore } from "@/store/ui-store";
 
 /**
  * 侧栏「工作目录」触发条下方的文件树（dir-tree 批次，task-sidebar-file-tree.md §4.6）。
@@ -30,9 +31,10 @@ import { useChatStore } from "@/store/chat-store";
  *
  * ## 交互边界（D1）
  *
- * 目录行是 button（展开/收起；加载失败时点击 = 原地重试）；文件行是**纯展示 div**
- * （无 button 语义、无 hover 反馈）——「看着能点但没动作」是本项目明令禁止的哑交互，
- * 文件的打开/引用语义留后续批次。
+ * 目录行是 button（展开/收起；加载失败时点击 = 原地重试）；文件行也是 button——
+ * dir-file-preview 批次起点击 = 在右侧预览区打开该文件（ui-store.previewFilePath，
+ * 预览区折叠中则顺带展开），当前打开的文件行保持选中高亮（data-selected）。
+ * 「看着能点但没动作」仍是明令禁止的哑交互；引用（@）语义留后续批次。
  */
 
 /** 单个已展开目录的子级状态（含加载失败——失败不收起，点击重试） */
@@ -62,6 +64,8 @@ const rootSeqKey = (cwd: string) => `root:${cwd}`;
 export function WorkingDirFileTree() {
   const liveCwd = useChatStore((state) => state.liveCwd);
   const fsVersion = useChatStore((state) => state.fsVersion);
+  /** 当前在预览区打开的文件：命中的行高亮（dir-file-preview 批次） */
+  const previewFilePath = useUiStore((state) => state.previewFilePath);
 
   const [root, setRoot] = useState<RootListing | null>(null);
   const [expanded, setExpandedState] = useState<Record<string, DirChildren>>({});
@@ -182,6 +186,13 @@ export function WorkingDirFileTree() {
     [applyExpanded, fetchChildren],
   );
 
+  /** 文件行点击：右侧预览区打开该文件；预览区折叠中则顺带展开（getState 读折叠态，不订阅） */
+  const openFile = useCallback((filePath: string) => {
+    const ui = useUiStore.getState();
+    ui.setPreviewFilePath(filePath);
+    if (ui.previewCollapsed) ui.togglePreview();
+  }, []);
+
   /*
    * 渲染门槛（hooks 之后才返回 null —— 规则 of hooks；SSR / mock / unavailable 都走这里）。
    * root === null 且 liveCwd 就绪 = 首拉在途，按 loading 行呈现（effect 在 commit 后立刻发出）。
@@ -237,6 +248,8 @@ export function WorkingDirFileTree() {
               expandedState={row.entry.kind === "dir" ? expanded[row.entry.path] !== undefined : undefined}
               childStatus={row.entry.kind === "dir" ? expanded[row.entry.path]?.status : undefined}
               onToggle={toggleDir}
+              selected={row.entry.kind === "file" && row.entry.path === previewFilePath}
+              onOpenFile={openFile}
             />
           ) : (
             <StatusRow
@@ -258,14 +271,16 @@ export function WorkingDirFileTree() {
 const INDENT_BASE = 8;
 const INDENT_STEP = 12;
 
-/** 目录行：真实 button（可点展开/收起/重试）；文件行：纯展示 div（D1，杜绝哑交互） */
+/** 目录行：真实 button（可点展开/收起/重试）；文件行：button（点击 = 预览区打开，dir-file-preview 批次） */
 function EntryRow({
   entry,
   depth,
   index,
   expandedState,
   childStatus,
+  selected,
   onToggle,
+  onOpenFile,
 }: {
   entry: DirEntryResult;
   depth: number;
@@ -274,7 +289,10 @@ function EntryRow({
   expandedState?: boolean;
   /** 仅目录行有意义：子级请求状态（错误行的行内警示） */
   childStatus?: "loading" | "ready" | "error";
+  /** 仅文件行有意义：是否为预览区当前打开的文件（选中高亮） */
+  selected?: boolean;
   onToggle: (dirPath: string) => void;
+  onOpenFile: (filePath: string) => void;
 }) {
   const isDir = entry.kind === "dir";
   const rowClass = cn(
@@ -285,18 +303,26 @@ function EntryRow({
 
   if (!isDir) {
     return (
-      <div
+      <button
+        type="button"
         data-testid={`sidebar-file-tree-entry-${index}`}
         data-kind="file"
+        data-selected={selected ? "true" : "false"}
         title={entry.path}
-        className={cn(rowClass, "text-text-secondary")}
+        onClick={() => onOpenFile(entry.path)}
+        className={cn(
+          rowClass,
+          "text-text-secondary transition-colors duration-150 ease-out",
+          "hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
+          selected && "bg-bg-active text-text-primary",
+        )}
         style={indentStyle}
       >
         {/* 空档占位：文件没有 chevron，但图标列要与目录行对齐 */}
         <span className="w-3 shrink-0" aria-hidden="true" />
         <Icon icon={File} size={13} className="shrink-0 text-text-tertiary" />
         <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-      </div>
+      </button>
     );
   }
 

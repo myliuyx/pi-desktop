@@ -58,7 +58,8 @@ export class DirListError extends Error {
 
 export const DIR_LIST_MAX_ENTRIES = 500;
 
-function expandHome(raw: string): string {
+/** `~`/`~/x` 展开 home；fs-read（文件预览）共用同一套路径口径 */
+export function expandHome(raw: string): string {
 	if (raw === "~") return os.homedir();
 	if (raw.startsWith("~/") || raw.startsWith("~\\")) return path.join(os.homedir(), raw.slice(2));
 	return raw;
