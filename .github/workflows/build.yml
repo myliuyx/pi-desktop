@@ -1,0 +1,82 @@
+# electron-builder 三平台桌面构建流水线。
+#
+# 触发：手动（workflow_dispatch）或推送 v* tag。
+# 产物：windows NSIS 安装包 / mac dmg+zip / linux AppImage+deb，
+#       上传为按 OS 命名的 artifact（desktop-Windows / desktop-macOS / desktop-Linux）。
+#
+# 顺序约束：desktop 的 electron-builder 会把 ../ui/dist、../core/dist、
+# ../core/node_modules 以 extraResources 打进安装包，
+# 因此必须先构建 ui 和 core，再执行 electron-builder（下方 step 顺序已保证）。
+
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          # monorepo：各包自带 package-lock.json，声明路径以便 npm 缓存生效
+          cache-dependency-path: packages/**/package-lock.json
+
+      # 1) 前端：产物在 packages/ui/dist，供 core 同源托管、被 electron-builder 打包
+      - name: Build ui
+        working-directory: packages/ui
+        run: |
+          npm ci
+          npm run build
+
+      # 2) 后端：产物在 packages/core/dist，被 electron-builder 打包
+      - name: Build core
+        working-directory: packages/core
+        run: |
+          npm ci
+          npm run build
+
+      # 3) 打包桌面：直接用 npx electron-builder（不经包装脚本），不发布。
+      #    Windows 上默认走 NSIS 目标。
+      #    macOS：本仓库无签名/公证证书，electron-builder 检测不到证书会自动跳过
+      #    mac 签名与公证，产物为未签名的 dmg/zip（本机首开需放行 Gatekeeper）。
+      # 3) 打包桌面：装依赖 → tsc 编译壳（dist/ 进 asar）→ electron-builder。
+      #    Windows 上默认走 NSIS 目标。
+      #    macOS：本仓库无签名/公证证书，electron-builder 检测不到证书会自动跳过
+      #    mac 签名与公证，产物为未签名的 dmg/zip（本机首开需放行 Gatekeeper）。
+      - name: Package desktop
+        working-directory: packages/desktop
+        run: |
+          npm ci
+          npm run build
+          npx electron-builder --publish never
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ runner.os }}
+          if-no-files-found: error
+          path: |
+            packages/desktop/release/*.exe
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*.zip
+            packages/desktop/release/*.AppImage
+            packages/desktop/release/*.deb

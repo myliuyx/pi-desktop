@@ -1,0 +1,48 @@
+{
+  "name": "@agent/desktop",
+  "productName": "Pi-Desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pi-Desktop —— 本地 core 服务 + 浏览器套壳的桌面封装（D1 裁决：Pi-Desktop 占位名）",
+  "author": "myliuyx",
+  "main": "dist/main.js",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "dev": "npm run build && electron .",
+    "smoke": "npm run build && electron . --smoke",
+    "dist": "npm run build && electron-builder --publish never"
+  },
+  "build": {
+    "appId": "com.pidesktop.app",
+    "productName": "Pi-Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*"
+    ],
+    "extraResources": [
+      { "from": "../ui/dist", "to": "ui-dist" },
+      { "from": "../core/dist", "to": "core/dist" },
+      { "from": "../core/package.json", "to": "core/package.json" },
+      { "from": "../core/node_modules", "to": "core/node_modules" }
+    ],
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg", "zip"] },
+    "linux": { "target": ["AppImage", "deb"] },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
+    "typescript": "^5.9.3"
+  }
+}

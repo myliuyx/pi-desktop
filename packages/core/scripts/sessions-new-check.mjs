@@ -30,6 +30,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 const mainPath = path.join(coreDir, "src", "main.ts");
+// CORE_ENTRY：指向编译产物（如 dist/main.js）时以 node 直跑，验「产物可用」而非源码
+const mainArgs = process.env.CORE_ENTRY ? [path.resolve(process.env.CORE_ENTRY)] : [tsxPath, mainPath];
 const runDir = path.join(coreDir, "run");
 const evidencePath = path.join(runDir, "sessions-new-evidence.json");
 fs.mkdirSync(runDir, { recursive: true });
@@ -134,7 +136,7 @@ fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultP
 seedModelsJson(agentDir);
 
 const logFd = fs.openSync(path.join(runDir, "sessions-new-core.log"), "w");
-const child = spawn(process.execPath, [tsxPath, mainPath], {
+const child = spawn(process.execPath, mainArgs, {
 	cwd,
 	env: childEnv({
 		CORE_TOKEN: TOKEN,

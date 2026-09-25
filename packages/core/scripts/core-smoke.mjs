@@ -24,6 +24,8 @@ import { childEnv, seedModelsJson } from "./lib/credentials.mjs";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const coreDir = path.join(here, "..");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
+// CORE_ENTRY：指向编译产物（如 dist/main.js）时以 node 直跑，验「产物可用」而非源码
+const mainArgs = process.env.CORE_ENTRY ? [path.resolve(process.env.CORE_ENTRY)] : [tsxPath, "src/main.ts"];
 const runDir = path.join(coreDir, "run");
 fs.mkdirSync(runDir, { recursive: true });
 
@@ -80,7 +82,7 @@ function waitForUp() {
 
 const child = spawn(
   process.execPath,
-  [tsxPath, "src/main.ts"],
+  mainArgs,
   {
     cwd: coreDir,
     env: childEnv({ CORE_TOKEN: TOKEN, CORE_PORT: String(PORT), CORE_AGENT_DIR: agentDir }),

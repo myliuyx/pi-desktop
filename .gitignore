@@ -1,6 +1,9 @@
 # 依赖
 node_modules/
 
+# electron-builder 安装包输出（Pi-Desktop 桌面壳）
+packages/desktop/release/
+
 # 构建产物与类型缓存
 dist/
 *.tsbuildinfo

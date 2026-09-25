@@ -25,8 +25,23 @@ import { createCoreRuntime } from "./session.ts";
 import { startServer } from "./server.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const runDir = path.join(here, "..", "run");
-fs.mkdirSync(runDir, { recursive: true });
+/*
+ * 运行时文件目录（core.json + events.jsonl）。CORE_RUN_DIR 可覆盖 —— 打包桌面端 / 服务器
+ * 部署场景下源码旁不可写（Electron 的 asar 只读、系统安装目录），必须显式指到可写位置
+ * （如 Electron 的 userData）。坏值不崩：目录建不出来（指向了文件 / 无权限）⇒ 点名警告
+ * 后回落默认值，不静默、不崩（与下方 CORE_CWD 同一契约）。
+ */
+const defaultRunDir = path.join(here, "..", "run");
+let runDir = process.env.CORE_RUN_DIR ? path.resolve(process.env.CORE_RUN_DIR) : defaultRunDir;
+try {
+  fs.mkdirSync(runDir, { recursive: true });
+} catch (e) {
+  console.warn(
+    `[core] 警告: CORE_RUN_DIR="${runDir}" 无法创建（${e instanceof Error ? e.message : String(e)}），回落 "${defaultRunDir}"`,
+  );
+  runDir = defaultRunDir;
+  fs.mkdirSync(runDir, { recursive: true });
+}
 
 // 同源托管前端：默认 core 包上一级的 ui/dist；可用 CORE_UI_DIST 覆盖
 const uiDist = process.env.CORE_UI_DIST
