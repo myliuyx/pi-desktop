@@ -7,9 +7,6 @@ import { useUiStore } from "@/store/ui-store";
 
 export type OsName = "mac" | "win" | "linux";
 
-/** 会话标题兜底文案 */
-const DEFAULT_TITLE = "新建会话";
-
 /** mac 交通灯直径 10 */
 const MAC_DOT_SIZE = 10;
 
@@ -80,7 +77,7 @@ function WindowControls({ os }: { os: OsName }) {
 export interface TitleBarProps extends HTMLAttributes<HTMLDivElement> {
   /** 当前窗口壳类型 */
   os?: OsName;
-  /** 会话标题，超出截断 */
+  /** 标题（如 03/04 屏的屏幕名）；**缺省 = 中间留白**（2026-09-26 用户裁决：工作台不显示任何标题文案）。超长截断 */
   title?: string;
   onOpenSettings?: () => void;
 }
@@ -95,7 +92,7 @@ export interface TitleBarProps extends HTMLAttributes<HTMLDivElement> {
  * 此前实现成「收起两侧」属于跑偏）——收左侧有左端按钮，职责不重叠。
  */
 export const TitleBar = forwardRef<HTMLDivElement, TitleBarProps>(function TitleBar(
-  { os = "mac", title = DEFAULT_TITLE, onOpenSettings, className, ...rest },
+  { os = "mac", title, onOpenSettings, className, ...rest },
   ref,
 ) {
   const theme = useUiStore((state) => state.theme);
@@ -128,14 +125,18 @@ export const TitleBar = forwardRef<HTMLDivElement, TitleBarProps>(function Title
       />
 
       <span className="flex min-w-0 flex-1 items-center justify-center">
-        {/* title 提供超长会话标题的全称（M5 5-8 长文本合格线：省略 + 全称可见） */}
-        <span
-          data-testid="titlebar-title"
-          className="truncate text-sm font-medium text-text-primary"
-          title={title}
-        >
-          {title}
-        </span>
+        {/* 无标题 = 整块留白（不渲染空 span：空 title 属性会让 m5 长文本探针的
+            hasTitle/every 断言误判失败，采样点少一个后仍有 3 处，≥3 依然成立）。
+            title 提供超长标题的全称（M5 5-8 长文本合格线：省略 + 全称可见）。 */}
+        {title ? (
+          <span
+            data-testid="titlebar-title"
+            className="truncate text-sm font-medium text-text-primary"
+            title={title}
+          >
+            {title}
+          </span>
+        ) : null}
       </span>
 
       <IconButton

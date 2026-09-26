@@ -40,9 +40,14 @@ export interface WorkbenchScreenProps extends HTMLAttributes<HTMLDivElement> {
  * 由 Sidebar 渲染成「内容包装器」的**兄弟节点**，而不是被包进带 padding 的容器里。
  */
 export const WorkbenchScreen = forwardRef<HTMLDivElement, WorkbenchScreenProps>(function WorkbenchScreen(
-  { os = "mac", title = "接入 Pi 工具链的调研", onOpenSettings, probeOs, className, ...rest },
+  { os = "mac", title, onOpenSettings, probeOs, className, ...rest },
   ref,
 ) {
+  /*
+   * 标题栏中间**留白**（2026-09-26 用户裁决：不显示任何标题文案 —— 无论是早先硬编码的
+   * 演示标题还是会话标题都不要）。TitleBar 对缺省 title 的处理是不渲染标题节点；
+   * 显式 title prop 仅留给探针 / 需要标注的调用方。
+   */
   return (
     <WindowShell ref={ref} os={os} title={title} onOpenSettings={onOpenSettings} className={cn(className)} {...rest}>
       {/*
