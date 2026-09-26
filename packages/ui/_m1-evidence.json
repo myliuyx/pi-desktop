@@ -17,19 +17,19 @@
           },
           {
             "testid": "workspace-area",
-            "width": 680,
+            "width": 678,
             "left": 264,
-            "right": 944
+            "right": 942
           },
           {
             "testid": "preview-pane",
             "width": 480,
-            "left": 944,
-            "right": 1424
+            "left": 942,
+            "right": 1422
           }
         ],
-        "三栏宽度合计": 1424,
-        "主区宽度": 1424,
+        "三栏宽度合计": 1422,
+        "主区宽度": 1422,
         "宽度守恒": true,
         "并排成立": true
       }
@@ -56,7 +56,6 @@
           "虚拟滚动性能回归\n1天前 217 条消息",
           "技能列表分类方案\n2天前 132 条消息",
           "工作目录\n~/projects/atlas-agent",
-          "~/projects/atlas-agent",
           "~/projects/atlas-agent",
           "~/projects/atlas-agent"
         ],
@@ -110,13 +109,13 @@
         "侧边栏外框": {
           "left": 0,
           "right": 264,
-          "bottom": 805,
+          "bottom": 804,
           "borderRightWidth": 0
         },
         "条带": {
           "left": 0,
           "right": 264,
-          "bottom": 805
+          "bottom": 804
         },
         "规格判定项": {
           "offsetLeft差值_条带left减侧边栏left": 0,
@@ -209,18 +208,18 @@
         "before": {
           "sidebar": 264,
           "preview": 480,
-          "workspace": 680,
-          "bodyScrollWidth": 1424,
-          "clientWidth": 1424
+          "workspace": 678,
+          "bodyScrollWidth": 1422,
+          "clientWidth": 1422
         },
         "transition": {
           "property": "width",
-          "duration": "0.12s",
+          "duration": "0.18s",
           "timing": "cubic-bezier(0, 0, 0.2, 1)"
         },
         "previewTransition": {
           "property": "width",
-          "duration": "0.12s"
+          "duration": "0.18s"
         },
         "workspaceMinWidth": "0px",
         "sidebarDisplayWhileCollapsing": "宽度过渡中(非瞬间0)",
@@ -230,7 +229,7 @@
           "display": "flex",
           "overflow": "hidden",
           "ariaHidden": "true",
-          "workspace": 944,
+          "workspace": 942,
           "preview": 480
         },
         "afterExpand": {
@@ -240,12 +239,12 @@
         "fullscreen": {
           "sidebar": 0,
           "preview": 0,
-          "workspace": 1424,
+          "workspace": 1422,
           "workspaceLeft": 0,
-          "workspaceRight": 1424,
-          "clientWidth": 1424,
-          "bodyScrollWidth": 1424,
-          "bodyClientWidth": 1424,
+          "workspaceRight": 1422,
+          "clientWidth": 1422,
+          "bodyScrollWidth": 1422,
+          "bodyClientWidth": 1422,
           "无横向滚动条": true,
           "workspaceDisplay": "flex"
         }
@@ -278,15 +277,15 @@
       "value": {
         "sidebar宽度": 0,
         "preview宽度": 0,
-        "workspace宽度": 1424,
+        "workspace宽度": 1422,
         "workspace_left": 0,
-        "workspace_right": 1424,
-        "视口宽": 1424,
-        "body_scrollWidth": 1424,
-        "body_clientWidth": 1424,
+        "workspace_right": 1422,
+        "视口宽": 1422,
+        "body_scrollWidth": 1422,
+        "body_clientWidth": 1422,
         "无横向滚动条": true,
-        "documentElement_scrollWidth": 1424,
-        "documentElement_clientWidth": 1424,
+        "documentElement_scrollWidth": 1422,
+        "documentElement_clientWidth": 1422,
         "严格判定": {
           "内容区宽等于视口宽": true,
           "内容区左边界为0": true,
@@ -299,8 +298,8 @@
       "value": {
         "侧边栏宽": 0,
         "预览区宽": 0,
-        "内容区宽": 1424,
-        "视口宽": 1424,
+        "内容区宽": 1422,
+        "视口宽": 1422,
         "侧边栏borderRight": 0,
         "预览区borderLeft": 0,
         "断言": {
@@ -470,7 +469,7 @@
             "label": "收起左侧",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(65, 97, 190)"
+            "outlineColor": "rgb(50, 91, 208)"
           },
           {
             "tag": "button",
@@ -478,7 +477,7 @@
             "label": "切换到深色",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(46, 79, 171)"
+            "outlineColor": "rgb(50, 90, 207)"
           },
           {
             "tag": "button",
@@ -486,7 +485,7 @@
             "label": "设置",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(44, 77, 169)"
+            "outlineColor": "rgb(45, 77, 169)"
           },
           {
             "tag": "button",
@@ -502,7 +501,7 @@
             "label": "新建会话",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(73, 100, 174)"
+            "outlineColor": "rgb(67, 100, 193)"
           },
           {
             "tag": "input",
@@ -510,7 +509,7 @@
             "label": "搜索历史会话",
             "outlineStyle": "solid",
             "outlineWidth": "2px",
-            "outlineColor": "rgb(45, 77, 169)"
+            "outlineColor": "rgb(47, 85, 191)"
           },
           {
             "tag": "button",
@@ -556,32 +555,28 @@
       "name": "1-10_过渡中间帧采样",
       "value": {
         "首帧": {
-          "t": 11.2,
+          "t": 71.9,
           "sidebar": 264,
-          "workspace": 680
+          "workspace": 678
         },
         "末帧": {
-          "t": 326.3,
+          "t": 331.8,
           "sidebar": 0,
-          "workspace": 944
+          "workspace": 942
         },
-        "采样帧数": 20,
-        "中间帧数_宽度介于1与263之间": 6,
+        "采样帧数": 16,
+        "中间帧数_宽度介于1与263之间": 7,
         "宽度序列_抽样": [
           264,
-          161.56,
+          264,
+          188.09,
+          138.61,
           101.22,
-          60.53,
-          32.72,
-          14.41,
-          4.06,
-          0.09,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0,
+          72.45,
+          49.91,
+          32.64,
+          19.5,
+          0.77,
           0,
           0,
           0,
@@ -590,26 +585,22 @@
           0
         ],
         "内容区宽度序列_抽样": [
-          680,
-          782.44,
-          842.78,
-          883.47,
-          911.28,
-          929.59,
-          939.94,
-          943.91,
-          944,
-          944,
-          944,
-          944,
-          944,
-          944,
-          944,
-          944,
-          944,
-          944,
-          944,
-          944
+          678,
+          678,
+          753.91,
+          803.39,
+          840.78,
+          869.55,
+          892.09,
+          909.36,
+          922.5,
+          941.23,
+          942,
+          942,
+          942,
+          942,
+          942,
+          942
         ],
         "内容区宽度单调递增_无回跳": true,
         "结论": "存在多帧中间态 → 宽度过渡真实生效（非瞬间跳变）"

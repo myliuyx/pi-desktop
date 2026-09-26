@@ -24,6 +24,8 @@ export const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(func
   { block, role, streaming = false, className, ...rest },
   ref,
 ) {
+  // F1 §2.4：空文本（mock 首字未到的占位块）不渲染 —— 否则等待占位行下方会并存一个空壳气泡
+  if (!block.content.trim()) return null;
   return (
     <div
       ref={ref}

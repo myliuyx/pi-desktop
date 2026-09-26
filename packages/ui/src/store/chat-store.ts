@@ -29,6 +29,13 @@ export interface ChatState {
   messages: Message[];
   /** 助手正在流式输出（停止按钮、自动滚底判定用） */
   streaming: boolean;
+  /**
+   * 本次请求的发起时刻（epoch ms）；非等待期为 null。
+   * 「正在思考」占位（MessageList 的 thinking-indicator 行）的计时起点 ——
+   * sendMessage 瞬间写入；**凡置 `streaming: false` 的 set 必须同批清 null**
+   * （纪律同 D9「不清会显示假事实」）。
+   */
+  pendingSince: number | null;
   tokenUsage: TokenUsage;
   sessionTitle: string;
 
@@ -109,7 +116,7 @@ function ensureLive(): void {
       outageNoticeId = useNoticeStore.getState().notify({ tone: "danger", text: message });
       // 断线后收不到后续事件，若仍在 streaming 会永久卡在「停止生成」——主动复位，
       // 用户可继续发送（重连成功后新消息照常回流）。
-      useChatStore.setState({ streaming: false });
+      useChatStore.setState({ streaming: false, pendingSince: null });
     },
     onConnectionRestored: () => {
       if (outageNoticeId) {
@@ -143,7 +150,11 @@ function ensureLive(): void {
     useChatStore.setState({ messages: liveDraft.messages, streaming: liveDraft.streaming });
     // C4：一轮对话结束后刷新会话清单 —— Pi 是在首条 entry 追加时才落盘会话文件，
     // 所以新会话只有跑完一轮才会出现在 Sidebar（不刷新则列表永远是启动那一刻的快照）。
-    if (event.type === "agent_settled") useChatStore.getState().refreshSessions();
+    // 等待占位同点收尾（agent_settled 后不会再有等待期）。
+    if (event.type === "agent_settled") {
+      useChatStore.setState({ pendingSince: null });
+      useChatStore.getState().refreshSessions();
+    }
   });
 }
 
@@ -167,6 +178,18 @@ function computeTokens(messages: Message[]): TokenUsage {
     total: input + output,
     contextWindow: INITIAL_TOKEN_USAGE.contextWindow,
   };
+}
+
+/**
+ * F3：mock 演示形态的逐条计量（§3.4）—— 量级为编造的演示值，但形态与 live 真实数据一致，
+ * 让消息 footer 在演示流里同样可见（含非零缓存读）。字符估算口径与 computeTokens 同源。
+ */
+function mockUsage(userText: string, reply: string) {
+  const input = 480 + Math.round(userText.length * 1.5);
+  const output = Math.round(reply.length * 0.5);
+  const cacheRead = 32_000 + input;
+  const cacheWrite = 512;
+  return { input, output, total: input + output + cacheRead + cacheWrite, cacheRead, cacheWrite };
 }
 
 /** 一条 canned 回复（含 markdown + 代码块，顺便在流式过程中验证高亮） */
@@ -199,6 +222,7 @@ function mkText(content: string, streaming: boolean): TextBlock {
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: INITIAL_SESSION.messages,
   streaming: false,
+  pendingSince: null,
   tokenUsage: INITIAL_TOKEN_USAGE,
   sessionTitle: INITIAL_SESSION_TITLE,
 
@@ -241,13 +265,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         timestamp: now,
         blocks: [{ type: "text", content: trimmed }],
       };
-      set((state) => ({ messages: [...state.messages, userMsg], streaming: true }));
+      set((state) => ({ messages: [...state.messages, userMsg], streaming: true, pendingSince: now }));
       // liveDraft 以「当前消息 + 新 user 消息」为基线，后续 assistant 消息由 reducer 追加
       liveDraft = createDraft([...get().messages]);
       void transport.sendMessage(trimmed).catch((e) => {
         console.error("[live] sendMessage 失败:", e);
         notifyFailure("消息发送失败", e);
-        useChatStore.setState({ streaming: false });
+        useChatStore.setState({ streaming: false, pendingSince: null });
       });
       return;
     }
@@ -271,6 +295,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => ({
       messages: [...state.messages, userMsg, assistantMsg],
       streaming: true,
+      pendingSince: now,
     }));
 
     const reply = pickReply(trimmed);
@@ -288,10 +313,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }));
       },
       onDone: () => {
+        // F3：演示 usage 随完成一起挂上，消息 footer 在 mock 形态同样可见
+        const usage = mockUsage(trimmed, reply);
         const finalMessages = get().messages.map((m) =>
-          m.id === assistantId ? { ...m, blocks: [mkText(reply, false)] } : m,
+          m.id === assistantId ? { ...m, blocks: [mkText(reply, false)], usage } : m,
         );
-        set({ streaming: false, messages: finalMessages, tokenUsage: computeTokens(finalMessages) });
+        set({ streaming: false, pendingSince: null, messages: finalMessages, tokenUsage: computeTokens(finalMessages) });
         activeStream = null;
         streamMsgId = null;
       },
@@ -303,7 +330,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (transport) {
       // 真实链路：中止当前会话（已产出内容定格），streaming 立即解除
       void transport.abort().catch(() => {});
-      set({ streaming: false });
+      set({ streaming: false, pendingSince: null });
       return;
     }
     if (activeStream) {
@@ -323,7 +350,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           : m,
       );
-      return { streaming: false, messages, tokenUsage: computeTokens(messages) };
+      return { streaming: false, pendingSince: null, messages, tokenUsage: computeTokens(messages) };
     });
   },
 
@@ -416,6 +443,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // 点开历史会话即离开草稿态（否则草稿的空消息区会顶掉载入的内容）
     set((state) => ({
       streaming: false,
+      pendingSince: null,
       liveSessionId: id,
       sessionTitle: title ?? state.sessionTitle,
       newSessionDraft: false,
@@ -452,6 +480,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: INITIAL_SESSION.messages,
       streaming: false,
+      pendingSince: null,
       sessionTitle: INITIAL_SESSION_TITLE,
       tokenUsage: INITIAL_TOKEN_USAGE,
       liveSessionId: null,
@@ -480,6 +509,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [],
       streaming: false,
+      pendingSince: null,
       newSessionDraft: true,
       // 草稿没有历史用量：不清零会一直显示上一个会话的数字（假事实，D9）
       tokenUsage: { input: 0, output: 0, total: 0, contextWindow: INITIAL_TOKEN_USAGE.contextWindow },

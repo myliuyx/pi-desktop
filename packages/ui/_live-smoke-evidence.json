@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5188",
-  "startedAt": "2026-09-24T07:24:32.148Z",
+  "startedAt": "2026-09-26T12:09:22.076Z",
   "steps": [
     {
       "name": "live_store_已挂载",
@@ -20,7 +20,7 @@
         "新增assistant条目": [
           "a-1"
         ],
-        "新增assistant文本": "思考过程\n\nPi 是一个基于终端（TUI）运行的 AI 编程助手（coding agent），能帮你阅读、编写和修改代码、执行命令，并通过可扩展的主题、技能、扩展与 SDK 深度融入开发工作流。",
+        "新增assistant文本": "思考过程\n\nPi 是一个由 Earendil 打造的、基于 AI 的终端编程助手（agent harness），它直接运行在终端里，通过内置的模型（如 Claude/GPT 等）驱动工具调用，帮助开发者读取代码、执行命令并自动完成编程任务。\n\n↑1.7k · ↓133",
         "列表data-total-count": "2"
       }
     },
@@ -32,7 +32,7 @@
         "assistantIds": [
           "a-1"
         ],
-        "assistantText": "Pi 是一个基于终端（TUI）运行的 AI 编程助手（coding agent），能帮你阅读、编写和修改代码、执行命令，并通过可扩展的主题、技能、扩展与 SDK 深度融入开发工作流。",
+        "assistantText": "Pi 是一个由 Earendil 打造的、基于 AI 的终端编程助手（agent harness），它直接运行在终端里，通过内置的模型（如 Claude/GPT 等）驱动工具调用，帮助开发者读取代码、执行命令并自动完成编程任务。",
         "streamingSeen": true,
         "streamingResolved": true,
         "newAssistantCount": 1
@@ -134,19 +134,19 @@
   },
   "transport": {
     "sse观测_事件计数": {
+      "usage": 2,
       "agent_start": 1,
       "turn_start": 1,
       "message_start": 3,
       "message_end": 3,
-      "message_update": 17,
-      "usage": 1,
+      "message_update": 32,
       "turn_end": 1,
       "agent_settled": 1
     },
-    "sse观测_总帧数": 28,
-    "原始dump_message_update": 90,
-    "sse_message_update": 17,
-    "合并率": 0.811,
+    "sse观测_总帧数": 44,
+    "原始dump_message_update": 136,
+    "sse_message_update": 32,
+    "合并率": 0.765,
     "末帧类型": "agent_settled",
     "agent_settled之后仍有message_update": 0
   }

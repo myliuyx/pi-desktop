@@ -44,6 +44,7 @@ import type {
   TokenUsage,
 } from "./contract.ts";
 import { isRecord, num } from "./guards.ts";
+import { usageOf } from "./adapt.ts";
 
 /* ---------------------------------------------------------------------------
  * 通用小工具
@@ -114,10 +115,15 @@ function commandOf(toolName: string, args: Record<string, unknown> | undefined):
  * 累加会重复计）；`total` **历史累加** = ΣPi `totalTokens`（含 cache，故 ≥ Σ(input+output)）。
  */
 function foldUsage(target: TokenUsage, usage: unknown): void {
-  if (!isRecord(usage)) return;
-  target.input = num(usage.input);
-  target.output = num(usage.output);
-  target.total += num(usage.totalTokens);
+	if (!isRecord(usage)) return;
+	target.input = num(usage.input);
+	target.output = num(usage.output);
+	target.total += num(usage.totalTokens);
+	// F2：cache 两项随「最近一次」口径带出（>0 才写，纪律同 contextTokens）
+	const cacheRead = num(usage.cacheRead);
+	const cacheWrite = num(usage.cacheWrite);
+	if (cacheRead > 0) target.cacheRead = cacheRead;
+	if (cacheWrite > 0) target.cacheWrite = cacheWrite;
   /*
    * 已用上下文（最后一次带 usage 的 assistant 覆盖写入，口径同 Pi 的
    * `calculateContextTokens`：totalTokens 优先，否则 input+output+cacheRead+cacheWrite）。
@@ -191,6 +197,8 @@ export function entriesToMessages(
 
       if (role === "user" || role === "assistant") {
         const blocks = contentToBlocks(message.content);
+        // F2：逐条计量挂回消息（历史会话重载后 footer 仍在；与实时通道同经 adapt.usageOf 投影）
+        const usage = role === "assistant" ? usageOf(message.usage) : undefined;
         if (role === "assistant") {
           // 记下 toolCall 宿主，供后面的 toolResult 归位
           for (const b of blocks) {
@@ -204,7 +212,7 @@ export function entriesToMessages(
           skip(role === "user" ? "empty-user-message" : "empty-assistant-message");
           continue;
         }
-        messages.push({ id: `m-${entry.id}`, role, blocks, timestamp: ts });
+        messages.push({ id: `m-${entry.id}`, role, blocks, timestamp: ts, ...(usage ? { usage } : {}) });
         if (role === "assistant") {
           lastAssistant = messages.length - 1;
           if (isRecord(message.usage)) {

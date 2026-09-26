@@ -319,16 +319,21 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	 * 会话用量（TokenStats 数据源）：`input`/`output` 取最近一次 assistant 请求，
 	 * `total` 历史累加。每次 assistant `message_end` 后经 `usage` 事件下发；
 	 * 模型切换**不补发**（下次发消息自然带新的 contextWindow）。
+	 * cacheRead/cacheWrite（F2）：同 input/output 的「最近一次」口径，>0 才写 ——
+	 * 原先这两项在这里被丢弃，TokenStats 的「缓存」展示拿不到数据。
 	 */
 	let usageInput = 0;
 	let usageOutput = 0;
 	let usageTotal = 0;
+	let usageCacheRead = 0;
+	let usageCacheWrite = 0;
 
 	const emitUsage = () => {
 		/*
 		 * contextTokens：Pi 的「已用上下文」（`getContextUsage().tokens`，随对话增长）。
 		 * Pi 在压缩后、下一次 LLM 回复前返回 null —— 此时**不写该字段**，
 		 * 让 UI 回落 contextWindow（与旧行为一致，不出现 0 的假数据）。
+		 * cache 两项同纪律：>0 才写。
 		 */
 		const contextTokens = session?.getContextUsage()?.tokens;
 		emitAgent({
@@ -339,6 +344,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 				total: usageTotal,
 				contextWindow: contextWindow(),
 				...(typeof contextTokens === "number" ? { contextTokens } : {}),
+				...(usageCacheRead > 0 ? { cacheRead: usageCacheRead } : {}),
+				...(usageCacheWrite > 0 ? { cacheWrite: usageCacheWrite } : {}),
 			},
 		});
 	};
@@ -350,6 +357,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		usageInput = num(message.usage.input);
 		usageOutput = num(message.usage.output);
 		usageTotal += num(message.usage.totalTokens);
+		usageCacheRead = num(message.usage.cacheRead);
+		usageCacheWrite = num(message.usage.cacheWrite);
 		emitUsage();
 	};
 
@@ -362,6 +371,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		usageInput = tokenUsage.input;
 		usageOutput = tokenUsage.output;
 		usageTotal = tokenUsage.total;
+		usageCacheRead = tokenUsage.cacheRead ?? 0;
+		usageCacheWrite = tokenUsage.cacheWrite ?? 0;
 	};
 
 	const models: ModelsController = createModelsController({

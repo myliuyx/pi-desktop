@@ -143,6 +143,12 @@ export interface Message {
   blocks: Block[];
   /** epoch ms */
   timestamp: number;
+  /**
+   * 本条消息的 token 计量（仅 assistant 且计量已到达时存在 —— 实时通道随
+   * `message_end` 到达，历史会话由 entry 映射回填；user 消息 / 中途中止的
+   * 消息没有该字段，渲染层据此不显示用量 footer）。
+   */
+  usage?: MessageUsage;
 }
 
 export interface Session {
@@ -222,6 +228,35 @@ export interface TokenUsage {
    * **仅当两侧都未知**（mock 数据、刚压缩完的下一次回复前）才缺省 —— 避免下发 0 的假数据。
    */
   contextTokens?: number;
+  /**
+   * 最近一次 assistant 请求的缓存命中 tokens（F2；「>0 才写」纪律同 contextTokens）。
+   *
+   * 口径沿 `sessions.ts` foldUsage 注释：cacheRead **不并入 input**、已含在 `total` 里，
+   * 展示时与 input 并列、不相加。取「最近一次」与 input/output 同口径（累加会重复计）。
+   */
+  cacheRead?: number;
+  /** 最近一次 assistant 请求的缓存写入 tokens（F2；>0 才写） */
+  cacheWrite?: number;
+}
+
+/**
+ * 单条 assistant 消息的 token 计量（pi-ai `Usage` 的投影；F2 · task-chat-feedback-and-usage.md §3.1）。
+ *
+ * 与 `TokenUsage` 的差异：这里是**逐条消息**的真实计量（无 contextWindow / contextTokens 语义），
+ * 字段名对齐 pi-ai（`totalTokens → total` 投影为我们的命名）。
+ * `total` 含 cacheRead/cacheWrite —— 展示时各项并列、不相加（决策 D5）。
+ */
+export interface MessageUsage {
+  /** 本次请求的输入 tokens（已含历史上下文与缓存部分之外的新增） */
+  input: number;
+  /** 本次请求的输出 tokens */
+  output: number;
+  /** pi-ai `totalTokens`（含 cacheRead / cacheWrite，故 ≥ input + output） */
+  total: number;
+  /** 缓存命中 tokens（>0 才写） */
+  cacheRead?: number;
+  /** 缓存写入 tokens（>0 才写） */
+  cacheWrite?: number;
 }
 
 /* ---------------------------------------------------------------------------
@@ -242,7 +277,8 @@ export interface AgentMessage {
   toolName?: string;
   isError?: boolean;
   timestamp?: number;
-  usage?: Partial<TokenUsage>;
+  /** 原始事件的 message.usage 透传（仅 assistant 的 message_end 携带；adapt.ts 的 usageOf 产出，出现即四项俱全） */
+  usage?: MessageUsage;
 }
 
 /** 工具结果内容（与 Pi 事件 result.content 同构） */

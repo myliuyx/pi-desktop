@@ -25,6 +25,7 @@ export type {
   Session,
   SessionSummary,
   TokenUsage,
+  MessageUsage,
   /* C4/C5 新增：会话加载结果与 04/05 屏载荷（core 契约，UI 只 import type） */
   SessionLoadResult,
   SessionLoadStats,

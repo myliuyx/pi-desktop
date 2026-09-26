@@ -20,6 +20,8 @@ import {
 import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingCard } from "./ThinkingCard";
+import { ThinkingPending } from "./ThinkingPending";
+import { MessageFooter } from "./MessageFooter";
 import { PlanCard } from "./PlanCard";
 import { TerminalCard } from "./TerminalCard";
 import { ToolCallCard } from "./ToolCallCard";
@@ -27,6 +29,18 @@ import { ApprovalCard } from "./ApprovalCard";
 
 export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   messages: Message[];
+  /** 助手是否正在流式输出（与 pendingSince 一起决定是否渲染等待占位行，§2.2） */
+  streaming?: boolean;
+  /** 本次请求的发起时刻（epoch ms）；null 表示非等待期。占位行的计时起点。 */
+  pendingSince?: number | null;
+}
+
+/**
+ * 是否存在「用户看得见」的内容块（F1 §2.2）。
+ * 空文本块（首字未到的流式占位）不算可见 —— 等待占位行据此判定何时让位给真实内容。
+ */
+function hasRenderableContent(blocks: Block[]): boolean {
+  return blocks.some((block) => block.type !== "text" || block.content.trim() !== "");
 }
 
 /**
@@ -60,12 +74,26 @@ function measureAtBottom(el: HTMLDivElement): boolean {
  *   fit-content（实测被挤成 ~180px 内容宽），全宽还原后与本列各自独立。
  */
 export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function MessageList(
-  { messages, className, ...rest },
+  { messages, streaming = false, pendingSince = null, className, ...rest },
   ref,
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const atBottomRef = useRef(true);
+
+  /*
+   * F1 · 等待占位行（§2.2）：streaming 中、且还没有任何可见内容（最后一条是 user，
+   * 或最后的 assistant 尚无可见块）时，在虚拟列表末尾追加一行「正在思考」。
+   * 占位作为普通虚拟行参与 measureElement / 自动滚底，零新增滚动逻辑；
+   * 首个可见块（text / thinking / tool_call 任一）到达后条件自然失效，由真实内容顶替。
+   */
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : undefined;
+  const pending =
+    streaming &&
+    pendingSince !== null &&
+    lastMessage !== undefined &&
+    (lastMessage.role === "user" ||
+      (lastMessage.role === "assistant" && !hasRenderableContent(lastMessage.blocks)));
   /**
    * 是否处于「我们主动贴底」的过程中。
    *
@@ -82,7 +110,8 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const [atBottom, setAtBottom] = useState(true);
 
   const virtualizer = useVirtualizer({
-    count: messages.length,
+    // 占位行计入虚拟行数（消息数 + 1），testid 用 thinking-indicator，不占 message-item 名额
+    count: messages.length + (pending ? 1 : 0),
     getScrollElement: () => parentRef.current,
     // 仅作为首帧前的猜测值；真实高度由 measureElement 覆盖
     estimateSize: () => 140,
@@ -235,14 +264,21 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
           }}
         >
           {items.map((virtualRow) => {
+            // F1：末尾占位行（index === messages.length 且 pending）—— thinking-indicator
+            // 刻意不复用 message-item testid，m2 验收 2-1 按 message-item 数消息不受影响
+            const isPendingRow = pending && virtualRow.index === messages.length;
             const message = messages[virtualRow.index];
             return (
               <div
                 key={virtualRow.key}
                 data-index={virtualRow.index}
-                data-testid="message-item"
-                data-message-id={message.id}
-                data-role={message.role}
+                {...(isPendingRow
+                  ? { "data-testid": "thinking-indicator" }
+                  : {
+                      "data-testid": "message-item",
+                      "data-message-id": message.id,
+                      "data-role": message.role,
+                    })}
                 ref={virtualizer.measureElement}
                 style={{
                   position: "absolute",
@@ -254,7 +290,11 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
                   paddingBottom: MESSAGE_GAP,
                 }}
               >
-                <MessageItem message={message} />
+                {isPendingRow ? (
+                  <ThinkingPending since={pendingSince as number} />
+                ) : (
+                  <MessageItem message={message} />
+                )}
               </div>
             );
           })}
@@ -338,6 +378,8 @@ function MessageItem({ message }: { message: Message }) {
           </div>
         );
       })}
+      {/* F2：逐条用量 footer（assistant 且回复完成才有 usage；无则组件自渲染 null） */}
+      {!isUser ? <MessageFooter usage={message.usage} /> : null}
     </div>
   );
 }

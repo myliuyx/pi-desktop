@@ -24,6 +24,8 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
   ref,
 ) {
   const messages = useChatStore((state) => state.messages);
+  const streaming = useChatStore((state) => state.streaming);
+  const pendingSince = useChatStore((state) => state.pendingSince);
   const newSessionDraft = useChatStore((state) => state.newSessionDraft);
 
   return (
@@ -42,7 +44,7 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
        * Composer / 工具条原位保留 —— 侧栏、标题栏、预览区对这次切换零感知。
        * 旧空态（`?empty=1` 的 `empty-state`，m5 5-7 锚）只服务非草稿空消息路径，不经这里。
        */}
-      {newSessionDraft ? <NewSessionHero /> : <MessageList messages={messages} />}
+      {newSessionDraft ? <NewSessionHero /> : <MessageList messages={messages} streaming={streaming} pendingSince={pendingSince} />}
 
       {/* 底部固定区：输入框 + 工具条。左右与底部与消息流同一边距。
           ★ 保持全宽（2026-09-22 二次裁决：输入区还原原样，仅消息流居中）。

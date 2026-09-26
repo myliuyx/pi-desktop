@@ -1,20 +1,35 @@
 {
-  "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-23T14:43:37.796Z",
+  "origin": "http://127.0.0.1:5182",
+  "startedAt": "2026-09-26T12:07:16.427Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 71,
+        "扫描文件数": 85,
         "hex命中文件": [
           "styles/tokens.css"
         ],
         "hex在tokens之外": [],
         "dark变体命中": [],
-        "内置调色板命中": [],
+        "内置调色板命中": [
+          {
+            "file": "components/shell/PreviewPane.tsx",
+            "line": 518,
+            "hits": [
+              "bg-white"
+            ]
+          },
+          {
+            "file": "components/shell/PreviewPane.tsx",
+            "line": 520,
+            "hits": [
+              "bg-white"
+            ]
+          }
+        ],
         "G1_hex仅tokens": true,
         "G2_无dark变体": true,
-        "G5_无内置调色板": true
+        "G5_无内置调色板": false
       }
     },
     {
@@ -156,17 +171,17 @@
         "composerHasVisibleBorder": true,
         "composerRect": {
           "left": 288,
-          "right": 920,
-          "top": 670,
-          "bottom": 741,
-          "width": 632,
+          "right": 918,
+          "top": 669,
+          "bottom": 740,
+          "width": 630,
           "height": 71
         },
         "sendRect": {
-          "left": 883,
-          "right": 911,
-          "top": 704,
-          "bottom": 732,
+          "left": 881,
+          "right": 909,
+          "top": 703,
+          "bottom": 731,
           "width": 28,
           "height": 28
         },
@@ -224,8 +239,8 @@
         ],
         "allChips32": true,
         "spacerFlexGrow": "1",
-        "statsRight": 920,
-        "toolbarRight": 920
+        "statsRight": 918,
+        "toolbarRight": 918
       }
     },
     {
@@ -323,14 +338,14 @@
       "name": "2-18_长文本不破版",
       "value": {
         "longMessageRendered": true,
-        "listScrollWidth": 670,
-        "listClientWidth": 670,
-        "docScrollWidth": 1424,
-        "docClientWidth": 1424,
-        "bodyScrollWidth": 1424,
-        "bodyClientWidth": 1424,
-        "longBodyScrollWidth": 592,
-        "longBodyClientWidth": 592,
+        "listScrollWidth": 668,
+        "listClientWidth": 668,
+        "docScrollWidth": 1422,
+        "docClientWidth": 1422,
+        "bodyScrollWidth": 1422,
+        "bodyClientWidth": 1422,
+        "longBodyScrollWidth": 590,
+        "longBodyClientWidth": 590,
         "wrapMode": "anywhere / break-word"
       }
     },
@@ -355,7 +370,7 @@
       "value": {
         "dataAtBottom": "false",
         "scrollTop": 0,
-        "dist": 1414,
+        "dist": 1415,
         "totalCount": 9,
         "hasScrollToBottom": true
       }
@@ -379,7 +394,7 @@
     {
       "name": "G7_可聚焦元素",
       "value": {
-        "focusableCount": 77,
+        "focusableCount": 80,
         "noLabelCount": 0,
         "noLabelSamples": [],
         "inputLabelled": true
@@ -421,7 +436,7 @@
           },
           {
             "testid": "sidebar-search",
-            "tag": "button",
+            "tag": "input",
             "outlineStyle": "solid",
             "outlineWidth": "2px"
           }
@@ -524,9 +539,9 @@
           "totalCount": 600,
           "rendered": 15,
           "innerHeight": 82119,
-          "listClientHeight": 634,
-          "maxScrollTop": 81533,
-          "beforeTop": 81533,
+          "listClientHeight": 633,
+          "maxScrollTop": 81534,
+          "beforeTop": 81534,
           "targetTop": 41084,
           "scrollable": true
         },
@@ -583,11 +598,14 @@
     },
     {
       "name": "G5 不用 Tailwind 内置调色板",
-      "pass": true,
-      "failed": [],
+      "pass": false,
+      "failed": [
+        "通过",
+        "命中数"
+      ],
       "detail": {
-        "通过": true,
-        "命中数": true
+        "通过": false,
+        "命中数": false
       }
     },
     {
@@ -919,8 +937,10 @@
   ],
   "summary": {
     "assertions": 32,
-    "passed": 32,
-    "failed": 0,
-    "failedNames": []
+    "passed": 31,
+    "failed": 1,
+    "failedNames": [
+      "G5 不用 Tailwind 内置调色板"
+    ]
   }
 }

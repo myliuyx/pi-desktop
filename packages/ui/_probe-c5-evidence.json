@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5195",
-  "startedAt": "2026-09-24T07:25:44.213Z",
+  "startedAt": "2026-09-26T12:06:12.959Z",
   "steps": [
     {
       "name": "04 屏 DOM 快照",
@@ -123,7 +123,7 @@
           },
           {
             "level": "high",
-            "active": "true"
+            "active": "false"
           },
           {
             "level": "max",
@@ -230,20 +230,24 @@
     },
     {
       "name": "C5[设置弹窗] 切换思考档位：core 侧 settings.json 实写 defaultThinkingLevel",
-      "pass": true,
-      "failed": [],
+      "pass": false,
+      "failed": [
+        "UI激活态在high"
+      ],
       "detail": {
         "已点击": true,
         "文件defaultThinkingLevel为high": true,
         "端点settings同步": true,
-        "UI激活态在high": true
+        "UI激活态在high": false
       }
     }
   ],
   "summary": {
     "assertions": 8,
-    "passed": 8,
-    "failed": 0,
-    "failedNames": []
+    "passed": 7,
+    "failed": 1,
+    "failedNames": [
+      "C5[设置弹窗] 切换思考档位：core 侧 settings.json 实写 defaultThinkingLevel"
+    ]
   }
 }

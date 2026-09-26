@@ -181,6 +181,12 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 				messages: replaceMessage(state.messages, id, (m) => ({
 					...m,
 					blocks: blocksFrom(event.message.content, false),
+					/*
+					 * F2：逐条计量随 message_end 挂回消息（消息 footer 的数据源）。
+					 * usage 只在此刻到达 —— 流式中 footer 天然不渲染，数字不会中途跳动；
+					 * 中止/失败的消息没有 usage，footer 不渲染（诚实展示）。
+					 */
+					...(event.message.usage ? { usage: event.message.usage } : {}),
 				})),
 				currentAssistantId: null,
 				streaming: false,
