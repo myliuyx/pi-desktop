@@ -142,7 +142,13 @@ function ensureLive(): void {
     }
     // D7：core 热切换工作目录后的广播 —— 会话清单与 liveCwd 按新目录重拉。
     // 发起方与**其他标签页**都靠这一条同步（多标签下没有别的新目录信号）。
+    // 切目录后 core 的活动会话已换成新目录的全新空会话（session.ts switchCwd）：
+    // 消息区若继续挂着旧目录的对话，接着聊会把消息静默打进新目录 —— 假事实。
+    // ⇒ 一并进入新建会话草稿态（清消息区 / 侧栏高亮 / 用量），切换即从新目录
+    //   重新开始（2026-09-26 用户实测反馈；旧对话仍可在侧栏清单里找回——重拉后
+    //   清单已按新目录列出，旧目录会话经「最近目录」切回即可再打开）。
     if (event.type === "cwd_changed") {
+      useChatStore.getState().startNewSession();
       void useChatStore.getState().refreshSessions();
       return;
     }
