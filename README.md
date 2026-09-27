@@ -137,7 +137,8 @@ cd ../desktop      && npm ci && npm run dist    # 产物在 release/
 
 架构决策、里程碑规格书与验收记录位于 `.plan/`（本地目录，不入库）；自托管部署见
 [`packages/core/docs/deploy.md`](packages/core/docs/deploy.md)。
+项目上下文（定位 / 架构 / 纪律 / 现状全景）见 [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md)。
 
 ## License
 
-仅供学习与研究使用。
+本项目以 [MIT](LICENSE) 协议开源。上游 [Pi](https://github.com/earendil-works/pi) 同为 MIT 协议（© Mario Zechner），本项目通过 npm 依赖 `@earendil-works/pi-coding-agent` 使用其能力，特此致谢。
