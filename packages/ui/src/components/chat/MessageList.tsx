@@ -20,7 +20,7 @@ import {
 import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { COMPOSER_MODELS } from "@/mock/composer";
 import { useModelsStore } from "@/store/models-store";
-import { speedTone, formatThousands, type SpeedTone } from "@/lib/format";
+import { speedTone, type SpeedTone } from "@/lib/format";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingCard } from "./ThinkingCard";
 import { ThinkingPending } from "./ThinkingPending";
@@ -347,6 +347,28 @@ const SPEED_TONE_CLASS: Record<SpeedTone, string> = {
  */
 function ModelLabelRow({ message }: { message: Message }) {
   const models = useModelsStore((s) => s.payload);
+
+  /*
+   * token 速度徽章（2026-09-27 用户裁决，批次 B；同日修订显示时机）：
+   * **仅回复过程中显示、动态刷新，回复完成即隐藏** —— 不是完成后定格的终值。
+   * 流中没有真实 usage（随 message_end 才到，且到达即隐藏），速度按已有
+   * text + thinking 字符量估算（因子 0.5 tokens/字，沿用 chat-store computeTokens
+   * 先例）；耗时 = now − message.timestamp（Pi 请求起点，含首字延迟）。
+   * ticker 每 500ms 跳动一次（chunk 间隙也持续走表；ThinkingPending 的秒表同款先例）。
+   * 显示门槛：进行 ≥1s 且已有输出字符 —— 开局半秒的数字全是噪声，不闪黄红。
+   * hooks 必须在 early return 之前（isStreaming 的 ticker 对每行都无条件注册）。
+   */
+  const isStreaming = message.blocks.some(
+    (b) => (b.type === "text" || b.type === "thinking") && b.streaming,
+  );
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isStreaming) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [isStreaming]);
+
   const request = message.model;
   const response = message.responseModel;
   const effective = response ?? request;
@@ -372,16 +394,18 @@ function ModelLabelRow({ message }: { message: Message }) {
   const titleParts = [rerouted ? `请求 ${request}，实际响应 ${response}` : `模型 ${label}`];
   if (hit?.providerLabel) titleParts.push(hit.providerLabel);
 
-  /*
-   * token 速度徽章（2026-09-27 用户裁决，批次 B）：t/s = usage.output ÷ elapsedMs。
-   * 渲染条件（诚实展示）：耗时与 usage 俱在且 output > 0 —— 历史会话（Pi 不存耗时）、
-   * 中止消息（无 usage）一律不显示，不造 0 假数据。分档色见 SPEED_TONE_CLASS。
-   * 合成一个对象让 TS 保住「speed 非空 ⇒ usage/elapsedMs 非空」的关联收窄。
-   */
-  const { usage, elapsedMs } = message;
+  const outputChars = message.blocks.reduce(
+    (acc, b) => (b.type === "text" || b.type === "thinking" ? acc + b.content.length : acc),
+    0,
+  );
+  const elapsedMs = now - message.timestamp;
   const speed =
-    usage && elapsedMs && elapsedMs > 0 && usage.output > 0
-      ? { tps: usage.output / (elapsedMs / 1000), output: usage.output, elapsedSec: elapsedMs / 1000 }
+    isStreaming && elapsedMs >= 1000 && outputChars > 0
+      ? {
+          tps: (outputChars * 0.5) / (elapsedMs / 1000),
+          chars: outputChars,
+          elapsedSec: elapsedMs / 1000,
+        }
       : null;
 
   return (
@@ -398,7 +422,7 @@ function ModelLabelRow({ message }: { message: Message }) {
             "inline-flex items-center rounded-full px-2 py-0.5 font-medium tabular-nums",
             SPEED_TONE_CLASS[speedTone(speed.tps)],
           )}
-          title={`输出 ${formatThousands(speed.output)} tokens ÷ 耗时 ${speed.elapsedSec.toFixed(1)}s（含首字延迟）`}
+          title={`已输出约 ${speed.chars} 字符（估算）÷ 已进行 ${speed.elapsedSec.toFixed(1)}s —— 完成后徽章隐藏`}
         >
           {speed.tps.toFixed(1)} t/s
         </span>

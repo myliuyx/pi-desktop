@@ -154,29 +154,6 @@ function ensureLive(): void {
       return;
     }
     liveDraft = applyEvent(liveDraft, event);
-    /*
-     * token 速度徽章（2026-09-27 用户裁决）：耗时 = message_end 到达时刻 −
-     * Pi 请求起点（event.message.timestamp，帧创建即写死，含首字延迟）。
-     * 在 store 层补挂而非 reducer —— applyEvent 是「可 dump 回放」的纯 reducer
-     * （文件头纪律），Date.now() 会破坏回放确定性；store 直写有 usage 事件先例。
-     * 历史会话无此数据 → 无徽章（诚实展示，见 contract.ts elapsedMs 注释）。
-     */
-    if (event.type === "message_end" && event.message.role === "assistant") {
-      const elapsedMs =
-        typeof event.message.timestamp === "number" && event.message.timestamp > 0
-          ? Math.max(0, Date.now() - event.message.timestamp)
-          : undefined;
-      if (elapsedMs !== undefined) {
-        const messages = [...liveDraft.messages];
-        for (let i = messages.length - 1; i >= 0; i--) {
-          if (messages[i].role === "assistant") {
-            messages[i] = { ...messages[i], elapsedMs };
-            liveDraft = { ...liveDraft, messages };
-            break;
-          }
-        }
-      }
-    }
     useChatStore.setState({ messages: liveDraft.messages, streaming: liveDraft.streaming });
     // C4：一轮对话结束后刷新会话清单 —— Pi 是在首条 entry 追加时才落盘会话文件，
     // 所以新会话只有跑完一轮才会出现在 Sidebar（不刷新则列表永远是启动那一刻的快照）。
@@ -333,8 +310,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     const reply = pickReply(trimmed);
     streamMsgId = assistantId;
-    // 速度徽章计时起点（2026-09-27）：与 live 同口径取「assistant 消息创建 → 完成」墙钟
-    const streamStart = Date.now();
 
     // 3. 分片增长（打字机），总时长 ≤ 2s
     activeStream = simulateStream({
@@ -350,10 +325,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       onDone: () => {
         // F3：演示 usage 随完成一起挂上，消息 footer 在 mock 形态同样可见
         const usage = mockUsage(trimmed, reply);
-        // 速度徽章：真实打字机耗时（不造假数），与 live 的 elapsedMs 同字段同语义
-        const elapsedMs = Math.max(0, Date.now() - streamStart);
         const finalMessages = get().messages.map((m) =>
-          m.id === assistantId ? { ...m, blocks: [mkText(reply, false)], usage, elapsedMs } : m,
+          m.id === assistantId ? { ...m, blocks: [mkText(reply, false)], usage } : m,
         );
         set({ streaming: false, pendingSince: null, messages: finalMessages, tokenUsage: computeTokens(finalMessages) });
         activeStream = null;
