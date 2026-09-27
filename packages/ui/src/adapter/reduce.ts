@@ -307,5 +307,12 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 	 */
 	case "cwd_changed":
 		return state;
-}
+
+	/*
+	 * C8：包操作进度（安装/移除/更新）不进会话状态 —— 消费方是设置弹窗的插件 Tab
+	 *（自行订阅 transport 过滤该类型，弹窗内展示进度文案）。同上：新成员必须显式列出。
+	 */
+	case "package_progress":
+		return state;
+	}
 }

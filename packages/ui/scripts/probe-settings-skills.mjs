@@ -221,14 +221,15 @@ try {
 			await sleep(350);
 		}
 
-		/* ---- M6 插件 / 子代理仍占位（换位后内容未实现） ---- */
+		/* ---- M6 插件已实装（批次 B）+ 子代理仍占位（2026-09-28 修订） ---- */
 		{
 			await cdp.eval(`(() => { window.__S.q('[data-testid="sidebar-footer-settings"]').click(); return true; })()`);
 			await sleep(450);
 			await cdp.eval(`(() => { window.__S.q('[data-testid="settings-tab-plugins"]').click(); return true; })()`);
 			await sleep(300);
+			// 批次 B 后插件 Tab 是实装的 PluginsSettingsTab（不再是占位）—— 以包树存在为判据
 			const plugins = await cdp.eval(
-				`(() => document.body.textContent.includes('插件（占位）本批暂不实现'))()`,
+				`(() => !!window.__S.q('[data-testid="settings-plugins-tree"]'))()`,
 			);
 			await cdp.eval(`(() => { window.__S.q('[data-testid="settings-tab-subagents"]').click(); return true; })()`);
 			await sleep(300);
@@ -236,8 +237,8 @@ try {
 				`(() => document.body.textContent.includes('子代理（占位）本批暂不实现'))()`,
 			);
 			ctx.record("M6_占位Tab", { plugins, subagents });
-			failures += ctx.assert("M6 插件 / 子代理 Tab 仍为占位（换位后内容未实现）", {
-				插件占位: plugins === true,
+			failures += ctx.assert("M6 插件 Tab 已实装（批次 B 包树渲染）+ 子代理仍占位", {
+				插件实装: plugins === true,
 				子代理占位: subagents === true,
 			})
 				? 0

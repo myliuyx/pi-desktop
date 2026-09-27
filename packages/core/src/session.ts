@@ -36,11 +36,22 @@ import type {
 	ModelTestRequest,
 	ModelTestResult,
 	ModelsPayload,
+	PackageInstallRequest,
+	PackageInstallResult,
+	PackageRemoveRequest,
+	PackageRemoveResult,
+	PackageToggleRequest,
+	PackageToggleResult,
+	PackageUpdateRequest,
+	PackageUpdateResult,
+	PackagesPayload,
+	PackageUpdatesPayload,
 	ProviderModelsRequest,
 	ProviderModelsResult,
 	ProvidersPayload,
 	ProvidersSaveResult,
 	PutProvidersRequest,
+	SessionReloadResult,
 	SkillToggleRequest,
 	SkillToggleResult,
 	SkillsPayload,
@@ -51,6 +62,12 @@ import type {
 } from "./contract.ts";
 import { isRecord, num } from "./guards.ts";
 import { createModelsController, type ModelsController } from "./models.ts";
+import {
+	checkPackageUpdates,
+	collectPackagesPayload,
+	removePackageFromSettings,
+	togglePackageInSettings,
+} from "./packages.ts";
 import { createProvidersController, type ProvidersController } from "./providers.ts";
 import { collectResources } from "./resources.ts";
 import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
@@ -171,6 +188,24 @@ export interface CoreRuntime {
 	 * 409）；技能不存在抛 `SkillNotFoundError`（端点回 404）。
 	 */
 	toggleSkill(req: SkillToggleRequest): Promise<SkillToggleResult>;
+
+	/* -------------------------------------------------------------------------
+	 * C8 · 设置弹窗 · 插件 Tab（`packages.ts` 的转发；`GET /packages` / `POST /packages/*`）
+	 * ----------------------------------------------------------------------- */
+	/** 已配置插件包全量清单（user+project 双 scope，含未安装的 missing 项）+ 四类启用计数 */
+	getPackages(): Promise<PackagesPayload>;
+	/** 整包开关（settings `packages` 对象形 `{source, autoload:false}`）→ flush → reload */
+	togglePackage(req: PackageToggleRequest): Promise<PackageToggleResult>;
+	/** 移除包（removeAndPersist：npm 卸载 / git 删克隆 / 本地仅删条目）→ reload */
+	removePackage(req: PackageRemoveRequest): Promise<PackageRemoveResult>;
+	/** 重新加载会话（session.reload()：重读 settings+资源+扩展，历史保留）；流式中抛错 */
+	reloadSession(): Promise<SessionReloadResult>;
+	/** 安装包（installAndPersist：npm:/git:/本地路径；local=true 装项目级）→ reload；进度走 SSE */
+	installPackage(req: PackageInstallRequest): Promise<PackageInstallResult>;
+	/** 检查更新（npm view / git ls-remote，需联网；本地包跳过）——只读不落盘 */
+	checkPackageUpdates(): Promise<PackageUpdatesPayload>;
+	/** 更新包（缺 source = 全部已配置包）→ reload */
+	updatePackage(req: PackageUpdateRequest): Promise<PackageUpdateResult>;
 
 	dispose(): void;
 }
@@ -324,8 +359,28 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		if (!settingsManager) throw new Error("会话组件未就绪，技能清单不可用");
 		if (!packageManager) {
 			packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
+			// C8：安装/移除/更新的进度事件桥接 SSE（不经 toAgentEvent，与 usage/cwd_changed 同类）
+			packageManager.setProgressCallback((event) => {
+				emitAgent({
+					type: "package_progress",
+					action: event.action,
+					source: event.source,
+					...(typeof event.message === "string" ? { message: event.message } : {}),
+				});
+			});
 		}
 		return packageManager;
+	};
+
+	/** C8：插件清单汇总（getPackages 与各写路径的返回值共用同一口径） */
+	const collectPackages = async (): Promise<PackagesPayload> => {
+		if (!resourceLoader || !settingsManager) throw new Error("会话组件未就绪");
+		return collectPackagesPayload({
+			packageManager: ensurePackageManager(),
+			loader: resourceLoader,
+			settingsManager,
+			cwd,
+		});
 	};
 
 	/*
@@ -886,6 +941,73 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 					cwd,
 				}),
 			};
+		},
+
+		/* ------------------------------------------------------------ C8 */
+		getPackages: async () => {
+			await ready;
+			return collectPackages();
+		},
+		togglePackage: async (req) => {
+			await ready;
+			if (session?.isStreaming) {
+				throw new Error("会话正在生成回复，请先停止再切换插件");
+			}
+			if (!session || !settingsManager) throw new Error("会话组件未就绪");
+			// 写入（包不存在于 settings 抛 PackageNotFoundError）
+			togglePackageInSettings({ settingsManager, req });
+			await settingsManager.flush();
+			// 整包启用/禁用改变扩展加载集 —— 与技能开关同一热重载口径
+			await session.reload();
+			return { packages: await collectPackages() };
+		},
+		removePackage: async (req) => {
+			await ready;
+			if (session?.isStreaming) {
+				throw new Error("会话正在生成回复，请先停止再移除插件");
+			}
+			if (!session || !settingsManager) throw new Error("会话组件未就绪");
+			// removeAndPersist 内部落盘（npm 卸载 / git 删克隆 / 本地仅删 settings 条目）
+			await removePackageFromSettings({ packageManager: ensurePackageManager(), req });
+			await settingsManager.flush();
+			await session.reload();
+			return { packages: await collectPackages() };
+		},
+		reloadSession: async () => {
+			await ready;
+			if (session?.isStreaming) {
+				throw new Error("会话正在生成回复，请先停止再重新加载会话");
+			}
+			if (!session) throw new Error("会话未就绪");
+			await session.reload();
+			return { ok: true };
+		},
+		installPackage: async (req) => {
+			await ready;
+			if (session?.isStreaming) {
+				throw new Error("会话正在生成回复，请先停止再安装插件");
+			}
+			if (!session || !settingsManager) throw new Error("会话组件未就绪");
+			// installAndPersist 内部落盘；进度经 ensurePackageManager 挂的回调走 SSE package_progress
+			await ensurePackageManager().installAndPersist(req.source, { local: req.local === true });
+			await session.reload();
+			return { packages: await collectPackages() };
+		},
+		checkPackageUpdates: async () => {
+			await ready;
+			// 只读不落盘；npm view / git ls-remote 需联网，本地路径包自动跳过
+			return { updates: await checkPackageUpdates(ensurePackageManager()) };
+		},
+		updatePackage: async (req) => {
+			await ready;
+			if (session?.isStreaming) {
+				throw new Error("会话正在生成回复，请先停止再更新插件");
+			}
+			if (!session || !settingsManager) throw new Error("会话组件未就绪");
+			// 缺 source = 更新全部已配置包（pm.update 内部遍历 user+project，self 更新仅在 CLI）
+			await ensurePackageManager().update(req.source);
+			await session.reload();
+			return { packages: await collectPackages() };
 		},
 
 		dispose: () => {

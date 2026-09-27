@@ -12,8 +12,19 @@
 import type { AgentEvent } from "@/adapter/pi-events";
 import type {
 	ModelsPayload,
+	PackageInstallRequest,
+	PackageInstallResult,
+	PackageRemoveRequest,
+	PackageRemoveResult,
+	PackageToggleRequest,
+	PackageToggleResult,
+	PackageUpdateRequest,
+	PackageUpdateResult,
+	PackagesPayload,
+	PackageUpdatesPayload,
 	ResourcesPayload,
 	SessionLoadResult,
+	SessionReloadResult,
 	SessionSummary,
 	SkillToggleRequest,
 	SkillToggleResult,
@@ -194,6 +205,28 @@ export interface AgentTransport {
    * 流式中（409）/ 技能不存在（404）抛错，文案取 core 的 `{ error }` 原文。
    */
   toggleSkill(req: SkillToggleRequest): Promise<SkillToggleResult>;
+
+  /* ------------------------------------------------- C8 · 设置弹窗 · 插件 Tab */
+  /**
+   * 设置弹窗 · 插件 Tab：**全量**已配置包清单（user+project 双 scope，含未安装的
+   * missing 项）+ 四类启用计数（底部统计条口径）。失败抛错，文案取 core 原文。
+   */
+  listPackages(): Promise<PackagesPayload>;
+  /** 设置弹窗 · 插件 Tab：整包启用/禁用（settings 对象形 `{source, autoload:false}` → `session.reload()`）；返回最新清单 */
+  togglePackage(req: PackageToggleRequest): Promise<PackageToggleResult>;
+  /** 设置弹窗 · 插件 Tab：移除包（removeAndPersist；npm 卸载 / git 删克隆 / 本地仅删条目）；返回最新清单 */
+  removePackage(req: PackageRemoveRequest): Promise<PackageRemoveResult>;
+  /** 设置弹窗 · 插件 Tab：重新加载会话（`session.reload()`，重读 settings+资源+扩展，历史保留）；流式中 409 */
+  reloadSession(): Promise<SessionReloadResult>;
+  /**
+   * 设置弹窗 · 插件 Tab（B2）：安装包（installAndPersist；npm/git 需联网，进度走 SSE
+   * `package_progress`）。失败抛错（source 非法 / 网络 / git 缺失），文案取 core 原文。
+   */
+  installPackage(req: PackageInstallRequest): Promise<PackageInstallResult>;
+  /** 设置弹窗 · 插件 Tab（B2）：检查更新（npm view / git ls-remote；本地路径包自动跳过）；失败抛错 */
+  checkPackageUpdates(): Promise<PackageUpdatesPayload>;
+  /** 设置弹窗 · 插件 Tab（B2）：更新包（缺 source = 全部已配置包）；失败抛错 */
+  updatePackage(req: PackageUpdateRequest): Promise<PackageUpdateResult>;
 }
 
 export interface LiveConfig {
@@ -615,5 +648,62 @@ export class HttpAgentTransport implements AgentTransport {
       throw new Error(detail ?? `切换技能失败（HTTP ${res.status}）`);
     }
     return { skills: body.skills };
+  }
+
+  /* ------------------------------------------------- C8 · 设置弹窗 · 插件 Tab */
+
+  /** C8 通用解包：`{ ok:true, ...payload }` → payload；其余（含 core `{ error }` 原文）抛错 */
+  private async unwrapPackages<T>(res: Response, fallbackLabel: string): Promise<T> {
+    const body = (await res.json().catch(() => null)) as (T & { error?: unknown }) | null;
+    if (!res.ok || (body as { ok?: unknown } | null)?.ok !== true) {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `${fallbackLabel}（HTTP ${res.status}）`);
+    }
+    // ok===true 已在上方闸门验证；此处收窄回 T（error 字段是响应体多余键，调用方不读）
+    return body as T;
+  }
+
+  private postPackages<T>(path: string, body: unknown, fallbackLabel: string): Promise<T> {
+    return fetch(`${this.cfg.baseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeader() },
+      body: JSON.stringify(body ?? {}),
+    }).then((res) => this.unwrapPackages<T>(res, fallbackLabel));
+  }
+
+  async listPackages(): Promise<PackagesPayload> {
+    const res = await fetch(`${this.cfg.baseUrl}/packages`, { headers: this.authHeader() });
+    const body = (await res.json().catch(() => null)) as
+      | (PackagesPayload & { ok?: unknown; error?: unknown })
+      | null;
+    if (!res.ok || body?.ok !== true || !Array.isArray(body.packages)) {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `读取插件清单失败（HTTP ${res.status}）`);
+    }
+    return body;
+  }
+
+  togglePackage(req: PackageToggleRequest): Promise<PackageToggleResult> {
+    return this.postPackages<PackageToggleResult>("/packages/toggle", req, "切换插件失败");
+  }
+
+  removePackage(req: PackageRemoveRequest): Promise<PackageRemoveResult> {
+    return this.postPackages<PackageRemoveResult>("/packages/remove", req, "移除插件失败");
+  }
+
+  reloadSession(): Promise<SessionReloadResult> {
+    return this.postPackages<SessionReloadResult>("/session/reload", {}, "重新加载会话失败");
+  }
+
+  installPackage(req: PackageInstallRequest): Promise<PackageInstallResult> {
+    return this.postPackages<PackageInstallResult>("/packages/install", req, "安装插件失败");
+  }
+
+  checkPackageUpdates(): Promise<PackageUpdatesPayload> {
+    return this.postPackages<PackageUpdatesPayload>("/packages/check-updates", {}, "检查更新失败");
+  }
+
+  updatePackage(req: PackageUpdateRequest): Promise<PackageUpdateResult> {
+    return this.postPackages<PackageUpdateResult>("/packages/update", req, "更新插件失败");
   }
 }

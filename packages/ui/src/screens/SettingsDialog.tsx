@@ -25,6 +25,7 @@ import { useModelsStore } from "@/store/models-store";
 import { SettingsGeneralTab } from "./settings/SettingsGeneralTab";
 import { ModelProvidersTab } from "./settings/ModelProvidersTab";
 import { SkillsSettingsTab } from "./settings/SkillsSettingsTab";
+import { PluginsSettingsTab } from "./settings/PluginsSettingsTab";
 import { describeProviderIssues, validateProviders, type ProviderValidationIssue } from "./settings/provider-validation";
 
 /**
@@ -257,7 +258,7 @@ export function SettingsDialog() {
           />
         ) : null}
         {activeTab === "skills" ? <SkillsSettingsTab /> : null}
-        {activeTab === "plugins" ? <PlaceholderTab title="插件" /> : null}
+        {activeTab === "plugins" ? <PluginsSettingsTab /> : null}
         {activeTab === "subagents" ? <PlaceholderTab title="子代理" /> : null}
       </div>
     </Dialog>

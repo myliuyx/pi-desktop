@@ -24,6 +24,7 @@ import { FileReadError, readTextFile } from "./fs-read.ts";
 import { isRecord } from "./guards.ts";
 import { InvalidCwdError, type CoreRuntime } from "./session.ts";
 import { SkillNotFoundError } from "./skills.ts";
+import { PackageNotFoundError } from "./packages.ts";
 
 export interface ServerHandle {
   port: number;
@@ -71,6 +72,14 @@ const API_ROUTES = new Set([
 	// C7 · 设置弹窗 · 技能 Tab（全量清单含禁用项 + 开关写 settings 模式数组）
 	"/skills",
 	"/skills/toggle",
+	// C8 · 设置弹窗 · 插件 Tab（清单/开关/移除/安装/检查更新）+ 重新加载会话
+	"/packages",
+	"/packages/toggle",
+	"/packages/remove",
+	"/packages/install",
+	"/packages/check-updates",
+	"/packages/update",
+	"/session/reload",
 	// D7 · 工作目录运行期热切换
 	"/cwd",
 	// dir-picker · 自定义路径弹窗的浏览数据源（只读列子目录）
@@ -165,14 +174,15 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		}
 	};
 
-	/** core 直接生成的 AgentEvent（uiContext 授权请求 / 用量快照 / 目录热切换），已是契约形状，终态立即下发 */
+	/** core 直接生成的 AgentEvent（uiContext 授权请求 / 用量快照 / 目录热切换 / 包进度），已是契约形状，终态立即下发 */
 	const dispatchAgent = (e: unknown) => {
 		if (
 			isRecord(e) &&
 			(e.type === "approval_request" ||
 				e.type === "approval_settled" ||
 				e.type === "usage" ||
-				e.type === "cwd_changed")
+				e.type === "cwd_changed" ||
+				e.type === "package_progress")
 		) {
 			flushBatch();
 			push(e);
@@ -486,6 +496,124 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			} catch (e) {
 				// 技能不存在（被删/被移走）→ 404，与意外错误 500 区分
 				if (e instanceof SkillNotFoundError) return json(404, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * C8 · 设置弹窗 · 插件 Tab（packages.ts）
+		 * 清单是 settings `packages` 的 user+project 双 scope 全量（含未安装的
+		 * missing 项）；开关=对象形 `{source, autoload:false}`；进度经 SSE
+		 * `package_progress` 下发（安装/移除/更新进行中）。
+		 * ----------------------------------------------------------------- */
+
+		if (req.method === "GET" && urlPath === "/packages") {
+			try {
+				const payload = await runtime.getPackages();
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/packages/toggle") {
+			const body = (await readBody(req)) as { source?: unknown; scope?: unknown; enabled?: unknown };
+			if (
+				typeof body.source !== "string" ||
+				body.source.length === 0 ||
+				(body.scope !== "user" && body.scope !== "project") ||
+				typeof body.enabled !== "boolean"
+			) {
+				return json(400, { ok: false, error: "请求体缺少 source / scope / enabled" });
+			}
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再切换插件" });
+			}
+			try {
+				const result = await runtime.togglePackage({
+					source: body.source,
+					scope: body.scope,
+					enabled: body.enabled,
+				});
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				if (e instanceof PackageNotFoundError) return json(404, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/packages/remove") {
+			const body = (await readBody(req)) as { source?: unknown; scope?: unknown };
+			if (typeof body.source !== "string" || body.source.length === 0 || (body.scope !== "user" && body.scope !== "project")) {
+				return json(400, { ok: false, error: "请求体缺少 source / scope" });
+			}
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再移除插件" });
+			}
+			try {
+				const result = await runtime.removePackage({ source: body.source, scope: body.scope });
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				if (e instanceof PackageNotFoundError) return json(404, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/session/reload") {
+			// 重新加载会话：重读 settings + 资源 + 扩展（历史保留）；流式中拒绝
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再重新加载会话" });
+			}
+			try {
+				await runtime.reloadSession();
+				return json(200, { ok: true });
+			} catch (e) {
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		/* ----- C8 · B2：安装 / 检查更新（npm/git 需联网；本地路径包离线可用） ----- */
+
+		if (req.method === "POST" && urlPath === "/packages/install") {
+			const body = (await readBody(req)) as { source?: unknown; local?: unknown };
+			if (typeof body.source !== "string" || body.source.trim().length === 0) {
+				return json(400, { ok: false, error: "请求体缺少 source" });
+			}
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再安装插件" });
+			}
+			try {
+				const result = await runtime.installPackage({
+					source: body.source.trim(),
+					local: body.local === true,
+				});
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				// 安装失败（source 非法 / 网络 / git 缺失）文案取 core 原文，UI 安装弹窗原样显示
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/packages/check-updates") {
+			try {
+				const result = await runtime.checkPackageUpdates();
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/packages/update") {
+			const body = (await readBody(req)) as { source?: unknown };
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再更新插件" });
+			}
+			try {
+				const result = await runtime.updatePackage({
+					...(typeof body.source === "string" && body.source.length > 0 ? { source: body.source } : {}),
+				});
+				return json(200, { ok: true, ...result });
+			} catch (e) {
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
 		}

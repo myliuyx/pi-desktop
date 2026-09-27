@@ -41,6 +41,22 @@ export type {
   SkillsPayload,
   SkillToggleRequest,
   SkillToggleResult,
+  /* C8 新增：设置弹窗 · 插件 Tab 载荷（清单/开关/移除/安装/检查更新 + 进度事件） */
+  PackageDetail,
+  PackageInstallRequest,
+  PackageInstallResult,
+  PackageProgressEvent,
+  PackageRemoveRequest,
+  PackageRemoveResult,
+  PackageResourceRef,
+  PackageToggleRequest,
+  PackageToggleResult,
+  PackageUpdateEntry,
+  PackageUpdateRequest,
+  PackageUpdateResult,
+  PackageUpdatesPayload,
+  PackagesPayload,
+  SessionReloadResult,
 } from "../../../core/src/contract.ts";
 
 import type { Block, BlockType } from "../../../core/src/contract.ts";

@@ -354,7 +354,9 @@ export type AgentEvent =
       resolution: "accepted" | "cancelled";
     }
   /** 新增：工作目录已热切换（D7，POST /cwd 成功后广播；UI 收到后重拉会话清单与 cwd 展示） */
-  | { type: "cwd_changed"; cwd: string };
+  | { type: "cwd_changed"; cwd: string }
+  /** C8 新增：包操作进度（安装/移除/更新；core 由 setProgressCallback 桥接直接生成） */
+  | PackageProgressEvent;
 
 /* ---------------------------------------------------------------------------
  * C6 · 04 屏工具开关（`GET /tools/active` / `POST /tools/active {names}`）
@@ -683,4 +685,132 @@ export interface SkillToggleRequest {
 /** `POST /skills/toggle` 响应体（切换后的最新清单，UI 直接整体替换免二次拉取） */
 export interface SkillToggleResult {
   skills: SkillsPayload;
+}
+
+/* ---------------------------------------------------------------------------
+ * C8 · 设置弹窗 · 插件 Tab（`GET /packages` / `POST /packages/*` / `POST /session/reload`）
+ *
+ * 数据源：`DefaultPackageManager.listConfiguredPackages()`（settings `packages`
+ * 数组的 user+project 全量，含 installedPath）× `resolve()`（按 metadata.source
+ * 归属到包的资源明细）× 安装目录 package.json（name/version/description）。
+ * 开关语义 = 0.87.1 对象形 PackageSource：`{source, autoload:false}` = 整包禁用。
+ * ------------------------------------------------------------------------- */
+
+/** 包贡献的单条资源（extensions/skills/prompts/themes 通用形状） */
+export interface PackageResourceRef {
+  /** 展示名（扩展=文件名去后缀、技能=目录名、提示词/主题=文件名去后缀） */
+  name: string;
+  /** 绝对路径 */
+  path: string;
+  enabled: boolean;
+}
+
+/** 单个已配置插件包的详情 */
+export interface PackageDetail {
+  /** 配置的 source 串（`git:host/path`、`npm:spec`、本地绝对路径……原样） */
+  source: string;
+  scope: "user" | "project";
+  /** 当前是否启用（对象形 `autoload:false` = 禁用） */
+  enabled: boolean;
+  /** 安装路径（本地包=解析后的路径；npm/git=安装目录；missing 时缺省） */
+  installedPath?: string;
+  /** 包名（安装目录 package.json 的 name；本地无 package.json 回落目录名） */
+  name?: string;
+  /** 已安装版本（package.json version；缺失不设键 —— 不造假数据） */
+  version?: string;
+  /** 包描述（package.json description；缺失不设键） */
+  description?: string;
+  /** loaded=有扩展已加载 / installed=在装但无扩展加载 / missing=settings 有但未安装 */
+  status: "loaded" | "installed" | "missing";
+  /** 该包贡献的资源（按 resolve() 的 metadata.source 归属过滤；含被禁用条目） */
+  resources: {
+    extensions: PackageResourceRef[];
+    skills: PackageResourceRef[];
+    prompts: PackageResourceRef[];
+    themes: PackageResourceRef[];
+  };
+  /** 资源摘要（如「1扩展·14技能」；四类全 0 =「无」） */
+  resourceSummary: string;
+}
+
+/** `GET /packages` 响应体 */
+export interface PackagesPayload {
+  packages: PackageDetail[];
+  /** 全量四类**启用**计数（底部统计条「2 ext · 14 skills · …」口径，参考图2） */
+  totals: { extensions: number; skills: number; prompts: number; themes: number };
+  /** core 当前 cwd（项目级包的 CWD 字段展示用） */
+  cwd: string;
+}
+
+/** `POST /packages/toggle` 请求体（整包启用/禁用） */
+export interface PackageToggleRequest {
+  source: string;
+  scope: "user" | "project";
+  enabled: boolean;
+}
+/** `POST /packages/toggle` 响应体（切换后的最新清单，UI 整体替换） */
+export interface PackageToggleResult {
+  packages: PackagesPayload;
+}
+
+/** `POST /packages/remove` 请求体 */
+export interface PackageRemoveRequest {
+  source: string;
+  scope: "user" | "project";
+}
+/** `POST /packages/remove` 响应体（移除并落盘后的最新清单） */
+export interface PackageRemoveResult {
+  packages: PackagesPayload;
+}
+
+/** `POST /session/reload` 响应体（重新加载会话：重读 settings+资源+扩展，历史保留） */
+export interface SessionReloadResult {
+  ok: boolean;
+}
+
+/* ----- C8 · B2：安装 / 检查更新（npm/git 源需联网；本地路径包离线可用） ----- */
+
+/** `POST /packages/install` 请求体（source=npm:/git:/本地路径；local=true 装到项目级） */
+export interface PackageInstallRequest {
+  source: string;
+  local?: boolean;
+}
+/** `POST /packages/install` 响应体（安装并落盘后的最新清单） */
+export interface PackageInstallResult {
+  packages: PackagesPayload;
+}
+
+/** 可更新项（0.87.1 PackageUpdate：npm=registry 有新版 / git=远端有新提交；本地包不参与） */
+export interface PackageUpdateEntry {
+  source: string;
+  displayName: string;
+  type: "npm" | "git";
+  scope: "user" | "project";
+}
+
+/** `POST /packages/check-updates` 响应体（需联网；本地路径包自动跳过） */
+export interface PackageUpdatesPayload {
+  updates: PackageUpdateEntry[];
+}
+
+/** `POST /packages/update` 请求体（缺 source = 更新全部已配置包） */
+export interface PackageUpdateRequest {
+  source?: string;
+}
+/** `POST /packages/update` 响应体（更新后的最新清单） */
+export interface PackageUpdateResult {
+  packages: PackagesPayload;
+}
+
+/**
+ * SSE · 包操作进度（安装/移除/更新进行中）。
+ * 由 `DefaultPackageManager.setProgressCallback` 桥接 core 事件管道直接生成，
+ * 不经 toAgentEvent 翻译（与 usage/cwd_changed 同类）。
+ */
+export interface PackageProgressEvent {
+  type: "package_progress";
+  action: "install" | "remove" | "update" | "clone" | "pull";
+  source: string;
+  /** 进度文案（Pi 原生 withProgress 的 message 原文） */
+  message?: string;
 }
