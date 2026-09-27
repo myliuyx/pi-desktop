@@ -18,7 +18,7 @@
 | 形态 | 场景 | 说明 |
 |---|---|---|
 | **桌面版** | 本机日常使用 | Electron 壳内嵌 core 服务，`ELECTRON_RUN_AS_NODE` 子进程跑 core（用户机器免装 Node），读 `<userData>/run/core.json` 自动拿端口与 token |
-| **自托管 web** | 内网 / 远程访问 | core 跑在服务器上同源托管 ui/dist，浏览器随处访问；部署指南 `packages/core/docs/deploy.md` |
+| **自托管 web** | 内网 / 远程访问 | **npm 包 `@myliuyx/pi-web`**（`npx` 即跑，bin 兜 CORE_UI_DIST=包内 ui/ 与 CORE_RUN_DIR=~/.pi-web 默认值）；或源码跑 core 同源托管 ui/dist；部署指南 `packages/core/docs/deploy.md` |
 | **本地开发** | 改代码 | mock 演示与真实链路双形态（见 §5），README「快速开始」 |
 
 ## 3. 仓库结构
@@ -27,9 +27,12 @@
 packages/
 ├── ui/        前端（React 19 + TypeScript + Vite + Tailwind v4 + Zustand）
 ├── core/      本地服务（Node 22+ + TypeScript，HTTP + SSE）
-└── desktop/   桌面壳（Electron + electron-builder）
+├── desktop/   桌面壳（Electron + electron-builder）
+└── web/       npm 发布包 @myliuyx/pi-web（自托管 web 的 CLI 分发：bin + 组装脚本；
+               tarball 内容 = core/dist + ui/dist，发布前由 scripts/assemble.mjs 拷入，
+               scripts/smoke.mjs 做隔离冒烟；CI 在 build.yml 的 publish job 发包）
 docs/          项目文档（本文 + pi-agent-core 调研）
-.github/workflows/build.yml   三平台构建流水线（tag v* 或手动触发）
+.github/workflows/build.yml   三平台构建 + Release + npm 发布流水线（tag v* 或手动触发）
 ```
 
 两个特殊目录：
@@ -95,9 +98,10 @@ UI(React) --POST /prompt--> core --> @earendil-works/pi-coding-agent（agent 循
 
 ## 8. 现状快照（2026-09-27）
 
-- `main = dev = 5da7fe7`，tag `v0.1.0` 对应 64bde96（桌面打包批）；Windows 安装包已真机验收，mac/linux 走 CI 出包。
-- 已收官批次：对话工作台与里程碑 m1~m5、会话列举/装载/新建、授权闭环、信任门、模型管理（多 Provider + 导入清单 + 思考档位）、工作目录热切换、目录树侧栏、新建会话页、消息时间戳、模型标签 + token 速度徽章、回复完结后「处理详情」折叠行。
-- 待办远期项：目录树批次验收脚本补写（见 `.plan` 遗留清单）。
+- `main = dev` 同步推进；`v0.1.1` tag → GitHub Release 挂 5 个平台安装包（CI build.yml：构建 + 自动发 Release + npm 发布三段）。
+- npm 包 `@myliuyx/pi-web@0.1.1`：自托管 web 形态 CLI 分发，`npx` 即跑；CI 发包需仓库 secret `NPM_TOKEN`（未配置时该 job 警告跳过，不影响构建与 Release）。
+- 已收官批次：对话工作台与里程碑 m1~m5、会话列举/装载/新建、授权闭环、信任门、模型管理（多 Provider + 导入清单 + 思考档位）、工作目录热切换、目录树侧栏、新建会话页、消息时间戳、模型标签 + token 速度徽章、回复完结后「处理详情」折叠行、桌面打包发版闭环（Release 自动挂包 + Linux 打包修复）、npm 自托管包。
+- 待办远期项：目录树批次验收脚本补写（见 `.plan` 遗留清单）；mac x64（Intel）安装包矩阵。
 
 ## 9. 开发工作流速查
 

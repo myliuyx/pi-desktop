@@ -1,0 +1,45 @@
+{
+  "name": "@myliuyx/pi-web",
+  "version": "0.1.1",
+  "license": "MIT",
+  "type": "module",
+  "description": "Pi-Desktop 自托管 web 形态 —— 一条命令起 Coding Agent 工作台（core HTTP/SSE 服务 + 同源托管 Web UI，浏览器随处访问）",
+  "homepage": "https://github.com/myliuyx/pi-desktop",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/myliuyx/pi-desktop.git",
+    "directory": "packages/web"
+  },
+  "bugs": "https://github.com/myliuyx/pi-desktop/issues",
+  "keywords": [
+    "pi",
+    "coding-agent",
+    "agent",
+    "self-hosted",
+    "web",
+    "sse",
+    "ai"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "bin": {
+    "pi-web": "./bin/pi-web.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "ui/",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "assemble": "node scripts/assemble.mjs",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.87.1"
+  }
+}

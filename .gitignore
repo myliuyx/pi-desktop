@@ -32,3 +32,6 @@ packages/ui/_*-core.log
 # 不入库以免污染本仓库历史；需要时用 `git clone https://github.com/earendil-works/pi pi` 还原。
 # 若将来要对 pi 做本地修改，删掉下面这行改为入库。
 pi/
+
+# npm 发布包组装产物（packages/web 的 ui/ 由 assemble 从 packages/ui/dist 拷入，可随时重建）
+packages/web/ui/

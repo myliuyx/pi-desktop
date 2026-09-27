@@ -115,3 +115,55 @@ jobs:
         with:
           files: assets/*
           generate_release_notes: true
+
+  # npm 发布：tag 推送时发 @myliuyx/pi-web（自托管 web 形态的 CLI 包，npx 即跑）。
+  # 依赖仓库 secret NPM_TOKEN（npm automation token，账号须拥有 myliuyx scope）；
+  # 未配置时降级为警告跳过——桌面构建与 Release 不受影响，配置后重打 tag 即补发。
+  publish:
+    name: publish @myliuyx/pi-web
+    needs: build
+    if: ${{ !cancelled() && github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Check NPM_TOKEN
+        id: token
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "have=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::未配置 NPM_TOKEN secret，跳过 npm 发布（配置后重打 tag 即可补发 @myliuyx/pi-web）"
+          else
+            echo "have=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build ui
+        if: steps.token.outputs.have == 'true'
+        working-directory: packages/ui
+        run: npm ci && npm run build
+
+      - name: Build core
+        if: steps.token.outputs.have == 'true'
+        working-directory: packages/core
+        run: npm ci && npm run build
+
+      - name: Assemble package
+        if: steps.token.outputs.have == 'true'
+        working-directory: packages/web
+        run: npm run assemble
+
+      - name: Publish
+        if: steps.token.outputs.have == 'true'
+        working-directory: packages/web
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
