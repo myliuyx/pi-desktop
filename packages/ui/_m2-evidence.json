@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5182",
-  "startedAt": "2026-09-27T11:36:56.535Z",
+  "startedAt": "2026-09-27T11:54:30.321Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
@@ -370,7 +370,7 @@
       "value": {
         "dataAtBottom": "false",
         "scrollTop": 0,
-        "dist": 1593,
+        "dist": 1706,
         "totalCount": 9,
         "hasScrollToBottom": true
       }

@@ -199,6 +199,11 @@ export function entriesToMessages(
         const blocks = contentToBlocks(message.content);
         // F2：逐条计量挂回消息（历史会话重载后 footer 仍在；与实时通道同经 adapt.usageOf 投影）
         const usage = role === "assistant" ? usageOf(message.usage) : undefined;
+        // 模型标签回填（2026-09-27 用户裁决）：落盘 entry 与实时事件同源，assistant 消息
+        // 带模型字段；旧版本会话文件没有 → 不设键，UI 不显示（同 usage 诚实展示纪律）
+        const model = role === "assistant" && typeof message.model === "string" ? message.model : undefined;
+        const responseModel =
+          role === "assistant" && typeof message.responseModel === "string" ? message.responseModel : undefined;
         if (role === "assistant") {
           // 记下 toolCall 宿主，供后面的 toolResult 归位
           for (const b of blocks) {
@@ -212,7 +217,15 @@ export function entriesToMessages(
           skip(role === "user" ? "empty-user-message" : "empty-assistant-message");
           continue;
         }
-        messages.push({ id: `m-${entry.id}`, role, blocks, timestamp: ts, ...(usage ? { usage } : {}) });
+        messages.push({
+          id: `m-${entry.id}`,
+          role,
+          blocks,
+          timestamp: ts,
+          ...(usage ? { usage } : {}),
+          ...(model ? { model } : {}),
+          ...(responseModel ? { responseModel } : {}),
+        });
         if (role === "assistant") {
           lastAssistant = messages.length - 1;
           if (isRecord(message.usage)) {

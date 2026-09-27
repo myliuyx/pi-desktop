@@ -77,6 +77,10 @@ function asMessage(value: unknown): AgentMessage | null {
 	if (role === "assistant") {
 		const usage = usageOf(value.usage);
 		if (usage) message.usage = usage;
+		// 模型标签（2026-09-27 用户裁决）：请求模型 message_start 即有，实际响应模型
+		// message_end 才确定 —— 两个事件里哪个带就哪个透传，reducer 据此创建/覆写
+		if (typeof value.model === "string") message.model = value.model;
+		if (typeof value.responseModel === "string") message.responseModel = value.responseModel;
 	}
 	return message;
 }

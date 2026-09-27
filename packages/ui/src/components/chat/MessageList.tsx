@@ -18,6 +18,8 @@ import {
   MESSAGE_MAX_WIDTH,
 } from "@/lib/layout";
 import type { Block, Message, TerminalBlock } from "@/mock/types";
+import { COMPOSER_MODELS } from "@/mock/composer";
+import { useModelsStore } from "@/store/models-store";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingCard } from "./ThinkingCard";
 import { ThinkingPending } from "./ThinkingPending";
@@ -320,6 +322,36 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
  * 单条消息：按角色对齐 + 逐 Block 分发渲染
  * ------------------------------------------------------------------------- */
 
+/**
+ * 消息左上角的模型标签（2026-09-27 用户裁决）。
+ *
+ * 展示口径取 `responseModel ?? model`（实际生成这条回复的模型）；展示名走
+ * 决策链：live 的 /models 清单 → mock 的 COMPOSER_MODELS → 原始 id 兜底。
+ * 精确口径走原生 title 悬停（全仓惯例）：路由/别名导致请求与实际模型不同时写明两者。
+ *
+ * 渲染条件：assistant 且消息带模型事实 —— user 消息、压缩摘要 / custom_message
+ * 映射出的消息、旧会话文件都没有 model → 整行不渲染（同 usage 诚实展示纪律）。
+ */
+function ModelLabelRow({ message }: { message: Message }) {
+  const models = useModelsStore((s) => s.payload);
+  const request = message.model;
+  const effective = message.responseModel ?? request;
+  if (!effective) return null;
+  const findLabel = (list: { id: string; label: string; providerLabel?: string }[] | undefined) =>
+    list?.find((m) => m.id === effective);
+  const hit = findLabel(models?.models) ?? findLabel(COMPOSER_MODELS);
+  const label = hit?.label ?? effective;
+  const rerouted = message.responseModel !== undefined && request !== undefined && message.responseModel !== request;
+  const titleParts = [rerouted ? `实际响应 ${label}（请求 ${request}）` : `模型 ${label}`];
+  const providerLabel = hit?.providerLabel?.trim();
+  if (providerLabel) titleParts.push(providerLabel);
+  return (
+    <div data-testid="message-model" className="text-xs text-text-tertiary" title={titleParts.join(" · ")}>
+      {label}
+    </div>
+  );
+}
+
 function MessageItem({ message }: { message: Message }) {
   const isUser = message.role === "user";
   /*
@@ -342,6 +374,9 @@ function MessageItem({ message }: { message: Message }) {
         isUser ? "items-end" : "items-start",
       )}
     >
+      {/* 左上角模型标签（2026-09-27 用户裁决）：assistant 且带模型事实才显示，
+          与底部 MessageFooter 成上下镜像；渲染条件细节见 ModelLabelRow 注释 */}
+      {message.role === "assistant" ? <ModelLabelRow message={message} /> : null}
       {message.blocks.map((block, i) => {
         // 已与 tool_call 配对的终端块并入了上方的一行式工具卡，跳过避免双份渲染
         if (block.type === "terminal" && block.toolCallId && pairedCallIds.has(block.toolCallId)) {

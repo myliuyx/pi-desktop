@@ -76,6 +76,7 @@ const INITIAL_SESSION_MESSAGES: Message[] = [
     id: "m2",
     role: "assistant",
     timestamp: BASE_TS + 1 * STEP_MS,
+    model: "claude-opus-4-7",
     blocks: [
       {
         type: "thinking",
@@ -126,6 +127,7 @@ const INITIAL_SESSION_MESSAGES: Message[] = [
     id: "m3",
     role: "assistant",
     timestamp: BASE_TS + 2 * STEP_MS,
+    model: "claude-opus-4-7",
     blocks: [
       {
         type: "plan",
@@ -151,6 +153,7 @@ const INITIAL_SESSION_MESSAGES: Message[] = [
     id: "m4",
     role: "assistant",
     timestamp: BASE_TS + 3 * STEP_MS,
+    model: "claude-opus-4-7",
     blocks: [
       {
         type: "terminal",
@@ -171,6 +174,7 @@ const INITIAL_SESSION_MESSAGES: Message[] = [
     id: "m5",
     role: "assistant",
     timestamp: BASE_TS + 4 * STEP_MS,
+    model: "claude-opus-4-7",
     blocks: [
       {
         type: "approval",
@@ -196,6 +200,7 @@ const INITIAL_SESSION_MESSAGES: Message[] = [
     id: "m7",
     role: "assistant",
     timestamp: BASE_TS + 6 * STEP_MS,
+    model: "claude-opus-4-7",
     blocks: [
       md(
         [

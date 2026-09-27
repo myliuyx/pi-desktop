@@ -140,6 +140,8 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 						role: "assistant",
 						blocks: blocksFrom(event.message.content, true),
 						timestamp: event.message.timestamp ?? 0,
+						// 模型是请求参数，message_start 即有 → 流式中左上角就能显示（比 usage 早）
+						...(event.message.model ? { model: event.message.model } : {}),
 					},
 				],
 				currentAssistantId: id,
@@ -187,6 +189,12 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 					 * 中止/失败的消息没有 usage，footer 不渲染（诚实展示）。
 					 */
 					...(event.message.usage ? { usage: event.message.usage } : {}),
+					/*
+					 * 模型标签（2026-09-27 用户裁决）：message_end 补挂/覆写 ——
+					 * responseModel（实际响应模型）此刻才确定，展示口径取 responseModel ?? model。
+					 */
+					...(event.message.model ? { model: event.message.model } : {}),
+					...(event.message.responseModel ? { responseModel: event.message.responseModel } : {}),
 				})),
 				currentAssistantId: null,
 				streaming: false,

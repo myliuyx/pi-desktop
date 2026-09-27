@@ -8,6 +8,7 @@ import { getLiveTransport } from "@/services/live-transport";
 import { applyEvent, createDraft, type DraftState } from "@/adapter/reduce";
 import type { AgentEvent } from "@/adapter/pi-events";
 import { notifyFailure, useNoticeStore } from "@/store/notice-store";
+import { useUiStore } from "@/store/ui-store";
 
 /**
  * 会话工作台状态。
@@ -297,6 +298,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
       role: "assistant",
       timestamp: now + 1,
       blocks: [{ type: "text", content: "", streaming: true }],
+      // 模型标签（2026-09-27 用户裁决）：mock 形态挂 composer 当前选中模型，
+      // 与 live 的 message_start 透传同语义（模型是请求参数，创建时即知）
+      model: useUiStore.getState().modelId,
     };
     set((state) => ({
       messages: [...state.messages, userMsg, assistantMsg],

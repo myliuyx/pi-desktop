@@ -149,6 +149,18 @@ export interface Message {
    * 消息没有该字段，渲染层据此不显示用量 footer）。
    */
   usage?: MessageUsage;
+  /**
+   * 生成这条回复的模型（仅 assistant；Pi `AssistantMessage.model`，请求时已定，
+   * 实时通道随 `message_start` 到达）。user 消息 / 压缩摘要 / 旧会话文件没有
+   * 该字段，渲染层据此不显示模型标签（同 usage 的诚实展示纪律）。
+   */
+  model?: string;
+  /**
+   * 实际响应的模型 id（仅 assistant；Pi `AssistantMessage.responseModel`，
+   * 随 `message_end` 到达）。路由/别名场景下与 `model` 不同；展示口径取
+   * `responseModel ?? model`（2026-09-27 用户裁决），两者都在时 title 里写明。
+   */
+  responseModel?: string;
 }
 
 export interface Session {
@@ -279,6 +291,10 @@ export interface AgentMessage {
   timestamp?: number;
   /** 原始事件的 message.usage 透传（仅 assistant 的 message_end 携带；adapt.ts 的 usageOf 产出，出现即四项俱全） */
   usage?: MessageUsage;
+  /** 请求的模型 id（仅 assistant；Pi `AssistantMessage.model`，message_start 即有，adapt.ts 透传） */
+  model?: string;
+  /** 实际响应的模型 id（仅 assistant；Pi `AssistantMessage.responseModel`，message_end 才确定） */
+  responseModel?: string;
 }
 
 /** 工具结果内容（与 Pi 事件 result.content 同构） */
