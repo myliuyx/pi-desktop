@@ -100,15 +100,18 @@ function check(name, actual, expected) {
   check("案例8 换 scope 键全变", [...collectCollapsibleTurnKeys(msgs, "sB")], [turnKey("sB", 0), turnKey("sB", 4)]);
 }
 
-/* 9. buildTurnIndex：每条 assistant 消息有归属，尾条 isTail，user 不在表内 */
+/* 9. buildTurnIndex：每条 assistant 消息有归属，首/尾条标记，user 不在表内 */
 {
   const msgs = [user(), assistant([tool("t1")]), assistant([text("答")]), user(), assistant([text("答2")])];
   const index = buildTurnIndex(msgs, "s1");
   check("案例9 表大小（3 条 assistant）", index.size, 3);
   check("案例9 中间行 isTail", index.get(1).isTail, false);
   check("案例9 尾条 isTail", index.get(2).isTail, true);
+  check("案例9 首条 isHead（折叠行展开态宿主）", index.get(1).isHead, true);
+  check("案例9 尾条非 isHead", index.get(2).isHead, false);
   check("案例9 user 不在表内", index.has(0), false);
   check("案例9 次轮尾条", index.get(4).isTail, true);
+  check("案例9 次轮首条即尾条（单消息轮）", index.get(4).isHead, true);
 }
 
 /* 10. 空数组 / 只有 user（无回复）→ 无轮次 */

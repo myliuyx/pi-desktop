@@ -57,10 +57,14 @@ const EMPTY_SETTLED_KEYS: ReadonlySet<string> = new Set();
  */
 interface MessageTurnInfo {
   isTail: boolean;
-  /** 折叠行该不该出现（已完结 && 可折叠 && 无未决授权） */
-  showToggle: boolean;
-  /** 该轮当前收起中（showToggle 且未被手动展开） */
+  isHead: boolean;
+  /** 该轮当前收起中（已完结可折叠且未被手动展开） */
   collapsed: boolean;
+  /**
+   * 折叠行宿主（2026-09-27 二次裁决）：**收起态挂尾条**（紧贴最终答复上方）、
+   * **展开态挂首条**（整组过程顶部）—— 两种状态都渲染在所在消息的模型标签之前。
+   */
+  hostsToggle: boolean;
   messageCount: number;
   toolCallCount: number;
   expanded: boolean;
@@ -150,14 +154,15 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   /** 由轮次归属 + settled 标记 + 手动展开态推出 MessageItem 的渲染信息 */
   const turnInfoOf = useCallback(
     (membership: TurnMembership): MessageTurnInfo => {
-      const { turn, isTail } = membership;
+      const { turn, isTail, isHead } = membership;
       const showToggle =
         settledTurnKeys.has(turn.key) && turn.collapsible && !turn.hasUnresolvedApproval;
       const collapsed = showToggle && !(expandedTurns[turn.key] ?? false);
       return {
         isTail,
-        showToggle,
+        isHead,
         collapsed,
+        hostsToggle: showToggle && (collapsed ? isTail : isHead),
         messageCount: turn.messageCount,
         toolCallCount: turn.toolCallCount,
         expanded: showToggle && !collapsed,
@@ -544,12 +549,9 @@ function MessageItem({ message, turn }: { message: Message; turn?: MessageTurnIn
         isUser ? "items-end" : "items-start",
       )}
     >
-      {/* 左上角模型标签（2026-09-27 用户裁决）：assistant 且带模型事实才显示，
-          与底部 MessageFooter 成上下镜像；渲染条件细节见 ModelLabelRow 注释 */}
-      {message.role === "assistant" ? <ModelLabelRow message={message} /> : null}
-      {/* 处理详情折叠行：只出现在收起轮次的尾条上（ModelLabelRow 之后、正文之前），
-          展开态落点正好在「过程与答案之间」，与参考截图一致 */}
-      {turn?.isTail && turn.showToggle ? (
+      {/* 处理详情折叠行（2026-09-27 二次裁决）：收起态挂尾条（紧贴最终答复上方）、
+          展开态挂首条（整组过程顶部）—— 均置于模型标签之前 */}
+      {turn?.hostsToggle ? (
         <ProcessGroupRow
           messageCount={turn.messageCount}
           toolCallCount={turn.toolCallCount}
@@ -557,6 +559,9 @@ function MessageItem({ message, turn }: { message: Message; turn?: MessageTurnIn
           onToggle={turn.onToggle}
         />
       ) : null}
+      {/* 左上角模型标签（2026-09-27 用户裁决）：assistant 且带模型事实才显示，
+          与底部 MessageFooter 成上下镜像；渲染条件细节见 ModelLabelRow 注释 */}
+      {message.role === "assistant" ? <ModelLabelRow message={message} /> : null}
       {visibleBlocks.map((block, i) => {
         // 已与 tool_call 配对的终端块并入了上方的一行式工具卡，跳过避免双份渲染
         if (block.type === "terminal" && block.toolCallId && pairedCallIds.has(block.toolCallId)) {

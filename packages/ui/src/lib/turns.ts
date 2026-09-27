@@ -90,7 +90,10 @@ export function groupTurns(messages: Message[], scope: string): TurnGroup[] {
 /** 每条 assistant 消息的轮次归属（MessageList 渲染分派用）；user 消息不在表内 */
 export interface TurnMembership {
   turn: TurnGroup;
+  /** 是否为最后一条 assistant 消息（折叠行收起态的宿主；用量 footer / 最终答复所在） */
   isTail: boolean;
+  /** 是否为第一条 assistant 消息（折叠行展开态的宿主，2026-09-27 二次裁决） */
+  isHead: boolean;
 }
 
 export function buildTurnIndex(messages: Message[], scope: string): Map<number, TurnMembership> {
@@ -98,7 +101,7 @@ export function buildTurnIndex(messages: Message[], scope: string): Map<number, 
   for (const turn of groupTurns(messages, scope)) {
     const last = turn.assistantIndexes.length - 1;
     turn.assistantIndexes.forEach((idx, i) => {
-      index.set(idx, { turn, isTail: i === last });
+      index.set(idx, { turn, isTail: i === last, isHead: i === 0 });
     });
   }
   return index;

@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5196",
-  "startedAt": "2026-09-27T13:15:26.164Z",
+  "startedAt": "2026-09-27T13:28:13.375Z",
   "steps": [
     {
       "name": "流式结束快照",
@@ -12,9 +12,9 @@
           "a-2"
         ],
         "工具调用数": 1,
-        "文本预览": "当前目录里一共有 **3 个文件**：\n\n- `alpha.txt`\n- `beta.txt`\n- `gamma.txt`",
+        "文本预览": "当前目录（不含 `.` 和 `..`）共有 **3 个文件**：\n\n1. `alpha.txt`\n2. `beta.txt`\n3. `gamma.txt`",
         "settledKeys": [
-          "01a0e301-979a-70f8-9b7f-9e541e95c8d7:t0"
+          "01a0e30d-4c73-731f-b951-62b0e7318415:t0"
         ]
       }
     }
@@ -169,13 +169,13 @@
       "turn_start": 2,
       "message_start": 5,
       "message_end": 5,
-      "message_update": 11,
+      "message_update": 19,
       "tool_execution_start": 1,
       "tool_execution_update": 2,
       "tool_execution_end": 1,
       "turn_end": 2,
       "agent_settled": 1
     },
-    "总帧数": 34
+    "总帧数": 42
   }
 }
