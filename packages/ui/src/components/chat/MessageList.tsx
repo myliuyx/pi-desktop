@@ -378,8 +378,9 @@ function MessageItem({ message }: { message: Message }) {
           </div>
         );
       })}
-      {/* F2：逐条用量 footer（assistant 且回复完成才有 usage；无则组件自渲染 null） */}
-      {!isUser ? <MessageFooter usage={message.usage} /> : null}
+      {/* 底部元信息行（F2 用量 + 2026-09-27 消息时间）：两个角色统一交 MessageFooter ——
+          usage 契约上只存在于 assistant 消息，user 行自动退化为仅时间的右对齐小字 */}
+      <MessageFooter usage={message.usage} timestamp={message.timestamp} />
     </div>
   );
 }

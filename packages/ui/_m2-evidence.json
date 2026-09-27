@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5182",
-  "startedAt": "2026-09-26T12:07:16.427Z",
+  "startedAt": "2026-09-27T11:05:58.172Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
@@ -171,17 +171,17 @@
         "composerHasVisibleBorder": true,
         "composerRect": {
           "left": 288,
-          "right": 918,
-          "top": 669,
-          "bottom": 740,
-          "width": 630,
+          "right": 920,
+          "top": 670,
+          "bottom": 741,
+          "width": 632,
           "height": 71
         },
         "sendRect": {
-          "left": 881,
-          "right": 909,
-          "top": 703,
-          "bottom": 731,
+          "left": 883,
+          "right": 911,
+          "top": 704,
+          "bottom": 732,
           "width": 28,
           "height": 28
         },
@@ -239,8 +239,8 @@
         ],
         "allChips32": true,
         "spacerFlexGrow": "1",
-        "statsRight": 918,
-        "toolbarRight": 918
+        "statsRight": 920,
+        "toolbarRight": 920
       }
     },
     {
@@ -338,14 +338,14 @@
       "name": "2-18_长文本不破版",
       "value": {
         "longMessageRendered": true,
-        "listScrollWidth": 668,
-        "listClientWidth": 668,
-        "docScrollWidth": 1422,
-        "docClientWidth": 1422,
-        "bodyScrollWidth": 1422,
-        "bodyClientWidth": 1422,
-        "longBodyScrollWidth": 590,
-        "longBodyClientWidth": 590,
+        "listScrollWidth": 670,
+        "listClientWidth": 670,
+        "docScrollWidth": 1424,
+        "docClientWidth": 1424,
+        "bodyScrollWidth": 1424,
+        "bodyClientWidth": 1424,
+        "longBodyScrollWidth": 592,
+        "longBodyClientWidth": 592,
         "wrapMode": "anywhere / break-word"
       }
     },
@@ -370,7 +370,7 @@
       "value": {
         "dataAtBottom": "false",
         "scrollTop": 0,
-        "dist": 1415,
+        "dist": 1593,
         "totalCount": 9,
         "hasScrollToBottom": true
       }
@@ -394,7 +394,7 @@
     {
       "name": "G7_可聚焦元素",
       "value": {
-        "focusableCount": 80,
+        "focusableCount": 77,
         "noLabelCount": 0,
         "noLabelSamples": [],
         "inputLabelled": true
@@ -537,17 +537,17 @@
       "value": {
         "初始": {
           "totalCount": 600,
-          "rendered": 15,
-          "innerHeight": 82119,
-          "listClientHeight": 633,
-          "maxScrollTop": 81534,
-          "beforeTop": 81534,
-          "targetTop": 41084,
+          "rendered": 13,
+          "innerHeight": 82959,
+          "listClientHeight": 634,
+          "maxScrollTop": 82373,
+          "beforeTop": 82373,
+          "targetTop": 41504,
           "scrollable": true
         },
         "滚到中部后": {
-          "scrollTop": 40548,
-          "rendered": 21,
+          "scrollTop": 41144,
+          "rendered": 19,
           "indexRange": [
             293,
             294,
@@ -567,9 +567,7 @@
             308,
             309,
             310,
-            311,
-            312,
-            313
+            311
           ],
           "stillWrappedInList": true,
           "noHorizontalOverflow": true

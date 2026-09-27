@@ -65,3 +65,50 @@ export function formatRelativeTime(timestamp: number, now: number): string {
   if (diff < DAY) return `${Math.floor(diff / HOUR)}小时前`;
   return `${Math.floor(diff / DAY)}天前`;
 }
+
+/* ---------------------------------------------------------------------------
+ * 消息时间标签（2026-09-27 消息时间批次，MessageFooter 右下角小字用）
+ * ------------------------------------------------------------------------- */
+
+/**
+ * 消息时间标签文案。
+ *
+ * 规则（2026-09-27 定稿）：今天只显示时刻（18:25）；昨天加「昨天」前缀；
+ * 今年其他日期 `MM-DD HH:mm`；跨年补全年份 `YYYY-MM-DD HH:mm`。
+ *
+ * 返回 null 表示「不显示」：timestamp 为 0（reduce.ts 对缺失时间戳的兜底值）时
+ * 调用方必须整体不渲染时间，绝不能落成「1970-01-01 08:00」。
+ *
+ * 与 formatRelativeTime 同一条纪律：**必须显式传 `now`**、不内部取 Date.now()，
+ * 「今天与否」的判定才可被验收脚本固定复跑；Date.now() 只在组件边界取。
+ */
+export function formatMessageTime(timestamp: number, now: number): string | null {
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+  const date = new Date(timestamp);
+  const today = new Date(now);
+  const sameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+  const time = formatClock(timestamp);
+  if (sameDay(date, today)) return time;
+  // 昨天按日历推算（getDate()-1 由 Date 构造器归一化），不用 now-86400000 ——
+  // 后者在夏令时切换日会把「昨天」算错一小时（本地无夏令时，口径仍取稳的）。
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  if (sameDay(date, yesterday)) return `昨天 ${time}`;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const md = `${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return date.getFullYear() === today.getFullYear()
+    ? `${md} ${time}`
+    : `${date.getFullYear()}-${md} ${time}`;
+}
+
+/** 悬停 title 用的完整秒级时间（本地时区），如 `2026-09-27 18:25:03` */
+export function formatFullTimestamp(timestamp: number): string {
+  const date = new Date(timestamp);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+    ` ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+  );
+}
