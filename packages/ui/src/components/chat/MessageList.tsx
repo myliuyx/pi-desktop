@@ -2,6 +2,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type HTMLAttributes,
@@ -21,6 +22,7 @@ import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { COMPOSER_MODELS } from "@/mock/composer";
 import { useModelsStore } from "@/store/models-store";
 import { speedTone, type SpeedTone } from "@/lib/format";
+import { buildTurnIndex, type TurnMembership } from "@/lib/turns";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingCard } from "./ThinkingCard";
 import { ThinkingPending } from "./ThinkingPending";
@@ -29,6 +31,7 @@ import { PlanCard } from "./PlanCard";
 import { TerminalCard } from "./TerminalCard";
 import { ToolCallCard } from "./ToolCallCard";
 import { ApprovalCard } from "./ApprovalCard";
+import { ProcessGroupRow } from "./ProcessGroupRow";
 
 export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   messages: Message[];
@@ -36,6 +39,32 @@ export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   streaming?: boolean;
   /** 本次请求的发起时刻（epoch ms）；null 表示非等待期。占位行的计时起点。 */
   pendingSince?: number | null;
+  /**
+   * 已完结可折叠轮次键（task-process-collapse.md；chat-store settledTurnKeys 同路透传）。
+   * 键在集合里 = 该轮已完结且可折叠 → 过程块收进「处理详情」折叠行。
+   */
+  settledTurnKeys?: ReadonlySet<string>;
+  /** 轮次键的会话作用域（liveSessionId ?? "draft"），展开态跨会话不串 */
+  sessionScope?: string;
+}
+
+/** settledTurnKeys 的缺省引用（模块级常量，保证默认值引用稳定） */
+const EMPTY_SETTLED_KEYS: ReadonlySet<string> = new Set();
+
+/**
+ * MessageItem 的轮次渲染信息（由 MessageList 从 buildTurnIndex + settledTurnKeys +
+ * 本地展开态推出；undefined = 与折叠无关的行，走原路径）。
+ */
+interface MessageTurnInfo {
+  isTail: boolean;
+  /** 折叠行该不该出现（已完结 && 可折叠 && 无未决授权） */
+  showToggle: boolean;
+  /** 该轮当前收起中（showToggle 且未被手动展开） */
+  collapsed: boolean;
+  messageCount: number;
+  toolCallCount: number;
+  expanded: boolean;
+  onToggle: () => void;
 }
 
 /**
@@ -77,7 +106,15 @@ function measureAtBottom(el: HTMLDivElement): boolean {
  *   fit-content（实测被挤成 ~180px 内容宽），全宽还原后与本列各自独立。
  */
 export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function MessageList(
-  { messages, streaming = false, pendingSince = null, className, ...rest },
+  {
+    messages,
+    streaming = false,
+    pendingSince = null,
+    settledTurnKeys = EMPTY_SETTLED_KEYS,
+    sessionScope = "draft",
+    className,
+    ...rest
+  },
   ref,
 ) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -97,6 +134,38 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     lastMessage !== undefined &&
     (lastMessage.role === "user" ||
       (lastMessage.role === "assistant" && !hasRenderableContent(lastMessage.blocks)));
+
+  /*
+   * 处理详情折叠（task-process-collapse.md）：分轮归属每渲染期重算（useMemo 记忆），
+   * 已完结且可折叠的轮次把过程块收进「处理详情」折叠行。settledTurnKeys 仅 live 写入
+   * （mock 恒空 → 演示/验收面零变化）；展开态是本地视图状态（决策 6：不持久化、
+   * 不进 store），键用 TurnGroup.key（带会话作用域，切会话不串）。
+   */
+  const turnIndex = useMemo(() => buildTurnIndex(messages, sessionScope), [messages, sessionScope]);
+  const [expandedTurns, setExpandedTurns] = useState<Record<string, boolean>>({});
+  const toggleTurn = useCallback((key: string) => {
+    setExpandedTurns((prev) => ({ ...prev, [key]: !(prev[key] ?? false) }));
+  }, []);
+
+  /** 由轮次归属 + settled 标记 + 手动展开态推出 MessageItem 的渲染信息 */
+  const turnInfoOf = useCallback(
+    (membership: TurnMembership): MessageTurnInfo => {
+      const { turn, isTail } = membership;
+      const showToggle =
+        settledTurnKeys.has(turn.key) && turn.collapsible && !turn.hasUnresolvedApproval;
+      const collapsed = showToggle && !(expandedTurns[turn.key] ?? false);
+      return {
+        isTail,
+        showToggle,
+        collapsed,
+        messageCount: turn.messageCount,
+        toolCallCount: turn.toolCallCount,
+        expanded: showToggle && !collapsed,
+        onToggle: () => toggleTurn(turn.key),
+      };
+    },
+    [settledTurnKeys, expandedTurns, toggleTurn],
+  );
   /**
    * 是否处于「我们主动贴底」的过程中。
    *
@@ -271,6 +340,12 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
             // 刻意不复用 message-item testid，m2 验收 2-1 按 message-item 数消息不受影响
             const isPendingRow = pending && virtualRow.index === messages.length;
             const message = messages[virtualRow.index];
+            // 处理详情折叠：assistant 消息按轮次归属分派（user / 占位行无归属）
+            const membership = isPendingRow ? undefined : turnIndex.get(virtualRow.index);
+            const turn = membership ? turnInfoOf(membership) : undefined;
+            // 收起轮次的中间行整行隐藏：包装保留（testid 与 data-total-count 探针契约不变），
+            // 内边距归零避免叠出一串空隙
+            const rowHidden = turn !== undefined && turn.collapsed && !turn.isTail;
             return (
               <div
                 key={virtualRow.key}
@@ -289,14 +364,14 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
                   left: 0,
                   width: "100%",
                   transform: `translateY(${virtualRow.start}px)`,
-                  // 消息间距放进测量高度，避免绝对定位下的重叠
-                  paddingBottom: MESSAGE_GAP,
+                  // 消息间距放进测量高度，避免绝对定位下的重叠（隐藏行除外，见上）
+                  paddingBottom: rowHidden ? 0 : MESSAGE_GAP,
                 }}
               >
                 {isPendingRow ? (
                   <ThinkingPending since={pendingSince as number} />
                 ) : (
-                  <MessageItem message={message} />
+                  <MessageItem message={message} turn={turn} />
                 )}
               </div>
             );
@@ -431,8 +506,14 @@ function ModelLabelRow({ message }: { message: Message }) {
   );
 }
 
-function MessageItem({ message }: { message: Message }) {
+function MessageItem({ message, turn }: { message: Message; turn?: MessageTurnInfo }) {
   const isUser = message.role === "user";
+  /*
+   * 处理详情折叠（task-process-collapse.md）：收起轮次的中间行整行不渲染内容 ——
+   * 虚拟行包装（testid / data-message-id）由 MessageList 保留，这里只放弃内容。
+   * 尾条负责渲染折叠行 + 最终文本（见下）。
+   */
+  if (turn?.collapsed && !turn.isTail) return null;
   /*
    * 视图层合并（2026-09-26 用户裁决）：live 的 bash 执行此前渲染两块 ——
    * tool_call 行（bash + 命令预览）+「终端」卡；现在同一条消息内按 toolCallId
@@ -446,6 +527,16 @@ function MessageItem({ message }: { message: Message }) {
     if (block.type === "tool_call" && block.toolCallId) pairedCallIds.add(block.toolCallId);
     if (block.type === "terminal" && block.toolCallId) terminalById.set(block.toolCallId, block);
   }
+  /*
+   * 收起态尾条只渲染 text + approval 两类块（thinking / tool_call / terminal / plan
+   * 全部收进折叠区，展开即回）；approval 任何情况不收 —— 授权卡必须可操作
+   * （task-process-collapse.md 决策 4；正常时序 settled 前授权已决，此为兜底）。
+   * 配对表仍按全量 blocks 建，展开路径零变化。
+   */
+  const visibleBlocks =
+    turn?.collapsed && turn.isTail
+      ? message.blocks.filter((block) => block.type === "text" || block.type === "approval")
+      : message.blocks;
   return (
     <div
       className={cn(
@@ -456,7 +547,17 @@ function MessageItem({ message }: { message: Message }) {
       {/* 左上角模型标签（2026-09-27 用户裁决）：assistant 且带模型事实才显示，
           与底部 MessageFooter 成上下镜像；渲染条件细节见 ModelLabelRow 注释 */}
       {message.role === "assistant" ? <ModelLabelRow message={message} /> : null}
-      {message.blocks.map((block, i) => {
+      {/* 处理详情折叠行：只出现在收起轮次的尾条上（ModelLabelRow 之后、正文之前），
+          展开态落点正好在「过程与答案之间」，与参考截图一致 */}
+      {turn?.isTail && turn.showToggle ? (
+        <ProcessGroupRow
+          messageCount={turn.messageCount}
+          toolCallCount={turn.toolCallCount}
+          expanded={turn.expanded}
+          onToggle={turn.onToggle}
+        />
+      ) : null}
+      {visibleBlocks.map((block, i) => {
         // 已与 tool_call 配对的终端块并入了上方的一行式工具卡，跳过避免双份渲染
         if (block.type === "terminal" && block.toolCallId && pairedCallIds.has(block.toolCallId)) {
           return null;

@@ -6,6 +6,7 @@ import { STREAM_TICK_MS } from "@/lib/layout";
 import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
 import { applyEvent, createDraft, type DraftState } from "@/adapter/reduce";
+import { collectCollapsibleTurnKeys } from "@/lib/turns";
 import type { AgentEvent } from "@/adapter/pi-events";
 import { notifyFailure, useNoticeStore } from "@/store/notice-store";
 import { useUiStore } from "@/store/ui-store";
@@ -37,6 +38,16 @@ export interface ChatState {
    * （纪律同 D9「不清会显示假事实」）。
    */
   pendingSince: number | null;
+  /**
+   * 已完结且可折叠的轮次键集合（lib/turns.ts 的 `TurnGroup.key`，带会话作用域）。
+   * 「处理详情」折叠行（task-process-collapse.md）的数据标记：键在集合里 = 该轮已完结，
+   * 渲染层把过程块收进折叠行。
+   *
+   * ⚠️ **仅 live 链路写入**（agent_settled / 历史会话回填），mock 恒空 —— 渲染层零特判，
+   * 同 `TerminalBlock.collapsed`「mock 不设 → 默认展开」的豁免纪律（演示/验收面零影响）。
+   * 写入一律**整体替换**（collectCollapsibleTurnKeys 重算，幂等自愈），不做增量增删。
+   */
+  settledTurnKeys: ReadonlySet<string>;
   tokenUsage: TokenUsage;
   sessionTitle: string;
 
@@ -160,6 +171,11 @@ function ensureLive(): void {
     // 等待占位同点收尾（agent_settled 后不会再有等待期）。
     if (event.type === "agent_settled") {
       useChatStore.setState({ pendingSince: null });
+      // 处理详情折叠（task-process-collapse.md）：整轮完结 → 重算全部可折叠轮次键
+      //（整体替换；liveDraft 此刻已含终态消息，liveSessionId 即本轮所属会话）
+      useChatStore.setState((state) => ({
+        settledTurnKeys: collectCollapsibleTurnKeys(liveDraft.messages, state.liveSessionId ?? "draft"),
+      }));
       useChatStore.getState().refreshSessions();
     }
   });
@@ -230,6 +246,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: INITIAL_SESSION.messages,
   streaming: false,
   pendingSince: null,
+  settledTurnKeys: new Set<string>(),
   tokenUsage: INITIAL_TOKEN_USAGE,
   sessionTitle: INITIAL_SESSION_TITLE,
 
@@ -468,6 +485,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
           tokenUsage: loaded.tokenUsage,
           streaming: false,
           liveSessionId: loaded.id,
+          // 历史会话的轮次天然全部完结（task-process-collapse.md 决策 7）：打开即按同规则默认收起
+          settledTurnKeys: collectCollapsibleTurnKeys(loaded.messages, loaded.id),
         });
       })
       .catch((e) => {
@@ -491,6 +510,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: INITIAL_SESSION.messages,
       streaming: false,
       pendingSince: null,
+      // 回到 mock 初始会话：live 标记必须一并清空（mock 消息永不折叠，D9 同源纪律）
+      settledTurnKeys: new Set(),
       sessionTitle: INITIAL_SESSION_TITLE,
       tokenUsage: INITIAL_TOKEN_USAGE,
       liveSessionId: null,
@@ -520,6 +541,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: [],
       streaming: false,
       pendingSince: null,
+      // 草稿态没有历史轮次：清空 live 标记（同 tokenUsage 清零的 D9 纪律）
+      settledTurnKeys: new Set(),
       newSessionDraft: true,
       // 草稿没有历史用量：不清零会一直显示上一个会话的数字（假事实，D9）
       tokenUsage: { input: 0, output: 0, total: 0, contextWindow: INITIAL_TOKEN_USAGE.contextWindow },

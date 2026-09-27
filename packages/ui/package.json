@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "check:format": "node --experimental-strip-types scripts/format-check.mjs",
+    "check:turns": "node --experimental-strip-types scripts/turns-check.mjs",
     "check:cn": "node --experimental-strip-types scripts/cn-check.mjs",
     "check:sidebar-layout": "node scripts/sidebar-layout-check.mjs",
     "check:adapter": "node --experimental-strip-types scripts/adapter-check.mjs",
@@ -33,6 +34,7 @@
     "probe:dir-menu:live": "node scripts/probe-dir-menu.mjs --live",
     "probe:new-session": "node scripts/probe-new-session.mjs",
     "probe:new-session:live": "node scripts/probe-new-session.mjs --live",
+    "probe:process-collapse": "node scripts/probe-process-collapse.mjs",
     "shots:m1": "node scripts/m1-shots.mjs"
   },
   "dependencies": {
