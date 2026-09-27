@@ -327,24 +327,41 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
  *
  * 展示口径取 `responseModel ?? model`（实际生成这条回复的模型）；展示名走
  * 决策链：live 的 /models 清单 → mock 的 COMPOSER_MODELS → 原始 id 兜底。
- * 精确口径走原生 title 悬停（全仓惯例）：路由/别名导致请求与实际模型不同时写明两者。
+ * **同日修订（用户裁决）**：快照变体（如火山方舟 `*-ga-260731`）通常不在清单里，
+ * 查不到展示名时退回**配置模型**（`model`）的展示口径 —— 标签与配置/选择器一致，
+ * 实际部署版本由 title 交代。
  *
- * 渲染条件：assistant 且消息带模型事实 —— user 消息、压缩摘要 / custom_message
- * 映射出的消息、旧会话文件都没有 model → 整行不渲染（同 usage 诚实展示纪律）。
+ * title 悬停给原始事实（全仓惯例）：请求/实际 id 分叉时写「请求 X，实际响应 Y」，
+ * 不用展示名冒充事实。渲染条件：assistant 且消息带模型事实 —— user 消息、
+ * 压缩摘要 / custom_message 映射出的消息、旧会话文件都没有 model → 整行不渲染
+ * （同 usage 诚实展示纪律）。
  */
 function ModelLabelRow({ message }: { message: Message }) {
   const models = useModelsStore((s) => s.payload);
   const request = message.model;
-  const effective = message.responseModel ?? request;
+  const response = message.responseModel;
+  const effective = response ?? request;
   if (!effective) return null;
-  const findLabel = (list: { id: string; label: string; providerLabel?: string }[] | undefined) =>
-    list?.find((m) => m.id === effective);
-  const hit = findLabel(models?.models) ?? findLabel(COMPOSER_MODELS);
-  const label = hit?.label ?? effective;
-  const rerouted = message.responseModel !== undefined && request !== undefined && message.responseModel !== request;
-  const titleParts = [rerouted ? `实际响应 ${label}（请求 ${request}）` : `模型 ${label}`];
-  const providerLabel = hit?.providerLabel?.trim();
-  if (providerLabel) titleParts.push(providerLabel);
+  const lookup = (id: string) => {
+    const fromLive = models?.models.find((m) => m.id === id);
+    if (fromLive) return { label: fromLive.label, providerLabel: fromLive.providerLabel?.trim() };
+    const fromMock = COMPOSER_MODELS.find((m) => m.id === id);
+    // ModelOption（mock 清单）没有 providerLabel 字段，只有 live 的 ModelInfo 才有
+    return fromMock ? { label: fromMock.label, providerLabel: undefined } : undefined;
+  };
+  let hit = lookup(effective);
+  let shownId = effective;
+  if (!hit && response && request && response !== request) {
+    const requestHit = lookup(request);
+    if (requestHit) {
+      hit = requestHit;
+      shownId = request;
+    }
+  }
+  const label = hit?.label ?? shownId;
+  const rerouted = response !== undefined && request !== undefined && response !== request;
+  const titleParts = [rerouted ? `请求 ${request}，实际响应 ${response}` : `模型 ${label}`];
+  if (hit?.providerLabel) titleParts.push(hit.providerLabel);
   return (
     <div data-testid="message-model" className="text-xs text-text-tertiary" title={titleParts.join(" · ")}>
       {label}
