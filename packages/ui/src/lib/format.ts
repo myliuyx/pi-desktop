@@ -46,6 +46,25 @@ export function formatThousands(value: number): string {
   return new Intl.NumberFormat("en-US").format(Math.trunc(value));
 }
 
+/* ---------------------------------------------------------------------------
+ * token 速度徽章分档（2026-09-27 用户裁决，模型行徽章用）
+ * ------------------------------------------------------------------------- */
+
+export type SpeedTone = "danger" | "warning" | "success" | "info";
+
+/**
+ * 生成速度 → 语义档位。阈值（t/s，用户裁定，边界归右档）：
+ * <15 红（慢） / 15–35 黄（偏慢） / 35–70 绿（正常） / ≥70 蓝（快）。
+ * 四档一一映射 tokens.css 的语义令牌（soft 底对比度已验证），G5 验收安全。
+ */
+export function speedTone(tps: number): SpeedTone {
+  if (!Number.isFinite(tps)) return "danger";
+  if (tps < 15) return "danger";
+  if (tps < 35) return "warning";
+  if (tps < 70) return "success";
+  return "info";
+}
+
 /** 时刻 HH:MM（消息时间戳用） */
 export function formatClock(timestamp: number): string {
   const date = new Date(timestamp);

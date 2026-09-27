@@ -20,6 +20,7 @@ import {
 import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { COMPOSER_MODELS } from "@/mock/composer";
 import { useModelsStore } from "@/store/models-store";
+import { speedTone, formatThousands, type SpeedTone } from "@/lib/format";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingCard } from "./ThinkingCard";
 import { ThinkingPending } from "./ThinkingPending";
@@ -322,6 +323,14 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
  * 单条消息：按角色对齐 + 逐 Block 分发渲染
  * ------------------------------------------------------------------------- */
 
+/** 速度档位 → 徽章配色（tokens.css 语义令牌，soft 底对比度已验证；G5 禁调色板安全） */
+const SPEED_TONE_CLASS: Record<SpeedTone, string> = {
+  danger: "bg-danger-soft text-danger",
+  warning: "bg-warning-soft text-warning",
+  success: "bg-success-soft text-success",
+  info: "bg-info-soft text-info",
+};
+
 /**
  * 消息左上角的模型标签（2026-09-27 用户裁决）。
  *
@@ -362,9 +371,38 @@ function ModelLabelRow({ message }: { message: Message }) {
   const rerouted = response !== undefined && request !== undefined && response !== request;
   const titleParts = [rerouted ? `请求 ${request}，实际响应 ${response}` : `模型 ${label}`];
   if (hit?.providerLabel) titleParts.push(hit.providerLabel);
+
+  /*
+   * token 速度徽章（2026-09-27 用户裁决，批次 B）：t/s = usage.output ÷ elapsedMs。
+   * 渲染条件（诚实展示）：耗时与 usage 俱在且 output > 0 —— 历史会话（Pi 不存耗时）、
+   * 中止消息（无 usage）一律不显示，不造 0 假数据。分档色见 SPEED_TONE_CLASS。
+   * 合成一个对象让 TS 保住「speed 非空 ⇒ usage/elapsedMs 非空」的关联收窄。
+   */
+  const { usage, elapsedMs } = message;
+  const speed =
+    usage && elapsedMs && elapsedMs > 0 && usage.output > 0
+      ? { tps: usage.output / (elapsedMs / 1000), output: usage.output, elapsedSec: elapsedMs / 1000 }
+      : null;
+
   return (
-    <div data-testid="message-model" className="text-xs text-text-tertiary" title={titleParts.join(" · ")}>
-      {label}
+    <div
+      data-testid="message-model"
+      className="flex items-center gap-2 text-xs text-text-tertiary"
+      title={titleParts.join(" · ")}
+    >
+      <span>{label}</span>
+      {speed !== null ? (
+        <span
+          data-testid="message-speed"
+          className={cn(
+            "inline-flex items-center rounded-full px-2 py-0.5 font-medium tabular-nums",
+            SPEED_TONE_CLASS[speedTone(speed.tps)],
+          )}
+          title={`输出 ${formatThousands(speed.output)} tokens ÷ 耗时 ${speed.elapsedSec.toFixed(1)}s（含首字延迟）`}
+        >
+          {speed.tps.toFixed(1)} t/s
+        </span>
+      ) : null}
     </div>
   );
 }

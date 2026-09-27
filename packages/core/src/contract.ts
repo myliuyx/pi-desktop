@@ -161,6 +161,13 @@ export interface Message {
    * `responseModel ?? model`（2026-09-27 用户裁决），两者都在时 title 里写明。
    */
   responseModel?: string;
+  /**
+   * 本条消息的流式墙钟耗时 ms（仅 assistant；实时通道在 message_end 到达时以
+   * 「到达时刻 − Pi 请求起点 timestamp」自算 —— Pi 的 Usage/落盘 entry 均无耗时
+   * 字段，历史会话拿不到 → 不设键，渲染层据此不显示速度徽章，同 usage 诚实纪律）。
+   * 含首字延迟（TTFT），与业界 t/s 展示口径一致。
+   */
+  elapsedMs?: number;
 }
 
 export interface Session {
