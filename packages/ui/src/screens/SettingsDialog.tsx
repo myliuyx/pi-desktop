@@ -24,12 +24,14 @@ import { useUiStore } from "@/store/ui-store";
 import { useModelsStore } from "@/store/models-store";
 import { SettingsGeneralTab } from "./settings/SettingsGeneralTab";
 import { ModelProvidersTab } from "./settings/ModelProvidersTab";
+import { SkillsSettingsTab } from "./settings/SkillsSettingsTab";
 import { describeProviderIssues, validateProviders, type ProviderValidationIssue } from "./settings/provider-validation";
 
 /**
  * 设置弹窗骨架（D1：全局 Dialog，替代原 05 屏路由）。
  *
- * 结构：头部 5 Tab（常规 / 模型 / 技能 / 子代理 / 插件，激活项用 accent 令牌 pill）+
+ * 结构：头部 5 Tab（常规 / 模型 / 技能 / 插件 / 子代理，激活项用 accent 令牌 pill；2026-09-28
+ * 用户裁决：插件与子代理换位）+
  * 内容区（按选中 Tab 切换，带淡入过渡 G8）+ 底部条（左「保存后应用于新的会话」、
  * 右「取消 / 保存」）。
  *
@@ -43,8 +45,8 @@ const TABS: TabItem[] = [
   { id: "general", label: "常规", testId: "settings-tab-general" },
   { id: "models", label: "模型", testId: "settings-tab-models" },
   { id: "skills", label: "技能", testId: "settings-tab-skills" },
-  { id: "subagents", label: "子代理", testId: "settings-tab-subagents" },
   { id: "plugins", label: "插件", testId: "settings-tab-plugins" },
+  { id: "subagents", label: "子代理", testId: "settings-tab-subagents" },
 ];
 
 const TAB_PANEL_PREFIX = "settings-tab";
@@ -254,9 +256,9 @@ export function SettingsDialog() {
             onReportIssues={reportIssues}
           />
         ) : null}
-        {activeTab === "skills" ? <PlaceholderTab title="技能" /> : null}
-        {activeTab === "subagents" ? <PlaceholderTab title="子代理" /> : null}
+        {activeTab === "skills" ? <SkillsSettingsTab /> : null}
         {activeTab === "plugins" ? <PlaceholderTab title="插件" /> : null}
+        {activeTab === "subagents" ? <PlaceholderTab title="子代理" /> : null}
       </div>
     </Dialog>
   );

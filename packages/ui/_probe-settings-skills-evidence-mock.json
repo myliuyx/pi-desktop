@@ -1,0 +1,149 @@
+{
+  "origin": "http://127.0.0.1:5180",
+  "startedAt": "2026-09-27T16:57:18.210Z",
+  "steps": [
+    {
+      "name": "M1_Tab顺序",
+      "value": [
+        "settings-tab-general",
+        "settings-tab-models",
+        "settings-tab-skills",
+        "settings-tab-plugins",
+        "settings-tab-subagents"
+      ]
+    },
+    {
+      "name": "M2_分组与详情",
+      "value": {
+        "treeExists": true,
+        "labels": [
+          "全局",
+          "项目"
+        ],
+        "itemCount": 5,
+        "firstSelected": true,
+        "detailExists": true,
+        "badge": "global",
+        "pathText": "~/.pi/agent/skills/web-content-fetcher/SKILL.md",
+        "hasName": true,
+        "hasDescription": true,
+        "switchChecked": "true"
+      }
+    },
+    {
+      "name": "M3_禁用条目",
+      "value": {
+        "found": true,
+        "enabled": "false",
+        "空心点": true
+      }
+    },
+    {
+      "name": "M4_mock开关翻转",
+      "value": {
+        "before": "false",
+        "afterOn": {
+          "itemEnabled": "true",
+          "switchChecked": "true"
+        },
+        "afterOff": "false"
+      }
+    },
+    {
+      "name": "M5_添加技能",
+      "value": {
+        "button": {
+          "btnExists": true,
+          "钉底": true,
+          "text": "添加技能"
+        },
+        "notice": {
+          "count": 1,
+          "text": "「添加技能」的交互形态待定，本批仅保留入口"
+        }
+      }
+    },
+    {
+      "name": "M6_占位Tab",
+      "value": {
+        "plugins": true,
+        "subagents": true
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "M1 设置弹窗 Tab 顺序 = 常规/模型/技能/插件/子代理（2026-09-28 换位）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "顺序正确": true
+      }
+    },
+    {
+      "name": "M2 技能树分组（全局/项目）渲染、默认选中首项、详情字段齐全",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "树存在": true,
+        "分组顺序": true,
+        "条目数5": true,
+        "默认选中首项": true,
+        "详情存在": true,
+        "徽标global": true,
+        "路径以SKILL_md结尾": true,
+        "Name块": true,
+        "Description块": true,
+        "开关存在且为开": true
+      }
+    },
+    {
+      "name": "M3 禁用技能（weekly-report）data-enabled=false 且圆点空心",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "条目存在": true,
+        "enabled为false": true,
+        "圆点空心": true
+      }
+    },
+    {
+      "name": "M4 mock 开关本地翻转：关→开→关（aria 与 data-enabled 同步）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "选中禁用项后开关为关": true,
+        "翻转后条目为开": true,
+        "翻转后开关为开": true,
+        "翻回后条目为关": true
+      }
+    },
+    {
+      "name": "M5 「添加技能」钉底可见；点击出「交互待定」notice（本批仅入口）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "按钮存在": true,
+        "钉在栏底": true,
+        "文案正确": true,
+        "notice弹出": true,
+        "文案含待定": true
+      }
+    },
+    {
+      "name": "M6 插件 / 子代理 Tab 仍为占位（换位后内容未实现）",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "插件占位": true,
+        "子代理占位": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 6,
+    "passed": 6,
+    "failed": 0,
+    "failedNames": []
+  }
+}

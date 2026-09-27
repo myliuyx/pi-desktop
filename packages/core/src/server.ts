@@ -23,6 +23,7 @@ import { DirListError, listDirectories } from "./fs-list.ts";
 import { FileReadError, readTextFile } from "./fs-read.ts";
 import { isRecord } from "./guards.ts";
 import { InvalidCwdError, type CoreRuntime } from "./session.ts";
+import { SkillNotFoundError } from "./skills.ts";
 
 export interface ServerHandle {
   port: number;
@@ -67,6 +68,9 @@ const API_ROUTES = new Set([
 	"/providers/models",
 	// C6 · 04 屏工具开关接 Pi
 	"/tools/active",
+	// C7 · 设置弹窗 · 技能 Tab（全量清单含禁用项 + 开关写 settings 模式数组）
+	"/skills",
+	"/skills/toggle",
 	// D7 · 工作目录运行期热切换
 	"/cwd",
 	// dir-picker · 自定义路径弹窗的浏览数据源（只读列子目录）
@@ -449,6 +453,40 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				return json(200, { ok: true, ...resources });
 			} catch (e) {
 				return json(500, { ok: false, error: String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * C7 · 设置弹窗 · 技能 Tab（skills.ts）
+		 * 清单是 resolve() 的全量口径（**含被 `!路径` 模式禁用的技能**），
+		 * 与 04 屏的 GET /resources（已加载子集）是两回事。
+		 * ----------------------------------------------------------------- */
+
+		if (req.method === "GET" && urlPath === "/skills") {
+			try {
+				const payload = await runtime.getSkills();
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/skills/toggle") {
+			const body = (await readBody(req)) as { path?: unknown; enabled?: unknown };
+			if (typeof body.path !== "string" || body.path.length === 0 || typeof body.enabled !== "boolean") {
+				return json(400, { ok: false, error: "请求体缺少 path / enabled" });
+			}
+			// 前置护栏：不偷偷打断正在生成的回复（runtime.toggleSkill 内还有同判据兜底）
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再切换技能" });
+			}
+			try {
+				const result = await runtime.toggleSkill({ path: body.path, enabled: body.enabled });
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				// 技能不存在（被删/被移走）→ 404，与意外错误 500 区分
+				if (e instanceof SkillNotFoundError) return json(404, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
 		}
 

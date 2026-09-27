@@ -1,0 +1,81 @@
+{
+  "origin": "http://127.0.0.1:5196",
+  "startedAt": "2026-09-27T16:57:24.826Z",
+  "steps": [
+    {
+      "name": "L2_页内直连fetch",
+      "value": {
+        "status": 200,
+        "ok": true,
+        "count": 1,
+        "names": [
+          "demo-skill"
+        ]
+      }
+    },
+    {
+      "name": "L2_UI诊断",
+      "value": {
+        "errRow": null,
+        "empty": false,
+        "itemCount": 1,
+        "names": [
+          "demo-skill"
+        ]
+      }
+    },
+    {
+      "name": "L5_UI_关闭态",
+      "value": {
+        "found": true,
+        "enabled": "false",
+        "switchChecked": "false"
+      }
+    },
+    {
+      "name": "L6_UI_开回",
+      "value": {
+        "itemEnabled": "true",
+        "switchChecked": "true"
+      }
+    }
+  ],
+  "assertions": [
+    {
+      "name": "L2 UI 渲染真实清单：demo-skill 条目存在且启用、scope=user",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "端点直连通": true,
+        "UI无错误行": true,
+        "UI非空态": true,
+        "条目存在": true
+      }
+    },
+    {
+      "name": "L5 UI 联动：core 关掉后重开弹窗显示禁用态、开关为关",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "条目存在": true,
+        "enabled为false": true,
+        "开关为关": true
+      }
+    },
+    {
+      "name": "L6 UI 开关开回：条目与开关同步回到启用态",
+      "pass": true,
+      "failed": [],
+      "detail": {
+        "条目为开": true,
+        "开关为开": true
+      }
+    }
+  ],
+  "summary": {
+    "assertions": 3,
+    "passed": 3,
+    "failed": 0,
+    "failedNames": []
+  }
+}

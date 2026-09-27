@@ -21,6 +21,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+	DefaultPackageManager,
 	DefaultResourceLoader,
 	ModelRuntime,
 	SessionManager,
@@ -40,6 +41,9 @@ import type {
 	ProvidersPayload,
 	ProvidersSaveResult,
 	PutProvidersRequest,
+	SkillToggleRequest,
+	SkillToggleResult,
+	SkillsPayload,
 	ResourcesPayload,
 	SessionLoadResult,
 	SessionSummary,
@@ -49,6 +53,7 @@ import { isRecord, num } from "./guards.ts";
 import { createModelsController, type ModelsController } from "./models.ts";
 import { createProvidersController, type ProvidersController } from "./providers.ts";
 import { collectResources } from "./resources.ts";
+import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
 import { continueRecentSession, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
@@ -151,6 +156,21 @@ export interface CoreRuntime {
 	getTools(): Promise<ToolsPayload>;
 	/** 设置启用工具集（`POST /tools/active {names}`；未注册名抛错 → 400） */
 	setTools(names: string[]): Promise<ToolsPayload>;
+
+	/* -------------------------------------------------------------------------
+	 * C7 · 设置弹窗 · 技能 Tab（`skills.ts` 的转发；`GET /skills` / `POST /skills/toggle`）
+	 * ----------------------------------------------------------------------- */
+	/**
+	 * 全量技能清单（**含被 `!路径` 模式禁用的条目** —— resolve() 全量口径，
+	 * 非 getSkills() 的已加载子集；项目技能未信任不列，与 /resources 同语义）。
+	 */
+	getSkills(): Promise<SkillsPayload>;
+	/**
+	 * 切换技能启用态：按 origin × scope 写 settings 模式数组 → flush →
+	 * `session.reload()`（同进程热重载，会话历史保留）。流式中抛错（端点前置判据回
+	 * 409）；技能不存在抛 `SkillNotFoundError`（端点回 404）。
+	 */
+	toggleSkill(req: SkillToggleRequest): Promise<SkillToggleResult>;
 
 	dispose(): void;
 }
@@ -289,6 +309,24 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	let trust: TrustDecision | null = null;
 	let extensionCount: number | null = null;
 	let disposed = false;
+
+	/*
+	 * C7：包管理器（DefaultPackageManager）—— 技能 Tab 的清单/开关数据源。
+	 * 与 resourceLoader 内部自建的包管理器**共享同一个 settingsManager**（cwd 绑定链
+	 * 的产物），开关写入对双方同时可见；自己持一个实例只为拿到 resolve() 的全量
+	 * 返回值（loader 的内部实例不可达）。cwd 热切换后随新绑定链重建（switchCwd 置空，
+	 * 首次使用时按新 cwd/settingsManager 惰性再建）。
+	 */
+	let packageManager: DefaultPackageManager | null = null;
+
+	/** 惰性取包管理器（cwd/settingsManager 换新后由 switchCwd 置空重建） */
+	const ensurePackageManager = (): DefaultPackageManager => {
+		if (!settingsManager) throw new Error("会话组件未就绪，技能清单不可用");
+		if (!packageManager) {
+			packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
+		}
+		return packageManager;
+	};
 
 	/*
 	 * C4：会话目录必须与 Pi 实际落盘目录一致（`<agentDir>/sessions/<encoded-cwd>/`）。
@@ -625,6 +663,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		resourceLoader = boot.resourceLoader;
 		trust = boot.trust;
 		extensionCount = boot.extensionCount;
+		// C7：包管理器绑定旧 cwd/settingsManager —— 置空，下次使用时按新绑定链重建
+		packageManager = null;
 		cwd = target;
 		// 用量按新会话（空壳）重置；广播放在 dispose 旧会话**之后**，
 		// 避免 UI 收到事件来拉清单时旧会话还占着位置（时序可观测的假状态）
@@ -809,6 +849,43 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			await ready;
 			if (!session) throw new Error("会话未就绪");
 			return setToolsState(session, names);
+		},
+
+		/* ------------------------------------------------------------ C7 */
+		getSkills: async () => {
+			await ready;
+			if (!resourceLoader) throw new Error("resourceLoader 未就绪");
+			return collectSkillsPayload({
+				packageManager: ensurePackageManager(),
+				loader: resourceLoader,
+				trust: trust ? { trusted: trust.trusted, reason: trust.reason } : null,
+				cwd,
+			});
+		},
+		toggleSkill: async (req) => {
+			await ready;
+			// 与 POST /cwd、/sessions/new 同一护栏：不偷偷打断正在生成的回复
+			if (session?.isStreaming) {
+				throw new Error("会话正在生成回复，请先停止再切换技能");
+			}
+			if (!session || !resourceLoader || !settingsManager) throw new Error("会话组件未就绪");
+			// 写入（内部按 origin × scope 分叉；目标不存在抛 SkillNotFoundError）
+			await toggleSkillInSettings({ packageManager: ensurePackageManager(), settingsManager, req });
+			/*
+			 * 同进程热重载（agent-session.d.ts:606）：重读 settings + 资源 + 扩展并重建
+			 * 扩展运行时，会话历史保留。reload 重发的 session_start 等**扩展生命周期事件**
+			 * 不在 toAgentEvent 的翻译清单里（adapt.ts 只映射 message/tool/turn/agent_*），
+			 * SSE 侧直接丢弃 —— UI 无感，靠本端点的返回值整体刷新清单。
+			 */
+			await session.reload();
+			return {
+				skills: await collectSkillsPayload({
+					packageManager: ensurePackageManager(),
+					loader: resourceLoader,
+					trust: trust ? { trusted: trust.trusted, reason: trust.reason } : null,
+					cwd,
+				}),
+			};
 		},
 
 		dispose: () => {

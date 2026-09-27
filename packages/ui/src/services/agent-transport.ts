@@ -11,12 +11,15 @@
 
 import type { AgentEvent } from "@/adapter/pi-events";
 import type {
-  ModelsPayload,
-  ResourcesPayload,
-  SessionLoadResult,
-  SessionSummary,
-  ThinkingLevelName,
-  ToolsPayload,
+	ModelsPayload,
+	ResourcesPayload,
+	SessionLoadResult,
+	SessionSummary,
+	SkillToggleRequest,
+	SkillToggleResult,
+	SkillsPayload,
+	ThinkingLevelName,
+	ToolsPayload,
 } from "@/mock/types";
 import type {
   CatalogPayload,
@@ -178,6 +181,19 @@ export interface AgentTransport {
   testModel(req: ModelTestRequest): Promise<ModelTestResult>;
   /** 设置弹窗：拉取该 Provider 的真实模型清单（`GET {baseUrl}/models`）供「导入模型…」勾选 */
   listProviderModels(req: ProviderModelsRequest): Promise<ProviderModelsResult>;
+
+  /* ------------------------------------------------- C7 · 设置弹窗 · 技能 Tab */
+  /**
+   * 设置弹窗 · 技能 Tab：**全量**清单（含被 `!路径` 模式禁用的条目 —— 与 04 屏
+   * `listResources()` 的已加载子集是两回事）。失败抛错，文案取 core 的 `{ error }` 原文。
+   */
+  listSkills(): Promise<SkillsPayload>;
+  /**
+   * 设置弹窗 · 技能 Tab：切换启用态（core 写 settings 模式数组 → `session.reload()`）。
+   * 返回切换后的**最新清单**（UI 直接整体替换，免二次拉取）。
+   * 流式中（409）/ 技能不存在（404）抛错，文案取 core 的 `{ error }` 原文。
+   */
+  toggleSkill(req: SkillToggleRequest): Promise<SkillToggleResult>;
 }
 
 export interface LiveConfig {
@@ -559,5 +575,45 @@ export class HttpAgentTransport implements AgentTransport {
   async listProviderModels(req: ProviderModelsRequest): Promise<ProviderModelsResult> {
     // 上游失败时 core 回的是 200 + {ok:false,error}（不是抛出），所以这里直接透传
     return this.unwrap<ProviderModelsResult>(await this.post("/providers/models", req));
+  }
+
+  /* ------------------------------------------------- C7 · 设置弹窗 · 技能 Tab */
+
+  /**
+   * C7：不用通用 `this.get` —— 它对非 200 只给 `core /skills -> 500`，丢掉 core 的
+   * `{ error }` 文案（清单解析失败等原因 UI 要原样显示），switchCwd 同款手法。
+   */
+  async listSkills(): Promise<SkillsPayload> {
+    const res = await fetch(`${this.cfg.baseUrl}/skills`, { headers: this.authHeader() });
+    const body = (await res.json().catch(() => null)) as
+      | (SkillsPayload & { ok?: unknown; error?: unknown })
+      | null;
+    if (!res.ok || body?.ok !== true || !Array.isArray(body.skills)) {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `读取技能清单失败（HTTP ${res.status}）`);
+    }
+    return body;
+  }
+
+  /**
+   * C7：不用通用 `this.post` —— 流式中（409）/ 技能不存在（404）/ 写入失败（500）
+   * 的 core `{ error }` 文案要原样抛给 UI 提示，通用版只给状态码。
+   */
+  async toggleSkill(req: SkillToggleRequest): Promise<SkillToggleResult> {
+    const res = await fetch(`${this.cfg.baseUrl}/skills/toggle`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeader() },
+      body: JSON.stringify(req),
+    });
+    const body = (await res.json().catch(() => null)) as {
+      ok?: unknown;
+      skills?: SkillsPayload;
+      error?: unknown;
+    } | null;
+    if (!res.ok || body?.ok !== true || !body.skills) {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `切换技能失败（HTTP ${res.status}）`);
+    }
+    return { skills: body.skills };
   }
 }

@@ -36,6 +36,11 @@ export type {
   ThinkingLevelName,
   /* C6 新增：04 屏工具开关载荷 */
   ToolsPayload,
+  /* C7 新增：设置弹窗 · 技能 Tab 载荷（全量清单含禁用项 + 开关请求/结果） */
+  SkillListItem,
+  SkillsPayload,
+  SkillToggleRequest,
+  SkillToggleResult,
 } from "../../../core/src/contract.ts";
 
 import type { Block, BlockType } from "../../../core/src/contract.ts";

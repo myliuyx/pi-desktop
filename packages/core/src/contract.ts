@@ -630,3 +630,57 @@ export interface ModelTestResult {
   /** `ok=false` 时的错误文案 */
   error?: string;
 }
+
+/* ---------------------------------------------------------------------------
+ * C7 · 设置弹窗 · 技能 Tab（`GET /skills` / `POST /skills/toggle`）
+ *
+ * 口径：**不是** `GET /resources` 的已加载子集（那是 04 屏「技能与工具」的清单），
+ * 而是包管理器 `resolve()` 的**全量**解析结果 —— 已被禁用的技能也在列
+ * （enabled:false），否则开关一关条目就从清单里消失、再也打不开
+ * （0.87.1 的 resolve 内部跑 addAutoDiscoveredResources，每条自带 enabled 标志）。
+ * ------------------------------------------------------------------------- */
+
+/** 单条技能清单项 */
+export interface SkillListItem {
+  /** 展示名（SKILL.md frontmatter `name`；损坏文件回落技能目录名） */
+  name: string;
+  /** frontmatter `description`（缺失为空串 —— 不造展示假数据） */
+  description: string;
+  /**
+   * SKILL.md 绝对路径 —— **toggle 的定位键**（请求原样回传，core 按它写
+   * `!${path}` 排除模式；模式匹配两侧都过 toPosixPath 归一，Windows 原样可写）。
+   */
+  path: string;
+  /** 展示分组：user=「全局」/ project=「项目」（参考图口径；包技能按安装域落组） */
+  scope: "user" | "project";
+  /** toggle 写法分叉的判据：top-level=目录发现 / package=插件包贡献 */
+  origin: "top-level" | "package";
+  /** 仅 origin=package：归属包的 source 串（写进该包对象过滤器的 skills 模式） */
+  packageSource?: string;
+  /** 当前是否启用 */
+  enabled: boolean;
+}
+
+/** `GET /skills` 响应体 */
+export interface SkillsPayload {
+  skills: SkillListItem[];
+  /** 信任结论（null = 会话未就绪；未信任时项目技能不列，与 /resources 同语义） */
+  trust: { trusted: boolean; reason: string } | null;
+  projectResourcesExist: boolean;
+  projectTrustBlocked: boolean;
+  /** 被「未信任」剔除的项目本地技能条数（与 /resources 的 filteredProjectCount 同口径） */
+  filteredProjectCount: number;
+}
+
+/** `POST /skills/toggle` 请求体 */
+export interface SkillToggleRequest {
+  /** SkillListItem.path 原样回传 */
+  path: string;
+  /** true=启用（移除 `!路径` 模式）/ false=禁用（追加 `!路径` 模式） */
+  enabled: boolean;
+}
+
+/** `POST /skills/toggle` 响应体（切换后的最新清单，UI 直接整体替换免二次拉取） */
+export interface SkillToggleResult {
+  skills: SkillsPayload;
+}
