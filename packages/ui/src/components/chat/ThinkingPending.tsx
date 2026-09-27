@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** 等待超过该时长换「仍在等待模型响应」文案 —— 给「仍在工作」的明确信号，防「卡死了」疑虑 */
+/** 等待超过该时长换「仍在等待模型回复」文案 —— 给「仍在工作」的明确信号，防「卡死了」疑虑 */
 const WAIT_WARN_MS = 20_000;
 
 /**
@@ -25,7 +25,8 @@ export function ThinkingPending({ since }: { since: number }) {
   const seconds = Math.floor(elapsedMs / 1000);
   const elapsed =
     seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, "0")}s`;
-  const label = elapsedMs >= WAIT_WARN_MS ? "仍在等待模型响应" : "正在思考";
+  // 2026-09-27 用户裁决：思考过程已有独立展示，占位行不再说「正在思考」，统一「等待模型回复」口径
+  const label = elapsedMs >= WAIT_WARN_MS ? "仍在等待模型回复" : "等待模型回复";
 
   return (
     <div

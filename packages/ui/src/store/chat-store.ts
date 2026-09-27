@@ -31,7 +31,7 @@ export interface ChatState {
   streaming: boolean;
   /**
    * 本次请求的发起时刻（epoch ms）；非等待期为 null。
-   * 「正在思考」占位（MessageList 的 thinking-indicator 行）的计时起点 ——
+   * 「等待模型回复」占位（MessageList 的 thinking-indicator 行）的计时起点 ——
    * sendMessage 瞬间写入；**凡置 `streaming: false` 的 set 必须同批清 null**
    * （纪律同 D9「不清会显示假事实」）。
    */

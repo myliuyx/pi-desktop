@@ -83,7 +83,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
 
   /*
    * F1 · 等待占位行（§2.2）：streaming 中、且还没有任何可见内容（最后一条是 user，
-   * 或最后的 assistant 尚无可见块）时，在虚拟列表末尾追加一行「正在思考」。
+   * 或最后的 assistant 尚无可见块）时，在虚拟列表末尾追加一行「等待模型回复」。
    * 占位作为普通虚拟行参与 measureElement / 自动滚底，零新增滚动逻辑；
    * 首个可见块（text / thinking / tool_call 任一）到达后条件自然失效，由真实内容顶替。
    */
