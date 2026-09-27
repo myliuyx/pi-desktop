@@ -1,8 +1,10 @@
 # electron-builder 三平台桌面构建流水线。
 #
 # 触发：手动（workflow_dispatch）或推送 v* tag。
-# 产物：windows NSIS 安装包 / mac dmg+zip / linux AppImage+deb，
-#       上传为按 OS 命名的 artifact（desktop-Windows / desktop-macOS / desktop-Linux）。
+# 产物：windows NSIS 安装包 / mac dmg+zip / linux AppImage+deb，先上传为
+#       按 OS 命名的 artifact（desktop-Windows / desktop-macOS / desktop-Linux）；
+#       tag 推送时再由 release job 把安装包挂到该 tag 的 GitHub Release Assets
+#       （手动触发不发 Release，只出 artifact——那时没有 tag 可挂）。
 #
 # 顺序约束：desktop 的 electron-builder 会把 ../ui/dist、../core/dist、
 # ../core/node_modules 以 extraResources 打进安装包，
@@ -80,3 +82,36 @@ jobs:
             packages/desktop/release/*.zip
             packages/desktop/release/*.AppImage
             packages/desktop/release/*.deb
+
+  # 发 Release：把安装包挂到 tag 的 Release Assets（v0.1.1 用户反馈：tag 页只有源码包）。
+  # 任一平台打包失败不阻塞发版——已成功平台的包照挂（download 只取存在的 artifact）；
+  # 全军覆没时下方守卫步骤显式报错退出。手动触发（无 tag）时跳过。
+  release:
+    name: release (attach installers)
+    needs: build
+    if: ${{ !cancelled() && github.ref_type == 'tag' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: assets
+
+      - name: Ensure at least one artifact
+        run: |
+          count=$(ls -1 assets | wc -l)
+          echo "收到 $count 个安装包"
+          if [ "$count" -eq 0 ]; then
+            echo "::error::三平台均未产出安装包，无法发 Release"
+            exit 1
+          fi
+
+      - name: Attach to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: assets/*
+          generate_release_notes: true
