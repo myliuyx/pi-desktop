@@ -1,4 +1,4 @@
-import { formatFullTimestamp, formatMessageTime } from "@/lib/format";
+import { formatFullTimestamp, formatMessageTime, formatThousands } from "@/lib/format";
 import type { MessageUsage } from "@/mock/types";
 
 /**
@@ -13,6 +13,8 @@ import type { MessageUsage } from "@/mock/types";
  *
  * 用量文案（2026-09-26 用户裁定）：数字**全量展示**（不用 formatCompact 的 1.3k 缩写，如 1523）；
  * 「缓存读」标签定名 `cache`（「缓存写」同族 `cache write`，对齐 API 控制台惯例）。
+ * 千分位逗号分组（2026-09-27 用户裁决）：可见行与 tooltip 统一走 formatThousands（固定 en-US，
+ * 不用裸 toLocaleString 防 locale 变脸），8278 → `8,278`。
  * cache 两项「有值才显示」（契约里 >0 才写）；精确数值与口径走原生 title 悬停（全仓惯例）。
  *
  * 口径（决策 D5）：cacheRead/cacheWrite 已含在 total 里，与 input 并列展示、**不相加** ——
@@ -28,21 +30,21 @@ export function MessageFooter({ usage, timestamp }: { usage?: MessageUsage; time
 
   const line = usage
     ? [
-        `↑${usage.input}`,
-        `↓${usage.output}`,
-        ...(usage.cacheRead !== undefined ? [`cache ${usage.cacheRead}`] : []),
-        ...(usage.cacheWrite !== undefined ? [`cache write ${usage.cacheWrite}`] : []),
+        `↑${formatThousands(usage.input)}`,
+        `↓${formatThousands(usage.output)}`,
+        ...(usage.cacheRead !== undefined ? [`cache ${formatThousands(usage.cacheRead)}`] : []),
+        ...(usage.cacheWrite !== undefined ? [`cache write ${formatThousands(usage.cacheWrite)}`] : []),
       ].join(" · ")
     : null;
 
   const usageTitle = usage
     ? [
-        `输入 ${usage.input.toLocaleString()}`,
-        `输出 ${usage.output.toLocaleString()}`,
-        ...(usage.cacheRead !== undefined ? [`cache ${usage.cacheRead.toLocaleString()}`] : []),
-        ...(usage.cacheWrite !== undefined ? [`cache write ${usage.cacheWrite.toLocaleString()}`] : []),
+        `输入 ${formatThousands(usage.input)}`,
+        `输出 ${formatThousands(usage.output)}`,
+        ...(usage.cacheRead !== undefined ? [`cache ${formatThousands(usage.cacheRead)}`] : []),
+        ...(usage.cacheWrite !== undefined ? [`cache write ${formatThousands(usage.cacheWrite)}`] : []),
       ].join(" · ") +
-      ` —— 缓存读写已含在总消耗 ${usage.total.toLocaleString()} 中，与输入并列显示、不相加`
+      ` —— 缓存读写已含在总消耗 ${formatThousands(usage.total)} 中，与输入并列显示、不相加`
     : undefined;
 
   return (

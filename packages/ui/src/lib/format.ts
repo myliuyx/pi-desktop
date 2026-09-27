@@ -34,6 +34,18 @@ function formatMillions(value: number): string {
   return Math.round(m * 10) / 10 < 10 ? `${m.toFixed(1)}M` : `${Math.round(m)}M`;
 }
 
+/**
+ * 全量数值的千分位分组（计算器式逗号，2026-09-27 用户裁决）：8278 → `8,278`。
+ *
+ * 固定 en-US 而不用裸 `toLocaleString()`：后者随系统 locale 变脸
+ * （de-DE 会渲染成 `8.278`），「逗号分组」的口径就守不住了。
+ * 只用于整数（token 计数）；小数走各自场景的格式化，不经此函数。
+ */
+export function formatThousands(value: number): string {
+  if (!Number.isFinite(value)) return "0";
+  return new Intl.NumberFormat("en-US").format(Math.trunc(value));
+}
+
 /** 时刻 HH:MM（消息时间戳用） */
 export function formatClock(timestamp: number): string {
   const date = new Date(timestamp);
