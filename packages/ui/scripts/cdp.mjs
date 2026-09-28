@@ -28,9 +28,17 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolveChromePath } from "./chrome-path.mjs";
 
-/** 系统已装的 Chrome（不用下载 Chromium） */
-export const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+/** 按平台给出「端口被占用」排查命令（报错文案里的提示也得跟着系统走） */
+function portLookupHint() {
+  if (process.platform === "win32") return "Get-NetTCPConnection -State Listen | findstr <端口>";
+  if (process.platform === "darwin") return "lsof -i :<端口>";
+  return "ss -tlnp | grep <端口>";
+}
+
+/** 系统已装的 Chrome（跨平台解析，见 chrome-path.mjs） */
+export const CHROME_PATH = resolveChromePath();
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -222,8 +230,7 @@ export async function withBrowser(options, run) {
       throw new Error(
         `CDP 连通性自检失败（调试端口 ${port}）：${e.message}\n` +
           `  正常应能立即求值。常见原因：① cdp.mjs 的 Cdp 构造函数漏了 ws message 监听器（命令无人处理，必然超时）；` +
-          `② 该端口被残留的僵尸 Chrome 占用（` +
-          `用 Get-NetTCPConnection -State Listen 查一下）。`,
+          `② 该端口被残留的僵尸 Chrome 占用（查一下：${portLookupHint()}）。`,
       );
     }
 

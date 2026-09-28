@@ -3,8 +3,10 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { resolveChromePath } from "./chrome-path.mjs";
 
-const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+/** 系统已装的 Chrome（跨平台解析，见 chrome-path.mjs） */
+const CHROME = resolveChromePath();
 const ORIGIN = "http://127.0.0.1:5180";
 const PORT = 9334;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
