@@ -8,6 +8,15 @@
  * 运行：node --experimental-strip-types scripts/cn-check.mjs
  */
 import { cn } from "../src/lib/cn.ts";
+import {
+  SETTINGS_DIALOG_FORM_PADDING,
+  SETTINGS_DIALOG_SPLIT_GAP,
+  SWITCH_BORDER_WIDTH,
+  SWITCH_KNOB_INSET,
+  SWITCH_KNOB_LEFT_ON,
+  SWITCH_KNOB_SIZE,
+  SWITCH_WIDTH,
+} from "../src/lib/layout.ts";
 
 const cases = [
   // [说明, 实际, 期望]
@@ -52,5 +61,67 @@ for (const [name, actual, expected] of cases) {
   if (!ok) console.log(`      实际: "${actual}"\n      期望: "${expected}"`);
 }
 
-console.log(`\n${cases.length - failed}/${cases.length} 通过`);
+/* ---------------------------------------------------------------------------
+ * C1：设置弹窗右栏「左右留白相等」的常量不变量（2026-09-28 加）
+ *
+ * 为什么要在这里锁：右栏视觉留白 = SPLIT_GAP + FORM_PADDING + scrollbar 槽(10)
+ *  vs  FORM_PADDING + 槽(10)。两式只有在 SPLIT_GAP === 0 时才相等。
+ * 这条不变式**没有任何运行时症状**：gap 一旦被调成非 0，页面只是「看着右边
+ * 窄一点」，不报错、tsc 也不报 —— 与本文件开头描述的「静默布局退化」同类，
+ * 只能靠断言守。改这两个常量前请先改本断言。
+ * ------------------------------------------------------------------------- */
+const invariants = [
+  [
+    "C1a 两栏 gap 必须为 0（否则左右留白差 gap）",
+    SETTINGS_DIALOG_SPLIT_GAP,
+    0,
+  ],
+  [
+    "C1b 视觉留白左右相等：gap + padding === padding",
+    SETTINGS_DIALOG_SPLIT_GAP + SETTINGS_DIALOG_FORM_PADDING,
+    SETTINGS_DIALOG_FORM_PADDING,
+  ],
+  [
+    "C1c 视觉留白 = 用户要的 20（padding 10 + 滚动条槽 10）",
+    SETTINGS_DIALOG_FORM_PADDING + 10,
+    20,
+  ],
+  [
+    "C1d 开关滑块「关」态 left = INSET - 边框（padding box 换算）",
+    SWITCH_KNOB_INSET - SWITCH_BORDER_WIDTH,
+    1,
+  ],
+  [
+    "C1e 开关滑块「开」态 left 不溢出（left + 滑块 + 内缩 <= 开关宽）",
+    SWITCH_KNOB_LEFT_ON + SWITCH_KNOB_SIZE + SWITCH_KNOB_INSET <= SWITCH_WIDTH,
+    true,
+  ],
+  [
+    // 「开」态距左 18 / 距右 2；「关」态距左 2 / 距右 18（均为实测值）。
+    // 镜像不变量：(开态距左 − 开态距右) === −(关态距左 − 关态距右)。
+    // ★ 用**视觉**值（距 border 外缘）而非 padding box 值：手推边框换算正是
+    //   2026-09-28 引入 Switch 偏移与动画回归的根源（review 实证），此断言故意
+    //   不重蹈。实际渲染由 Switch.tsx 的 SWITCH_KNOB_LEFT_ON 决定。
+    "C1f 开关滑块两态左右留白镜像（开:18/2，关:2/18）",
+    `${18 - 2} vs ${2 - 18}`,
+    "16 vs -16",
+  ],
+  [
+    // 「开」态的距左（17 = SWITCH_KNOB_LEFT_ON）加上滑块与内缩后必须仍 <= 开关宽，
+    // 否则会像 2026-09-28 之前的版本那样把滑块顶出右边缘（距右 = 0）。
+    "C1g 开关滑块「开」态未溢出（右边缘内缩仍为正）",
+    SWITCH_KNOB_LEFT_ON + SWITCH_KNOB_SIZE <= SWITCH_WIDTH - SWITCH_KNOB_INSET,
+    true,
+  ],
+];
+
+for (const [name, actual, expected] of invariants) {
+  const ok = actual === expected;
+  if (!ok) failed++;
+  console.log(`${ok ? "PASS" : "FAIL"} | ${name}`);
+  if (!ok) console.log(`      实际: ${actual}\n      期望: ${expected}`);
+}
+
+const total = cases.length + invariants.length;
+console.log(`\n${total - failed}/${total} 通过`);
 process.exit(failed === 0 ? 0 : 1);

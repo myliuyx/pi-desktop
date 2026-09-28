@@ -5,9 +5,11 @@ import { Icon } from "@/components/common/icons";
 import { Button, Dialog } from "@/components/primitives";
 import { Switch } from "@/components/screens/Switch";
 import {
+	SETTINGS_DIALOG_FORM_PADDING,
 	SETTINGS_DIALOG_LEFT_WIDTH,
 	SETTINGS_DIALOG_SPLIT_GAP,
 } from "@/lib/layout";
+import { PANE_SCROLL_CLASS } from "./form-fields";
 import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
 import { notifyFailure, useNoticeStore } from "@/store/notice-store";
@@ -279,7 +281,7 @@ export function PluginsSettingsTab() {
 			<div className="flex min-h-0 min-w-0 flex-1" style={{ gap: SETTINGS_DIALOG_SPLIT_GAP }}>
 				{/* 左栏：分组包树（列表区自身滚动，「添加插件」钉在栏底不随滚动） */}
 				<div
-					className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-surface"
+					className="flex min-h-0 min-w-0 flex-col overflow-hidden border border-border-subtle bg-bg-surface"
 					style={{ width: SETTINGS_DIALOG_LEFT_WIDTH }}
 					data-testid="settings-plugins-tree"
 				>
@@ -361,9 +363,10 @@ export function PluginsSettingsTab() {
 					</div>
 				</div>
 
-				{/* 右栏：包详情 */}
+				{/* 右栏：包详情（padding 与模型/技能 Tab 同源） */}
 				<div
-					className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+					className={cn("min-h-0 min-w-0 flex-1", PANE_SCROLL_CLASS)}
+					style={{ padding: SETTINGS_DIALOG_FORM_PADDING }}
 					data-testid="settings-plugin-detail"
 				>
 					{selected ? (
@@ -500,9 +503,12 @@ export function PluginsSettingsTab() {
 				</div>
 			</div>
 
-			{/* 底部统计条（参考图2：「2 ext · 14 skills · 0 prompts · 0 themes」+ 检查更新 / 刷新） */}
+			{/* 底部统计条（参考图2：「2 ext · 14 skills · 0 prompts · 0 themes」+ 检查更新 / 刷新）
+			    padding：原为 `pt-2`（只管上，左右下全空），导致统计文字紧贴左栏右边缘、
+			    按钮顶到弹窗右边缘。改为四边 p-2，与模型 Tab「+ 添加 Provider」、
+			    技能 Tab「添加技能」的钉底区同款（2026-09-28 用户实拍红框区）。 */}
 			<div
-				className="flex min-h-0 shrink-0 items-center justify-between gap-3 border-t border-border-subtle pt-2"
+				className="flex min-h-0 shrink-0 items-center justify-between gap-3 border-t border-border-subtle p-2"
 				data-testid="settings-packages-footer"
 			>
 				<p className="min-w-0 truncate font-mono text-xs text-text-tertiary">{summaryText}</p>

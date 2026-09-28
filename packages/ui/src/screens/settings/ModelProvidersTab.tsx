@@ -3,9 +3,11 @@ import { ChevronDown, Cog, Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
 import {
+  SETTINGS_DIALOG_FORM_PADDING,
   SETTINGS_DIALOG_LEFT_WIDTH,
   SETTINGS_DIALOG_SPLIT_GAP,
 } from "@/lib/layout";
+import { PANE_SCROLL_CLASS } from "./form-fields";
 import type { ModelConfig, ModelProviderConfig } from "@/mock/model-config";
 import { MOCK_DISCOVERED_MODELS } from "@/mock/model-config";
 import { headersToRecord } from "@/mock/provider-convert";
@@ -304,7 +306,7 @@ export function ModelProvidersTab({
     <div className="flex h-full min-h-0 min-w-0" style={{ gap: SETTINGS_DIALOG_SPLIT_GAP }}>
       {/* 左栏：Provider 树（列表区自身滚动，「+ 添加 Provider」钉在栏底不随滚动） */}
       <div
-        className="flex min-h-0 min-w-0 flex-col overflow-hidden border border-border-subtle rounded-lg bg-bg-surface"
+        className="flex min-h-0 min-w-0 flex-col overflow-hidden border border-border-subtle bg-bg-surface"
         style={{ width: SETTINGS_DIALOG_LEFT_WIDTH }}
         data-testid="model-provider-tree"
       >
@@ -437,8 +439,13 @@ export function ModelProvidersTab({
         </div>
       </div>
 
-      {/* 右栏：表单 */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden" data-testid="model-form-pane">
+      {/* 右栏：表单（自带 SETTINGS_DIALOG_FORM_PADDING 内边距，左栏贴弹窗边缘、
+          右栏靠 padding 呼吸；PANE_SCROLL_CLASS 见 form-fields.tsx） */}
+      <div
+        className={cn("min-h-0 min-w-0 flex-1", PANE_SCROLL_CLASS)}
+        style={{ padding: SETTINGS_DIALOG_FORM_PADDING }}
+        data-testid="model-form-pane"
+      >
         {activeImport && selectedProvider ? (
           /* 导入浮层**取代**右栏表单（不叠一层新弹窗）：左栏仍可点，用户随时能看自己在配哪个 Provider */
           <ModelImportPanel

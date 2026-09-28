@@ -23,6 +23,27 @@ export const INPUT_CLASS =
 /** 下拉框：在输入框基础上加指针与去原生箭头（用统一令牌色，不写 hex） */
 export const SELECT_CLASS = cn(INPUT_CLASS, "appearance-none cursor-pointer");
 
+/**
+ * 右侧内容面板（模型表单 / 技能详情 / 插件详情 / 常规 Tab）的滚动类。
+ *
+ * ★ 三个部分缺一不可：
+ *   ① `overflow-x-hidden`：G6（弹窗内不得出现横向滚动条）。
+ *   ② `pane-scroll-stable`（= `scrollbar-gutter: stable both-edges`）：
+ *      滚动条槽在**左右两端各留 10px**。只留右侧的话，滚动条一出现右边就比
+ *      左边窄 10px（2026-09-28 用户实拍「左右间距明显不一样」）；两端同留才能
+ *      在任何平台都得到对称布局。
+ *   ③ `overflow-y-scroll`（恒定占位）：让「是否溢出」不改变容器可用宽度 ——
+ *      `stable` 本身已保证不跳动，此处是显式声明意图，防止后续被改成 `auto`
+ *      时误以为「只是等价替换」而丢掉对称性依据。
+ *
+ * ★ 与 SETTINGS_DIALOG_FORM_PADDING（layout.ts）的耦合：最终视觉留白
+ *   = padding(10) + 槽(10) = 20。**动本类里的 scrollbar 相关样式前，
+ *   必须同步复核 layout.ts 的 SETTINGS_DIALOG_FORM_PADDING**，否则留白会变。
+ *
+ *   只给**右栏**用：左栏是满宽的树/列表行，滚动条紧贴边框、不产生视觉不对称。
+ */
+export const PANE_SCROLL_CLASS = "overflow-y-scroll overflow-x-hidden pane-scroll-stable";
+
 /** 带标签的字段容器（标签在上，控件在下，纵向不溢出） */
 export function Field({
   label,

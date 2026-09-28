@@ -4,9 +4,11 @@ import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
 import { Switch } from "@/components/screens/Switch";
 import {
+	SETTINGS_DIALOG_FORM_PADDING,
 	SETTINGS_DIALOG_LEFT_WIDTH,
 	SETTINGS_DIALOG_SPLIT_GAP,
 } from "@/lib/layout";
+import { PANE_SCROLL_CLASS } from "./form-fields";
 import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
 import { notifyFailure, useNoticeStore } from "@/store/notice-store";
@@ -113,7 +115,7 @@ export function SkillsSettingsTab() {
 		<div className="flex h-full min-h-0 min-w-0" style={{ gap: SETTINGS_DIALOG_SPLIT_GAP }}>
 			{/* 左栏：分组技能树（列表区自身滚动，「添加技能」钉在栏底不随滚动） */}
 			<div
-				className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-surface"
+				className="flex min-h-0 min-w-0 flex-col overflow-hidden border border-border-subtle bg-bg-surface"
 				style={{ width: SETTINGS_DIALOG_LEFT_WIDTH }}
 				data-testid="settings-skills-tree"
 			>
@@ -196,9 +198,11 @@ export function SkillsSettingsTab() {
 				</div>
 			</div>
 
-			{/* 右栏：技能详情（scope 徽标 + 路径 + 开关 / Name / Description） */}
+			{/* 右栏：技能详情（scope 徽标 + 路径 + 开关 / Name / Description）
+			    padding：与模型 Tab 右栏同源，左栏贴弹窗边缘、右栏靠内边距呼吸 */}
 			<div
-				className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+				className={cn("min-h-0 min-w-0 flex-1", PANE_SCROLL_CLASS)}
+				style={{ padding: SETTINGS_DIALOG_FORM_PADDING }}
 				data-testid="settings-skill-detail"
 			>
 				{selected ? (

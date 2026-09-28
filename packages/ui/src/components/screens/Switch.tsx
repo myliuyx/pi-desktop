@@ -1,8 +1,10 @@
 import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn } from "@/lib/cn";
 import {
+  SWITCH_BORDER_WIDTH,
   SWITCH_HEIGHT,
   SWITCH_KNOB_INSET,
+  SWITCH_KNOB_LEFT_ON,
   SWITCH_KNOB_SIZE,
   SWITCH_WIDTH,
 } from "@/lib/layout";
@@ -59,9 +61,18 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
       {...rest}
     >
       {/*
-       * 滑块位置用 `left` 而非 transform：开关是 36×20 的固定尺寸控件，
-       * 用 left 更直观，且与 SWITCH_KNOB_INSET 这一个常量直接对应
-       * （transform 需要再除以 2 才能对上，多一层换算容易写错）。
+       * 滑块位置用 `left`（不用 transform / right）：
+       *   ① 开关是 36×20 的固定尺寸控件，left 与两个「外缘口径」常量直接对应，
+       *      比 transform 少一层换算（transform 还要再除以 2）。
+       *   ② ★ 两态都必须写 `left` —— 若「开」态改用 `right`，left↔right 是**两个
+       *      不同 CSS 属性**、切换时不可插值，`transition-all` 直接失效、滑块瞬移
+       *      （2026-09-28 review 逐帧实测：left 恒 1px、位移 0）。这正是
+       *      SWITCH_KNOB_LEFT_ON 作为独立常量存在的原因。
+       *
+       * ★ top/left 相对 **padding box**（border 内部），而 INSET 定义的是
+       *   「距外边缘」：开关有 1px 边框，写 style 时必须减掉 SWITCH_BORDER_WIDTH，
+       *   否则滑块上/左各多 1px —— 肉眼可见地「白圆没上下居中、且偏右」
+       *   （2026-09-28 用户实拍）。
        */}
       <span
         aria-hidden="true"
@@ -72,8 +83,10 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(function Switch
         style={{
           width: SWITCH_KNOB_SIZE,
           height: SWITCH_KNOB_SIZE,
-          top: SWITCH_KNOB_INSET,
-          left: checked ? SWITCH_WIDTH - SWITCH_KNOB_SIZE - SWITCH_KNOB_INSET : SWITCH_KNOB_INSET,
+          top: SWITCH_KNOB_INSET - SWITCH_BORDER_WIDTH,
+          left: checked
+            ? SWITCH_KNOB_LEFT_ON
+            : SWITCH_KNOB_INSET - SWITCH_BORDER_WIDTH,
         }}
       />
     </button>

@@ -312,3 +312,24 @@
 @utility app-region-no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* ---------------------------------------------------------------------------
+ * 右侧内容面板的滚动条槽（模型 / 技能 / 插件 / 常规 Tab 的右栏）
+ *
+ * ★ 为什么是 `stable both-edges`（两侧对称预留）而不是常见的 `stable`（只预留右侧）：
+ *   本项目 `::-webkit-scrollbar { width: 10px }` 是**占布局宽度**的传统滚动条。
+ *   Windows 只在右侧占位；只留右侧的话，滚动条一出现右边就比左边窄 10px，
+ *   两边不对称（2026-09-28 用户实拍「左右间距明显不一样」）。
+ *   `both-edges` 在**左右两端同时**预留，左右留白恒定相等，
+ *   且滚动条出现/消失都不再让内容位置跳动。
+ *
+ * ★ 前置条件：SETTINGS_DIALOG_SPLIT_GAP 已归零（layout.ts）。
+ *   否则左侧那 10px 里已经含了 gap，与右侧不同源，补再多也对称不了。
+ *   最终视觉留白 = SETTINGS_DIALOG_FORM_PADDING(10) + 本槽(10) = 20。
+ *
+ *   覆盖：Firefox 原生支持；Chromium 自 94 起支持该属性。
+ *   更老的 Chromium 降级为右侧单侧占位（仍不跳动，只是左右差 10px）。
+ * ------------------------------------------------------------------------- */
+@utility pane-scroll-stable {
+  scrollbar-gutter: stable both-edges;
+}

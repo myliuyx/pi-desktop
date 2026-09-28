@@ -222,8 +222,31 @@ export const SWITCH_WIDTH = 36;
 export const SWITCH_HEIGHT = 20;
 /** 开关滑块直径（与高度的差值是留给内边距的余量） */
 export const SWITCH_KNOB_SIZE = 16;
-/** 开关滑块距边缘的内缩（(高 - 滑块) / 2 = 2） */
+/**
+ * 开关滑块距**外边缘**的内缩（(高 - 滑块) / 2 = 2）。
+ *
+ * ★ 注意：这是「距 border 外缘」的值，但 CSS 的 `top` / `left` 是相对
+ *   **padding box**（border 内部）定位的。开关有 1px 边框，所以直接把它
+ *   写进 style 会比预期多出 1px —— 滑块实测偏下 1px、偏右 1px
+ *   （上 3 / 下 1），肉眼可见地不居中。Switch.tsx 里必须减掉边框宽度。
+ */
 export const SWITCH_KNOB_INSET = 2;
+/** 开关边框宽度（1px 发丝线）。定位换算用：实际写入 style 的 inset = INSET - 本值 */
+export const SWITCH_BORDER_WIDTH = 1;
+/**
+ * 「开」态滑块距开关**左边缘**的距离（外缘口径）。
+ *
+ * ★ 为什么不用 SWITCH_WIDTH 反算（2026-09-28 review 实证）：
+ *   1) 算出来的 left 要减两个边框（padding box 比外缘窄 2px），极易算错 ——
+ *      2026-09-28 就因此做成「开态用 right」，结果**动画彻底失效**：
+ *      left/right 是两个不同 CSS 属性，切换时不可插值，
+ *      `transition-all` 无处生效，滑块变成瞬移（逐帧实测 left 恒为 1px）。
+ *   2) 改成两个独立的「外缘口径」常量后，两态都只写 `left`，
+ *      同一属性的数值变化天然可插值，transition 恢复。
+ *
+ * 校验：(36 − 2×1 − 16 − 2 + 1) = 17，与 Switch.tsx 实测的「开态距左 18 / 距右 2」自洽。
+ */
+export const SWITCH_KNOB_LEFT_ON = 17;
 
 /* ---------------------------------------------------------------------------
  * M5 · 窗口壳与走查
@@ -289,14 +312,46 @@ export const SETTINGS_DIALOG_HEADER_HEIGHT = 48;
 /** 弹窗底部条高度（取消 / 保存 所在的一整条） */
 export const SETTINGS_DIALOG_FOOTER_HEIGHT = 56;
 
-/** 弹窗内部统一内边距（内容区四边） */
-export const SETTINGS_DIALOG_PADDING = 20;
+/** 弹窗内容区内边距。
+ *
+ *  ★ 2026-09-28 改为 0：让**左栏**（Provider/技能/插件树，带边框灰底的「卡」）
+ *    贴住弹窗四边。右栏与常规 Tab 改用 SETTINGS_DIALOG_FORM_PADDING。
+ *    两值均在同处定义，职责不同，勿合并。 */
+export const SETTINGS_DIALOG_PADDING = 0;
+
+/**
+ * 右栏（表单 / 详情）内边距。
+ *
+ * 与 SETTINGS_DIALOG_PADDING 的分工（2026-09-28 用户裁决）：
+ * 弹窗内容区 padding 归零，让**左栏**（Provider/技能/插件树，带边框灰底的「卡」）
+ * 贴住弹窗四边；而左栏右侧的**右栏**是纯文本 + 表单，没有视觉边界，
+ * 直接贴边会让文字顶着面板边缘，必须靠自己的内边距呼吸。
+ * 技能 / 插件 / 模型三个 Tab 共用此值，右栏的观感才一致。
+ *
+ * ★ 取 10 而非 20 的原因：PANE_SCROLL_CLASS 用了
+ * ★ 取 10 而非 20 的原因：PANE_SCROLL_CLASS 用了
+ *   `scrollbar-gutter: stable both-edges`，滚动条槽在**左右两端各留 10px**。
+ *   最终视觉留白 = 本值 + 10，所以填 10 才得到用户要的 20（实测 20 → 视觉 30 偏宽）。
+ *   ⚠️ 两者强耦合：改本值前先看 form-fields.tsx 的 PANE_SCROLL_CLASS。
+ */
+export const SETTINGS_DIALOG_FORM_PADDING = 10;
 
 /** 弹窗内模型 Tab 的左栏（Provider 树）宽度 */
 export const SETTINGS_DIALOG_LEFT_WIDTH = 280;
 
-/** 模型 Tab 左右两栏之间的间距 */
-export const SETTINGS_DIALOG_SPLIT_GAP = 16;
+/**
+ * 模型 Tab 左右两栏之间的间距。
+ *
+ * ★ 2026-09-28 改为 0：右栏自带内边距（SETTINGS_DIALOG_FORM_PADDING = 10，
+ *   叠加 scrollbar-gutter 的 10px 槽 = 视觉 20）。原值 16 会让左留白
+ *   变成「gap 16 + padding 20 = 36」而右留白只有 20，两边差 16px
+ *   （用户实拍「左右间距明显不一样」）。gap 归零后右栏内边距**独家**承担
+ *   与左栏的分隔，左右留白才相等（见 PANE_SCROLL_CLASS 的 both-edges）。
+ *
+ * ⚠️ **必须为 0**，否则左右留白重新不等（视觉 = gap + 20 vs 20）。
+ *   `scripts/cn-check.mjs` 的 C1 断言锁住了这个值，改之前先看那里。
+ */
+export const SETTINGS_DIALOG_SPLIT_GAP = 0;
 
 /** 模型表单里标签列的基准宽度（窄屏下会换行，不设固定总宽） */
 export const MODEL_FORM_LABEL_WIDTH = 132;

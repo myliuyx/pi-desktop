@@ -111,7 +111,7 @@ export function ModelImportPanel({
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col gap-3" data-testid="model-import">
-      <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg border border-border-subtle bg-bg-surface">
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden border border-border-subtle bg-bg-surface">
         <div className="flex min-w-0 flex-col gap-2 p-3">
           <input
             className={INPUT_CLASS}

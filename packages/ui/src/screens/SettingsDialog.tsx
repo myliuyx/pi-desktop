@@ -10,6 +10,7 @@ import {
 } from "@/components/primitives";
 import {
   SETTINGS_DIALOG_FOOTER_HEIGHT,
+  SETTINGS_DIALOG_FORM_PADDING,
   SETTINGS_DIALOG_HEADER_HEIGHT,
   SETTINGS_DIALOG_HEIGHT,
   SETTINGS_DIALOG_PADDING,
@@ -24,6 +25,7 @@ import { useUiStore } from "@/store/ui-store";
 import { useModelsStore } from "@/store/models-store";
 import { SettingsGeneralTab } from "./settings/SettingsGeneralTab";
 import { ModelProvidersTab } from "./settings/ModelProvidersTab";
+import { PANE_SCROLL_CLASS } from "./settings/form-fields";
 import { SkillsSettingsTab } from "./settings/SkillsSettingsTab";
 import { PluginsSettingsTab } from "./settings/PluginsSettingsTab";
 import { describeProviderIssues, validateProviders, type ProviderValidationIssue } from "./settings/provider-validation";
@@ -244,7 +246,12 @@ export function SettingsDialog() {
         {...tabPanelProps(TAB_PANEL_PREFIX, activeTab)}
       >
         {activeTab === "general" ? (
-          <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden">
+          /* 常规 Tab 是单列（无左栏树），没有视觉边界依靠，直接贴弹窗边会顶到面板边缘，
+             故自己带 SETTINGS_DIALOG_FORM_PADDING 内边距 —— 与模型/技能/插件三个 Tab 的右栏同值。 */
+          <div
+            className={cn("h-full min-h-0", PANE_SCROLL_CLASS)}
+            style={{ padding: SETTINGS_DIALOG_FORM_PADDING }}
+          >
             <SettingsGeneralTab />
           </div>
         ) : null}
