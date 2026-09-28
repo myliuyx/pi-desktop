@@ -18,6 +18,8 @@
     "check:sessions-load": "node scripts/sessions-load-check.mjs",
     "check:run-dir": "node scripts/run-dir-check.mjs",
     "check:fs-list": "node scripts/fs-list-check.mjs",
+    "check:fs-search": "node scripts/fs-search-check.mjs",
+    "check:prompt-filerefs": "node node_modules/tsx/dist/cli.mjs scripts/prompt-filerefs-check.mjs",
     "check:c5": "node scripts/c5-resources-models-check.mjs",
     "check:c6": "node scripts/c6-e2e-check.mjs",
     "check:providers": "node scripts/providers-check.mjs",

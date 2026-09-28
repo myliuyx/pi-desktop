@@ -20,7 +20,9 @@ import path from "node:path";
 import { toAgentEvent } from "./adapt.ts";
 import type { AgentEvent, ModelTestRequest, ProviderModelsRequest, PutProvidersRequest } from "./contract.ts";
 import { DirListError, listDirectories } from "./fs-list.ts";
+import { FsSearchError, searchFiles } from "./fs-search.ts";
 import { FileReadError, readTextFile } from "./fs-read.ts";
+import { expandFileRefs } from "./prompt-files.ts";
 import { isRecord } from "./guards.ts";
 import { InvalidCwdError, type CoreRuntime } from "./session.ts";
 import { SkillNotFoundError } from "./skills.ts";
@@ -86,6 +88,8 @@ const API_ROUTES = new Set([
 	"/fs/list",
 	// dir-file-preview · 侧栏文件树点开文件的预览数据源（只读限长文本）
 	"/fs/read",
+	// at-file · Composer @ 弹层的文件模糊搜索数据源（只读文件名）
+	"/fs/search",
 ]);
 
 /** 从 Host 头取主机名：`1.2.3.4:5190` → `1.2.3.4`；`[::1]:5190` → `::1`；`localhost` → `localhost` */
@@ -313,11 +317,31 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			return;
 		}
 
+		/* -----------------------------------------------------------------
+		 * /prompt（at-file 批次扩展：body 增可选 fileRefs，task-composer-at-file.md §4.2）
+		 * fileRefs 缺省/空 ⇒ 与旧请求逐字节等价（旧 UI 新 core 零风险）；非空时每个
+		 * 引用展开成 <file> 前置块（文本）或图片附件（魔数判定），读不到的引用跳过
+		 * 并在响应里带 skippedFiles（UI 弹通知）——不让一条坏引用吞掉整条消息。
+		 * ----------------------------------------------------------------- */
 		if (req.method === "POST" && urlPath === "/prompt") {
-			const body = (await readBody(req)) as { text?: string };
+			const body = (await readBody(req)) as { text?: string; fileRefs?: unknown };
+			const text = String(body.text ?? "");
+			const refs = Array.isArray(body.fileRefs)
+				? body.fileRefs.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
+				: [];
 			try {
-				await runtime.prompt(String(body.text ?? ""));
-				return json(200, { ok: true });
+				let finalText = text;
+				let images;
+				let skipped: string[] = [];
+				if (refs.length > 0) {
+					const expanded = expandFileRefs(refs, runtime.getCwd());
+					// file 块前置直拼（CLI buildInitialMessage 同序 join("")；块自带尾随换行）
+					finalText = expanded.promptText + text;
+					if (expanded.images.length > 0) images = expanded.images;
+					skipped = expanded.skipped;
+				}
+				await runtime.prompt(finalText, images);
+				return skipped.length > 0 ? json(200, { ok: true, skippedFiles: skipped }) : json(200, { ok: true });
 			} catch (e) {
 				return json(500, { ok: false, error: String(e) });
 			}
@@ -394,6 +418,27 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				return json(200, readTextFile(url.searchParams.get("path") ?? "", runtime.getCwd()));
 			} catch (e) {
 				if (e instanceof FileReadError) return json(e.status, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * at-file · 文件模糊搜索（GET /fs/search?q=&path=&limit=，fs-search.ts）
+		 * Composer @ 弹层的数据源：cwd 内只读文件名，模糊匹配取 top N。
+		 * 可预期失败由 FsSearchError 带状态码（400 不存在/不是目录、403 无权限），
+		 * 与意外错误 500 区分——/fs/list 同款分支。
+		 * ----------------------------------------------------------------- */
+		if (req.method === "GET" && urlPath === "/fs/search") {
+			const limitRaw = Number(url.searchParams.get("limit") ?? "");
+			try {
+				return json(
+					200,
+					searchFiles(url.searchParams.get("path") ?? "", runtime.getCwd(), url.searchParams.get("q") ?? "", {
+						limit: Number.isFinite(limitRaw) ? limitRaw : undefined,
+					}),
+				);
+			} catch (e) {
+				if (e instanceof FsSearchError) return json(e.status, { ok: false, error: e.message });
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
 		}

@@ -69,6 +69,7 @@ import {
 	togglePackageInSettings,
 } from "./packages.ts";
 import { createProvidersController, type ProvidersController } from "./providers.ts";
+import type { PromptImage } from "./prompt-files.ts";
 import { collectResources } from "./resources.ts";
 import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
 import { continueRecentSession, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
@@ -77,8 +78,13 @@ import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-c
 import { getToolsState, setToolsState } from "./tools.ts";
 
 export interface CoreRuntime {
-	/** 发送一条用户消息（驱动模型）。会等会话就绪（信任门裁决在此期间完成）。 */
-	prompt(text: string): Promise<void>;
+	/**
+	 * 发送一条用户消息（驱动模型）。会等会话就绪（信任门裁决在此期间完成）。
+	 * `images` 为 @file 引用展开出的图片附件（at-file 批次，task-composer-at-file.md
+	 * §4.2），走 AgentSession.prompt 的 PromptOptions.images；文本文件的展开在 server
+	 * 层拼进 text，不过这里。
+	 */
+	prompt(text: string, images?: PromptImage[]): Promise<void>;
 	/** 中止当前会话（Pi 公开 API） */
 	abort(): Promise<void>;
 	/** 订阅 Pi 原始事件管道（未经翻译；core 侧再经 toAgentEvent 适配后下发 SSE） */
@@ -778,10 +784,10 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	};
 
 	const runtime: CoreRuntime = {
-		prompt: async (text: string) => {
+		prompt: async (text, images) => {
 			await ready;
 			if (!session) throw new Error("会话未就绪");
-			await session.prompt(text);
+			await session.prompt(text, images && images.length > 0 ? { images } : undefined);
 		},
 		abort: async () => {
 			await ready;
