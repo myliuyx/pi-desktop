@@ -116,13 +116,15 @@ export interface FileReadResult {
   binary: boolean;
 }
 
-/** `GET /fs/search` 条目（at-file 批次 §4.1，core 的 fs-search.ts 为权威源；只列文件） */
+/** `GET /fs/search` 条目（at-file 批次 §4.1，core 的 fs-search.ts 为权威源；目录也可引用，D6） */
 export interface FsSearchEntryResult {
   name: string;
   /** 绝对路径（title / 调试展示用） */
   absPath: string;
   /** 相对搜索根的 POSIX 风格路径——@引用的展示与插入口径，core 端按自身 cwd 反解 */
   relPath: string;
+  /** 目录（@ = 一层清单块）/ 文件（@ = `<file>` 内容块）；旧字段缺失回落 file */
+  kind: "dir" | "file";
 }
 
 /** `GET /fs/search` 的成功返回（at-file 批次） */
@@ -649,13 +651,19 @@ export class HttpAgentTransport implements AgentTransport {
       throw new Error(detail ?? `搜索文件失败（HTTP ${res.status}）`);
     }
     const entries = body.entries.filter(
-      (e): e is { name: string; absPath: string; relPath: string } =>
+      (e): e is { name: string; absPath: string; relPath: string; kind?: unknown } =>
         !!e &&
         typeof e === "object" &&
         typeof (e as { name?: unknown }).name === "string" &&
         typeof (e as { absPath?: unknown }).absPath === "string" &&
         typeof (e as { relPath?: unknown }).relPath === "string",
-    );
+    ).map((e) => ({
+      name: e.name,
+      absPath: e.absPath,
+      relPath: e.relPath,
+      // kind 不在准入条件里（同 dir-tree 批次的旧 core 兼容口径）：非 "dir" 一律回落 file
+      kind: e.kind === "dir" ? ("dir" as const) : ("file" as const),
+    }));
     return {
       cwd: typeof body.cwd === "string" ? body.cwd : "",
       query: typeof body.query === "string" ? body.query : query,

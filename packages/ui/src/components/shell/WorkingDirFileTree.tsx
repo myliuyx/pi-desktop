@@ -371,57 +371,76 @@ function EntryRow({
           <Icon icon={File} size={13} className="shrink-0 text-text-tertiary" />
           <span className="min-w-0 flex-1 truncate">{entry.name}</span>
         </button>
-        {/*
-         * @ 引用按钮（D2-A）：hover 浮现；点击不夺预览语义。mousedown preventDefault
-         * 防止点击瞬间 textarea 失焦丢光标（与 @ 弹层 option 同款手法）。
-         */}
-        <button
-          type="button"
-          data-testid={`sidebar-file-tree-cite-${index}`}
-          title={`引用到输入框：${entry.name}`}
-          aria-label={`引用文件 ${entry.name} 到输入框`}
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => onCiteFile(entry.path)}
-          className={cn(
-            "absolute right-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
-            "bg-bg-elevated text-text-tertiary shadow-sm",
-            "transition-opacity duration-150 ease-out hover:bg-bg-hover hover:text-accent",
-            "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
-          )}
-        >
-          <Icon icon={AtSign} size={12} />
-        </button>
+        {citeButton(index, entry.path, entry.name, onCiteFile)}
       </div>
     );
   }
 
   return (
+    <div
+      data-testid={`sidebar-file-tree-dir-row-${index}`}
+      className="group relative flex min-w-0 items-center"
+    >
+      <button
+        type="button"
+        data-testid={`sidebar-file-tree-entry-${index}`}
+        data-kind="dir"
+        data-expanded={expandedState ? "true" : "false"}
+        aria-expanded={expandedState}
+        title={entry.path}
+        onClick={() => onToggle(entry.path)}
+        className={cn(
+          rowClass,
+          // 同文件行：外层 div 接管 stretch，主体按钮 flex-1 占满
+          "flex-1 text-text-secondary transition-colors duration-150 ease-out",
+          "hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
+          childStatus === "error" && "text-danger hover:text-danger",
+        )}
+        style={indentStyle}
+      >
+        <Icon
+          icon={ChevronRight}
+          size={12}
+          className={cn(
+            "shrink-0 text-text-tertiary transition-transform duration-150",
+            expandedState && "rotate-90",
+          )}
+        />
+        <Icon icon={Folder} size={13} className="shrink-0 text-text-tertiary" />
+        <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+      </button>
+      {citeButton(index, entry.path, entry.name, onCiteFile)}
+    </div>
+  );
+}
+
+/**
+ * @ 引用按钮（at-file 批次 D2-A；2026-09-28 用户裁决 D6 起目录行也有——目录引用 =
+ * 给模型一层清单）。hover 浮现；mousedown preventDefault 防点击瞬间 textarea 失焦丢光标
+ * （与 @ 弹层 option 同款手法）。文件行与目录行共用，绝对定位挂在各自的行 div 上。
+ */
+function citeButton(
+  index: number,
+  entryPath: string,
+  entryName: string,
+  onCite: (entryPath: string) => void,
+) {
+  return (
     <button
       type="button"
-      data-testid={`sidebar-file-tree-entry-${index}`}
-      data-kind="dir"
-      data-expanded={expandedState ? "true" : "false"}
-      aria-expanded={expandedState}
-      title={entry.path}
-      onClick={() => onToggle(entry.path)}
+      data-testid={`sidebar-file-tree-cite-${index}`}
+      title={`引用到输入框：${entryName}`}
+      aria-label={`引用 ${entryName} 到输入框`}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => onCite(entryPath)}
       className={cn(
-        rowClass,
-        "text-text-secondary transition-colors duration-150 ease-out",
-        "hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
-        childStatus === "error" && "text-danger hover:text-danger",
+        "absolute right-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+        "bg-bg-elevated text-text-tertiary shadow-sm",
+        "transition-opacity duration-150 ease-out hover:bg-bg-hover hover:text-accent",
+        "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
       )}
-      style={indentStyle}
     >
-      <Icon
-        icon={ChevronRight}
-        size={12}
-        className={cn(
-          "shrink-0 text-text-tertiary transition-transform duration-150",
-          expandedState && "rotate-90",
-        )}
-      />
-      <Icon icon={Folder} size={13} className="shrink-0 text-text-tertiary" />
-      <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+      <Icon icon={AtSign} size={12} />
     </button>
   );
 }

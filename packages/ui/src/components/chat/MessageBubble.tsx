@@ -1,14 +1,93 @@
-import { forwardRef, type HTMLAttributes } from "react";
+import { forwardRef, useState, type HTMLAttributes } from "react";
+import { ChevronDown, Paperclip } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { MESSAGE_MAX_WIDTH } from "@/lib/layout";
 import type { MessageRole, TextBlock } from "@/mock/types";
 import { Markdown } from "@/components/common/Markdown";
+import { Icon } from "@/components/common/icons";
 
 export interface MessageBubbleProps extends HTMLAttributes<HTMLDivElement> {
   block: TextBlock;
   role: MessageRole;
   /** 流式进行中：在末尾显示一个跳动光标 */
   streaming?: boolean;
+}
+
+/* -------------------------------------------------------------------------
+ * 注入文件块解析（at-file 批次 · D5 2026-09-28 用户裁决：渲染层折叠）
+ *
+ * 背景：core 把 @引用展开成 `<file name="绝对路径">内容</file>` 前置块后整体交给
+ * pi（PromptOptions 没有「正文之外的文本上下文通道」），pi 原样记录进 session ——
+ * 于是**发送瞬间**气泡显示本地原文，**刷新后**（/sessions/load 回放）气泡变成
+ * 一大段 file 块（用户实测报告「一次看还好，刷新一下页面就变了」）。
+ * 上游限制动不了，在渲染层统一：user 消息正文里的 file 块折叠成「📎 文件名」
+ * 折叠条，其余文本照常 —— 两条路径的显示从此一致，内容仍可展开查看。
+ * assistant 消息不做此解析（其正文的 `<file>` 字面量是内容，不是注入）。
+ * ------------------------------------------------------------------------- */
+
+interface InjectedFileSegment {
+  kind: "file";
+  name: string;
+  body: string;
+}
+interface TextSegment {
+  kind: "text";
+  text: string;
+}
+type ContentSegment = TextSegment | InjectedFileSegment;
+
+/** 匹配 core expandFileRefs 的块格式：属性段捕获 type="directory" 等扩展（不参与展示） */
+const INJECTED_FILE_BLOCK_RE = /<file name="([^"]+)"[^>]*>\n?([\s\S]*?)\n?<\/file>\n?/g;
+
+/** 把 content 拆成 [text | file] 序列；无 file 块时返回单个 text 段 */
+export function splitInjectedFileBlocks(content: string): ContentSegment[] {
+  const segments: ContentSegment[] = [];
+  let last = 0;
+  for (let m = INJECTED_FILE_BLOCK_RE.exec(content); m; m = INJECTED_FILE_BLOCK_RE.exec(content)) {
+    if (m.index > last) segments.push({ kind: "text", text: content.slice(last, m.index) });
+    segments.push({ kind: "file", name: m[1] ?? "", body: m[2] ?? "" });
+    last = m.index + m[0].length;
+  }
+  if (last < content.length) segments.push({ kind: "text", text: content.slice(last) });
+  return segments;
+}
+
+/** user 气泡里的注入文件折叠条：默认折叠，点击展开内容（session 里的真实正文） */
+function FileBlockChip({ name, body }: { name: string; body: string }) {
+  const [open, setOpen] = useState(false);
+  // testid 按文件名安全化而非序号——多条消息各带一个 chip 时裸 index 必重复
+  // （dir-tree 批次「同种状态行裸 testid 重复」教训的同类坑）
+  const safeName = name.split(/[\\/]/).pop()?.replace(/[^a-zA-Z0-9_-]/g, "-") || "file";
+  return (
+    <div data-testid={`message-file-chip-${safeName}`} className="my-1 min-w-0">
+      <button
+        type="button"
+        data-file-name={name}
+        aria-expanded={open}
+        title={name}
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "flex h-7 min-w-0 max-w-full items-center gap-1.5 rounded-md px-2 text-left text-xs",
+          "border border-border-subtle bg-bg-surface text-text-secondary",
+          "transition-colors duration-150 ease-out hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
+        )}
+      >
+        <Icon icon={Paperclip} size={12} className="shrink-0 text-text-tertiary" />
+        <span className="min-w-0 truncate font-mono">{name.split(/[\\/]/).pop()}</span>
+        <span className="shrink-0 text-text-tertiary">已注入模型上下文</span>
+        <Icon
+          icon={ChevronDown}
+          size={11}
+          className={cn("shrink-0 text-text-tertiary transition-transform duration-150", open && "rotate-180")}
+        />
+      </button>
+      {open ? (
+        <pre className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border-subtle bg-bg-surface p-2 font-mono text-xs text-text-secondary">
+          {body}
+        </pre>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -26,6 +105,10 @@ export const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(func
 ) {
   // F1 §2.4：空文本（mock 首字未到的占位块）不渲染 —— 否则等待占位行下方会并存一个空壳气泡
   if (!block.content.trim()) return null;
+
+  // at-file D5：user 消息按「text + 注入文件块」拆段渲染；assistant 不拆（见上方注释）
+  const segments = role === "user" ? splitInjectedFileBlocks(block.content) : null;
+
   return (
     <div
       ref={ref}
@@ -39,7 +122,17 @@ export const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(func
       style={{ maxWidth: MESSAGE_MAX_WIDTH }}
       {...rest}
     >
-      <Markdown content={block.content} />
+      {segments ? (
+        segments.map((seg, i) =>
+          seg.kind === "file" ? (
+            <FileBlockChip key={i} name={seg.name} body={seg.body} />
+          ) : seg.text.trim() ? (
+            <Markdown key={i} content={seg.text} />
+          ) : null,
+        )
+      ) : (
+        <Markdown content={block.content} />
+      )}
       {streaming ? (
         <span
           className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse rounded-sm bg-text-primary align-middle"

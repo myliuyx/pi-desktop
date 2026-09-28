@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { File, Loader2, SearchX } from "lucide-react";
+import { File, Folder, Loader2, SearchX } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { POPOVER_Z } from "@/lib/layout";
 import { Icon } from "@/components/common/icons";
@@ -206,6 +206,7 @@ export const ComposerAtMenu = forwardRef<ComposerAtMenuHandle, ComposerAtMenuPro
                 data-testid={`composer-at-option-${index}`}
                 data-index={index}
                 data-path={entry.relPath}
+                data-kind={entry.kind}
                 title={entry.absPath}
                 /* mousedown preventDefault：抢选不夺焦点——textarea 保持聚焦，光标不丢 */
                 onMouseDown={(e) => e.preventDefault()}
@@ -219,8 +220,16 @@ export const ComposerAtMenu = forwardRef<ComposerAtMenuHandle, ComposerAtMenuPro
                     : "text-text-secondary hover:bg-bg-hover hover:text-text-primary",
                 )}
               >
-                <Icon icon={File} size={13} className="shrink-0 text-text-tertiary" />
+                {/* 目录引用与文件引用同榜（D6）：图标区分 kind，路径尾部 / 由 core 语义消化 */}
+                <Icon
+                  icon={entry.kind === "dir" ? Folder : File}
+                  size={13}
+                  className="shrink-0 text-text-tertiary"
+                />
                 <span className="min-w-0 flex-1 truncate">{entry.relPath}</span>
+                {entry.kind === "dir" ? (
+                  <span className="shrink-0 text-text-tertiary">目录</span>
+                ) : null}
               </button>
             ))
           )}
