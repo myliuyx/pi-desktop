@@ -66,12 +66,13 @@ function readScreen(): ScreenId {
 }
 
 /**
- * 桌面壳的窗口形态（`?os=mac|win|linux`，desktop 主进程按 process.platform 拼进加载 URL）。
+ * 桌面壳的窗口形态（`?os=mac|win|linux`）。
  *
- * 无边框化（frame:false）后，标题栏的窗口控件按**真实平台**渲染：mac 交通灯 /
- * win·linux 三键。web 与 mock 形态没有这个参数，恒为缺省 "mac"（设计稿默认壳，
- * ShellPreview / 06 屏不受影响）。与 ShellsScreen 读的 hash `?os=` 是两套互不
- * 干扰的机制（一个走 location.search，一个走 hash 查询串）。
+ * 2026-09-28 用户裁决：桌面端**统一 mac 红绿灯壳**（还原无边框化之前的外观，
+ * 功能序 ✕ □ — = 关闭/最大化/最小化），主进程不再按平台拼 `?os=`（加载 URL 只有
+ * `?live=1`）—— 各平台一律落到缺省 "mac"。参数本身保留为手动预览入口：
+ * `?os=win` / `?os=linux` 仍可看另两种壳。与 ShellsScreen 读的 hash `?os=` 是
+ * 两套互不干扰的机制（一个走 location.search，一个走 hash 查询串）。
  */
 function readShellOs(): OsName {
   if (typeof window === "undefined") return "mac";
@@ -125,7 +126,7 @@ function applyEmptyParam(): void {
 
 export default function App() {
   const [screen, setScreen] = useState<ScreenId>(readScreen);
-  // 窗口壳形态：桌面端由主进程 ?os= 注入，web/mock 恒为 mac（与 theme 同理，加载即确定）
+  // 窗口壳形态：桌面端统一 mac 红绿灯（?os= 仅为手动预览保留），web/mock 恒为 mac（与 theme 同理，加载即确定）
   const [shellOs] = useState<OsName>(readShellOs);
 
   useEffect(() => {

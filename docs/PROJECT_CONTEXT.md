@@ -101,7 +101,7 @@ UI(React) --POST /prompt--> core --> @earendil-works/pi-coding-agent（agent 循
 - `main = dev` 同步推进；`v0.1.1` tag → GitHub Release 挂 5 个平台安装包（CI build.yml：构建 + 自动发 Release + npm 发布三段）。
 - npm 包 `@myliuyx/pi-web@0.1.1`：自托管 web 形态 CLI 分发，`npx` 即跑；CI 发包需仓库 secret `NPM_TOKEN`（未配置时该 job 警告跳过，不影响构建与 Release）。
 - 已收官批次：对话工作台与里程碑 m1~m5、会话列举/装载/新建、授权闭环、信任门、模型管理（多 Provider + 导入清单 + 思考档位）、工作目录热切换、目录树侧栏、新建会话页、消息时间戳、模型标签 + token 速度徽章、回复完结后「处理详情」折叠行、桌面打包发版闭环（Release 自动挂包 + Linux 打包修复）、npm 自托管包。
-- 桌面壳无边框化（`frame:false`）：原生标题栏（显示 document.title、跟随系统浅色主题，深色模式下剩白色顶条）移除，窗口 chrome 由 ui 的 TitleBar 承担（拖拽区 + 最小化/最大化/关闭经 preload 的 `window.piDesktop` 走 IPC）；加载 URL 带 `?os=<mac|win|linux>` 决定控件形态；深色模式整窗一致。
+- 桌面壳无边框化（`frame:false`）：原生标题栏（显示 document.title、跟随系统浅色主题，深色模式下剩白色顶条）移除，窗口 chrome 由 ui 的 TitleBar 承担（拖拽区 + 最小化/最大化/关闭经 preload 的 `window.piDesktop` 走 IPC）；控件统一为 mac 红绿灯形态、功能序 ✕□—（关闭/最大化/最小化，2026-09-28 用户裁决），`?os=win|linux` 保留为手动预览入口；深色模式整窗一致。
 - 待办远期项：目录树批次验收脚本补写（见 `.plan` 遗留清单）；mac x64（Intel）安装包矩阵。
 
 ## 9. 开发工作流速查

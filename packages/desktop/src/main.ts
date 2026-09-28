@@ -270,9 +270,6 @@ function registerWindowIpc(win: BrowserWindow): void {
 	win.on("unmaximize", notifyMaximizeChange);
 }
 
-/** 窗口壳形态随平台（UI TitleBar 的 OsName）：darwin→mac 交通灯，win32→win，其余→linux */
-const shellOs = process.platform === "darwin" ? "mac" : process.platform === "win32" ? "win" : "linux";
-
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
 	app.quit();
@@ -300,7 +297,7 @@ if (!gotLock) {
 				app.exit(1);
 				return;
 			}
-			createWindow(`http://127.0.0.1:${info.port}/?live=1&os=${shellOs}`);
+			createWindow(`http://127.0.0.1:${info.port}/?live=1`);
 		});
 	});
 

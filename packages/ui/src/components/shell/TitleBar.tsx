@@ -16,11 +16,18 @@ const MAC_DOT_SIZE = 10;
  */
 const MAC_DOT_CLASS = ["bg-window-close", "bg-window-minimize", "bg-window-maximize"] as const;
 
-/** 与 MAC_DOT_CLASS 一一对应：hover 浮出的功能符号 + 无障碍标签 + 动作（原生红绿灯行为） */
+/**
+ * 与 MAC_DOT_CLASS 一一对应：hover 浮出的功能符号 + 无障碍标签 + 动作。
+ *
+ * 功能序为 2026-09-28 用户裁决的 ✕ □ —（关闭 / 最大化 / 最小化）—— 注意这与
+ * macOS 原生的「黄=最小化、绿=最大化」相反，是刻意选择：用户要求还原红绿灯外观、
+ * 功能按 ✕ □ — 顺序。若将来要对齐 macOS 原生语义，把 maximize 与 minimize 两条
+ * meta 对调即可（一行）。
+ */
 const MAC_DOT_META = [
   { glyph: "✕", label: "关闭", action: "close" },
-  { glyph: "−", label: "最小化", action: "minimize" },
   { glyph: "+", label: "最大化", action: "maximize" },
+  { glyph: "−", label: "最小化", action: "minimize" },
 ] as const;
 
 /**
