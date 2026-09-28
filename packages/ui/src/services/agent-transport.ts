@@ -116,9 +116,36 @@ export interface FileReadResult {
   binary: boolean;
 }
 
+/** `GET /fs/search` 条目（at-file 批次 §4.1，core 的 fs-search.ts 为权威源；只列文件） */
+export interface FsSearchEntryResult {
+  name: string;
+  /** 绝对路径（title / 调试展示用） */
+  absPath: string;
+  /** 相对搜索根的 POSIX 风格路径——@引用的展示与插入口径，core 端按自身 cwd 反解 */
+  relPath: string;
+}
+
+/** `GET /fs/search` 的成功返回（at-file 批次） */
+export interface FsSearchResult {
+  cwd: string;
+  query: string;
+  entries: FsSearchEntryResult[];
+  truncated: boolean;
+}
+
+/** `POST /prompt` 的返回（at-file 批次 §4.2）：无 skippedFiles 时恒空数组 */
+export interface PromptSendResult {
+  /** 被跳过的 @file 引用（用户输入原样 + 括注原因），UI 据此弹通知 */
+  skippedFiles: string[];
+}
+
 export interface AgentTransport {
-  /** 发送一条用户消息 */
-  sendMessage(text: string): Promise<void>;
+  /**
+   * 发送一条用户消息。`opts.fileRefs`（at-file 批次）= 消息文本中的 @引用文件列表，
+   * core 展开成 `<file>` 块/图片附件后发给模型；缺省/空数组时请求体与旧版逐字节相同。
+   * 返回 skippedFiles（core 读不到的引用），UI 据此弹通知。
+   */
+  sendMessage(text: string, opts?: { fileRefs?: string[] }): Promise<PromptSendResult>;
   /** 中止当前流式输出 */
   abort(): Promise<void>;
   /** 回收授权（Pi 的 select/confirm/input 应答） */
@@ -164,6 +191,12 @@ export interface AgentTransport {
    * 失败（400 不存在/不是文件 / 403 无权限 / 网络错）抛错，文案取 core 的 `{ error }` 原文。
    */
   readFile(path: string): Promise<FileReadResult>;
+  /**
+   * 文件模糊搜索（at-file 批次）：`GET /fs/search?q=&path=&limit=`。
+   * `path` 恒传 liveCwd（根与「core 当前 cwd」是两个概念，同文件树口径）；
+   * 只列文件，POSIX relPath；失败（400 不存在/不是目录 / 403 / 旧 core 无此路由）抛错。
+   */
+  searchFiles(path: string, query: string, limit?: number): Promise<FsSearchResult>;
 
   /* ------------------------------------------------- C5 · 04/05 屏数据源 */
   /** 04 屏：扩展 / 提示词 / 技能三类（已按信任门过滤项目本地资源） */
@@ -426,8 +459,15 @@ export class HttpAgentTransport implements AgentTransport {
     }
   }
 
-  sendMessage(text: string): Promise<void> {
-    return this.post("/prompt", { text }) as Promise<void>;
+  async sendMessage(text: string, opts?: { fileRefs?: string[] }): Promise<PromptSendResult> {
+    // fileRefs 缺省/空时不带字段——请求体与旧版逐字节相同（旧 core 零风险）
+    const refs = opts?.fileRefs && opts.fileRefs.length > 0 ? { fileRefs: opts.fileRefs } : {};
+    const body = await this.post<{ ok?: boolean; skippedFiles?: unknown }>("/prompt", { text, ...refs });
+    return {
+      skippedFiles: Array.isArray(body?.skippedFiles)
+        ? body.skippedFiles.filter((s): s is string => typeof s === "string")
+        : [],
+    };
   }
 
   abort(): Promise<void> {
@@ -581,6 +621,46 @@ export class HttpAgentTransport implements AgentTransport {
       truncated: body.truncated === true,
       content: body.content,
       binary: body.binary === true,
+    };
+  }
+
+  /**
+   * at-file 批次：listDirs 同款手法（不通用 `this.get`——非 200 要拿 core 的 `{ error }`
+   * 原文；旧 core 无此路由时由 assertJson 报「响应非 JSON」，SPA 回退伪装被当场识破）。
+   */
+  async searchFiles(path: string, query: string, limit?: number): Promise<FsSearchResult> {
+    const parts: string[] = [`q=${encodeURIComponent(query)}`];
+    if (path && path.trim().length > 0) parts.push(`path=${encodeURIComponent(path)}`);
+    if (limit !== undefined) parts.push(`limit=${encodeURIComponent(String(limit))}`);
+    const res = await fetch(`${this.cfg.baseUrl}/fs/search?${parts.join("&")}`, {
+      headers: this.authHeader(),
+    });
+    this.assertJson(res, "搜索文件失败");
+    const body = (await res.json().catch(() => null)) as {
+      ok?: boolean;
+      cwd?: unknown;
+      query?: unknown;
+      entries?: unknown;
+      truncated?: unknown;
+      error?: unknown;
+    } | null;
+    if (!res.ok || !body?.ok || !Array.isArray(body.entries)) {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `搜索文件失败（HTTP ${res.status}）`);
+    }
+    const entries = body.entries.filter(
+      (e): e is { name: string; absPath: string; relPath: string } =>
+        !!e &&
+        typeof e === "object" &&
+        typeof (e as { name?: unknown }).name === "string" &&
+        typeof (e as { absPath?: unknown }).absPath === "string" &&
+        typeof (e as { relPath?: unknown }).relPath === "string",
+    );
+    return {
+      cwd: typeof body.cwd === "string" ? body.cwd : "",
+      query: typeof body.query === "string" ? body.query : query,
+      entries,
+      truncated: body.truncated === true,
     };
   }
 

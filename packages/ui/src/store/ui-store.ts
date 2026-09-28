@@ -300,6 +300,25 @@ interface UiState {
    * 读取全程兜底回落空数组（见 `lib/recent-dirs.ts`）—— 一份坏 JSON 不能带崩 store 初始化。
    */
   recentDirs: string[];
+
+  /* -------------------------------------------------------------------------
+   * at-file 批次（task-composer-at-file.md §4.3）：Composer 草稿提升。
+   *
+   * 为什么从 Composer 本地 state 提到 store：文件树的「@ 引用」入口要把引用插入
+   * 输入框，而文件树与 Composer 是两棵互不相连的组件子树 —— 只有共享 store 能
+   * 打通。冻结契约零改动：testid / 几何 / Enter / Shift+Enter / 禁用逻辑全部不变。
+   * 非持久化：草稿是「正在打的话」，跨启动还原是造假事实（与 previewFilePath 同待遇）。
+   * ------------------------------------------------------------------------- */
+  /** 输入框当前文本（Composer 的 value 唯一真相） */
+  composerDraft: string;
+  setComposerDraft: (text: string) => void;
+  /**
+   * 「插入引用」请求（文件树 @ 按钮发起）：携带 snippet 与自增 seq。
+   * Composer 消费（插到光标处 + 聚焦 + 光标移到插入尾）；seq 保证同一文本重复插入
+   * 也能触发（zustand 对同值对象不通知，seq 是天然的"第 N 次请求"标记）。
+   */
+  composerInsertRequest: { text: string; seq: number } | null;
+  insertComposerText: (text: string) => void;
 }
 
 function persistFlag(key: string, value: boolean): void {
@@ -432,6 +451,13 @@ export const useUiStore = create<UiState>((set, get) => ({
   },
 
   recentDirs: readRecentDirsForStore(),
+
+  /* --------------------------------------------------- at-file · 草稿提升 */
+  composerDraft: "",
+  setComposerDraft: (text) => set({ composerDraft: text }),
+  composerInsertRequest: null,
+  insertComposerText: (text) =>
+    set((s) => ({ composerInsertRequest: { text, seq: (s.composerInsertRequest?.seq ?? 0) + 1 } })),
 }));
 
 let initialized = false;

@@ -60,8 +60,13 @@ export interface ChatState {
   tokenUsage: TokenUsage;
   sessionTitle: string;
 
-  /** 发送一条用户消息，并触发一次 mock 助手的流式回复（≤2s） */
-  sendMessage: (text: string) => void;
+  /**
+   * 发送一条用户消息，并触发一次 mock 助手的流式回复（≤2s）。
+   * `fileRefs`（at-file 批次）：消息文本中的 @引用文件列表，仅 live 链路透传给 core
+   * （展开成 `<file>` 块/图片附件）；core 读不到的引用经响应 skippedFiles 回来，此处
+   * 弹 warning 通知（规格书 §4.2「诚实告知优于静默」）。mock 无 fs 概念，直接忽略。
+   */
+  sendMessage: (text: string, fileRefs?: string[]) => void;
   /** 中止正在进行的流式输出（已产出内容定格） */
   abortStream: () => void;
   /** 解决授权卡片；对已决的 requestId 再次调用应无效 */
@@ -275,7 +280,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   tokenUsage: INITIAL_TOKEN_USAGE,
   sessionTitle: INITIAL_SESSION_TITLE,
 
-  sendMessage: (text) => {
+  sendMessage: (text, fileRefs) => {
     const trimmed = text.trim();
     if (!trimmed) return;
 
@@ -297,7 +302,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             notifyFailure("新会话创建失败，消息未发送", e);
             return;
           }
-          useChatStore.getState().sendMessage(text);
+          useChatStore.getState().sendMessage(text, fileRefs);
         })();
         return;
       }
@@ -317,11 +322,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({ messages: [...state.messages, userMsg], streaming: true, pendingSince: now }));
       // liveDraft 以「当前消息 + 新 user 消息」为基线，后续 assistant 消息由 reducer 追加
       liveDraft = createDraft([...get().messages]);
-      void transport.sendMessage(trimmed).catch((e) => {
-        console.error("[live] sendMessage 失败:", e);
-        notifyFailure("消息发送失败", e);
-        useChatStore.setState({ streaming: false, awaitingModel: false, pendingSince: null });
-      });
+      void transport
+        .sendMessage(trimmed, fileRefs && fileRefs.length > 0 ? { fileRefs } : undefined)
+        .then((r) => {
+          // at-file：core 读不到的引用被跳过（消息照发）——诚实告知，不让引用静默失效
+          if (r.skippedFiles.length > 0) {
+            useNoticeStore
+              .getState()
+              .notify({ tone: "warning", text: `@引用已跳过：${r.skippedFiles.join("、")}` });
+          }
+        })
+        .catch((e) => {
+          console.error("[live] sendMessage 失败:", e);
+          notifyFailure("消息发送失败", e);
+          useChatStore.setState({ streaming: false, awaitingModel: false, pendingSince: null });
+        });
       return;
     }
 
