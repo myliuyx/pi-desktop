@@ -25,6 +25,8 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
 ) {
   const messages = useChatStore((state) => state.messages);
   const streaming = useChatStore((state) => state.streaming);
+  // 等待占位全轮覆盖（task-waiting-row-turn-start.md）：轮间空窗（下一轮已请求未开流）
+  const awaitingModel = useChatStore((state) => state.awaitingModel);
   const pendingSince = useChatStore((state) => state.pendingSince);
   const newSessionDraft = useChatStore((state) => state.newSessionDraft);
   // 处理详情折叠（task-process-collapse.md）：settled 标记与会话作用域同路下传
@@ -53,6 +55,7 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
         <MessageList
           messages={messages}
           streaming={streaming}
+          awaitingModel={awaitingModel}
           pendingSince={pendingSince}
           settledTurnKeys={settledTurnKeys}
           sessionScope={liveSessionId ?? "draft"}

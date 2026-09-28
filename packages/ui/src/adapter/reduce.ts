@@ -16,10 +16,18 @@ export interface DraftState {
 	/** 当前正在流式输出的 assistant 消息 id；null 表示没有进行中的消息 */
 	currentAssistantId: string | null;
 	streaming: boolean;
+	/**
+	 * 下一轮模型响应「已请求、尚未开始流式」（task-waiting-row-turn-start.md F1）。
+	 * `turn_start` 置位 —— pi 在每轮 HTTP 请求发出前必发（首轮 agent-loop.ts:117、
+	 * 第 2+ 轮 :205，均在工具结果回传完之后），工具执行期不置位，不会误显「等待模型回复」；
+	 * assistant `message_start`（响应流已打开）与 `agent_settled`（整轮终态）清除。
+	 * MessageList 的等待占位行据此覆盖上一轮 message_end 到本轮首字之间的 TTFB 空窗。
+	 */
+	awaitingModel: boolean;
 }
 
 export function createDraft(messages: Message[] = []): DraftState {
-	return { messages, currentAssistantId: null, streaming: false };
+	return { messages, currentAssistantId: null, streaming: false, awaitingModel: false };
 }
 
 /* ---------------------------------------------------------------------------
@@ -125,7 +133,7 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 						blocks: m.blocks.map((b) => (b.type === "text" ? { ...b, streaming: false } : b)),
 					}))
 				: state.messages;
-			return { messages, currentAssistantId: null, streaming: false };
+			return { messages, currentAssistantId: null, streaming: false, awaitingModel: false };
 		}
 
 		case "message_start": {
@@ -133,7 +141,9 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 			// 实测：一次 prompt 可产生多条 assistant 消息（多 turn），所以这里要能**追加**
 			// 壳在此刻先追加（模型名/时间戳先挂上）；渲染层把「首个可见块之前」的空壳整行
 			// 藏掉（2026-09-28 裁决·方向A，见 MessageList shellHidden）—— 数据层照旧，
-			// pending 判定 / currentAssistantId 挂载 / 事件回放断言均不受影响
+			// pending 判定 / currentAssistantId 挂载 / 事件回放断言均不受影响。
+			// 此处顺路清 awaitingModel：响应流已打开，「等待下一轮」结束（占位行由
+			// 空壳分支无缝接手，首个可见块到达后一并让位）
 			const id = `a-${state.messages.length}`;
 			return {
 				messages: [
@@ -149,6 +159,7 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 				],
 				currentAssistantId: id,
 				streaming: true,
+				awaitingModel: false,
 			};
 		}
 
@@ -200,6 +211,8 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 					...(event.message.responseModel ? { responseModel: event.message.responseModel } : {}),
 				})),
 				currentAssistantId: null,
+				// awaitingModel 此刻本就为 false（message_start 已清），显式写为保证字段完整
+				awaitingModel: false,
 				streaming: false,
 			};
 		}
@@ -290,7 +303,13 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 		};
 	}
 
+	/*
+	 * turn_start：每轮模型请求发出前必发（时机依据见 DraftState.awaitingModel 注释）→
+	 * 置位等待态，等待占位行据此覆盖 TTFB 空窗（2026-09-28 裁决，F1/F2）。
+	 * turn_end 是轮次结束标记，reducer 只维护消息树与等待态 → 原样返回。
+	 */
 	case "turn_start":
+		return { ...state, awaitingModel: true };
 	case "turn_end":
 		return state;
 

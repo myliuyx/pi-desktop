@@ -32,10 +32,19 @@ export interface ChatState {
   /** 助手正在流式输出（停止按钮、自动滚底判定用） */
   streaming: boolean;
   /**
-   * 本次请求的发起时刻（epoch ms）；非等待期为 null。
-   * 「等待模型回复」占位（MessageList 的 thinking-indicator 行）的计时起点 ——
-   * sendMessage 瞬间写入；**凡置 `streaming: false` 的 set 必须同批清 null**
-   * （纪律同 D9「不清会显示假事实」）。
+   * 下一轮模型响应「已请求、尚未开始流式」（reduce.ts DraftState 同名字段的 store 镜像；
+   * task-waiting-row-turn-start.md F1/F4）。`streaming` 是**消息级**（每条 assistant
+   * message_end 即 false），本字段补上轮间空窗（工具执行完 → 下一轮开流）——
+   * 等待占位行与「停止生成」按钮的整轮判定用。仅 live 链路写入，mock 恒 false。
+   * 清理纪律同 pendingSince：凡置 `streaming: false` 的 set 必须同批清两者。
+   */
+  awaitingModel: boolean;
+  /**
+   * 「等待模型回复」占位（MessageList 的 thinking-indicator 行）的计时起点（epoch ms）；
+   * 非等待期为 null。sendMessage 瞬间写入；live 链路下**每轮 assistant message_start
+   * 重写为该轮起点**（多轮 agent loop 按轮计时，2026-09-28 用户裁决 —— 不重置则
+   * 第 2+ 轮顶着自提问起的累计秒数出现，「仍在等待」20s 档失真）；
+   * **凡置 `streaming: false` 的 set 必须同批清 null**（纪律同 D9「不清会显示假事实」）。
    */
   pendingSince: number | null;
   /**
@@ -128,7 +137,7 @@ function ensureLive(): void {
       outageNoticeId = useNoticeStore.getState().notify({ tone: "danger", text: message });
       // 断线后收不到后续事件，若仍在 streaming 会永久卡在「停止生成」——主动复位，
       // 用户可继续发送（重连成功后新消息照常回流）。
-      useChatStore.setState({ streaming: false, pendingSince: null });
+      useChatStore.setState({ streaming: false, awaitingModel: false, pendingSince: null });
     },
     onConnectionRestored: () => {
       if (outageNoticeId) {
@@ -164,13 +173,28 @@ function ensureLive(): void {
       void useChatStore.getState().refreshSessions();
       return;
     }
+    /*
+     * 等待占位按轮驱动（2026-09-28 用户裁决，task-waiting-row-turn-start.md F1/F2）：
+     * - awaitingModel（下一轮已请求、尚未开流）由 reducer 维护，此处同批镜像下发；
+     * - 秒表锚点 = turn_start（请求发出时刻）：上午版锚在 message_start 会把 TTFB
+     *   从计时里扣掉；turn_start 在工具全部结束后、HTTP 请求前必发（agent-loop.ts:205），
+     *   占位行据此覆盖整个空窗。仅 pendingSince 非空时重写（整轮进行中恒非空），
+     *   断线复位后不凭空复活占位；与 messages/streaming/awaitingModel 合并同批
+     *   setState，避免中间帧。mock 单轮不经过本订阅，不受影响。
+     */
+    const isTurnStart = event.type === "turn_start";
     liveDraft = applyEvent(liveDraft, event);
-    useChatStore.setState({ messages: liveDraft.messages, streaming: liveDraft.streaming });
+    useChatStore.setState((state) => ({
+      messages: liveDraft.messages,
+      streaming: liveDraft.streaming,
+      awaitingModel: liveDraft.awaitingModel,
+      ...(isTurnStart && state.pendingSince !== null ? { pendingSince: Date.now() } : {}),
+    }));
     // C4：一轮对话结束后刷新会话清单 —— Pi 是在首条 entry 追加时才落盘会话文件，
     // 所以新会话只有跑完一轮才会出现在 Sidebar（不刷新则列表永远是启动那一刻的快照）。
     // 等待占位同点收尾（agent_settled 后不会再有等待期）。
     if (event.type === "agent_settled") {
-      useChatStore.setState({ pendingSince: null });
+      useChatStore.setState({ pendingSince: null, awaitingModel: false });
       // 处理详情折叠（task-process-collapse.md）：整轮完结 → 重算全部可折叠轮次键
       //（整体替换；liveDraft 此刻已含终态消息，liveSessionId 即本轮所属会话）
       useChatStore.setState((state) => ({
@@ -245,6 +269,7 @@ function mkText(content: string, streaming: boolean): TextBlock {
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: INITIAL_SESSION.messages,
   streaming: false,
+  awaitingModel: false,
   pendingSince: null,
   settledTurnKeys: new Set<string>(),
   tokenUsage: INITIAL_TOKEN_USAGE,
@@ -295,7 +320,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       void transport.sendMessage(trimmed).catch((e) => {
         console.error("[live] sendMessage 失败:", e);
         notifyFailure("消息发送失败", e);
-        useChatStore.setState({ streaming: false, pendingSince: null });
+        useChatStore.setState({ streaming: false, awaitingModel: false, pendingSince: null });
       });
       return;
     }
@@ -345,7 +370,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const finalMessages = get().messages.map((m) =>
           m.id === assistantId ? { ...m, blocks: [mkText(reply, false)], usage } : m,
         );
-        set({ streaming: false, pendingSince: null, messages: finalMessages, tokenUsage: computeTokens(finalMessages) });
+        set({ streaming: false, awaitingModel: false, pendingSince: null, messages: finalMessages, tokenUsage: computeTokens(finalMessages) });
         activeStream = null;
         streamMsgId = null;
       },
@@ -357,7 +382,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (transport) {
       // 真实链路：中止当前会话（已产出内容定格），streaming 立即解除
       void transport.abort().catch(() => {});
-      set({ streaming: false, pendingSince: null });
+      set({ streaming: false, awaitingModel: false, pendingSince: null });
       return;
     }
     if (activeStream) {
@@ -377,7 +402,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
           : m,
       );
-      return { streaming: false, pendingSince: null, messages, tokenUsage: computeTokens(messages) };
+      return { streaming: false, awaitingModel: false, pendingSince: null, messages, tokenUsage: computeTokens(messages) };
     });
   },
 
@@ -470,6 +495,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     // 点开历史会话即离开草稿态（否则草稿的空消息区会顶掉载入的内容）
     set((state) => ({
       streaming: false,
+      awaitingModel: false,
       pendingSince: null,
       liveSessionId: id,
       sessionTitle: title ?? state.sessionTitle,
@@ -509,6 +535,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: INITIAL_SESSION.messages,
       streaming: false,
+      awaitingModel: false,
       pendingSince: null,
       // 回到 mock 初始会话：live 标记必须一并清空（mock 消息永不折叠，D9 同源纪律）
       settledTurnKeys: new Set(),
@@ -540,6 +567,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({
       messages: [],
       streaming: false,
+      awaitingModel: false,
       pendingSince: null,
       // 草稿态没有历史轮次：清空 live 标记（同 tokenUsage 清零的 D9 纪律）
       settledTurnKeys: new Set(),

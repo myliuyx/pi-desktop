@@ -37,6 +37,12 @@ export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   messages: Message[];
   /** 助手是否正在流式输出（与 pendingSince 一起决定是否渲染等待占位行，§2.2） */
   streaming?: boolean;
+  /**
+   * 下一轮模型响应「已请求、尚未开始流式」（task-waiting-row-turn-start.md F1）：
+   * 多轮 agent loop 的轮间空窗（上一轮已完结、下一轮请求已发出）占位行据此照常显示 ——
+   * 仅 live 链路为 true，mock 恒 false（缺省值同）。
+   */
+  awaitingModel?: boolean;
   /** 本次请求的发起时刻（epoch ms）；null 表示非等待期。占位行的计时起点。 */
   pendingSince?: number | null;
   /**
@@ -113,6 +119,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   {
     messages,
     streaming = false,
+    awaitingModel = false,
     pendingSince = null,
     settledTurnKeys = EMPTY_SETTLED_KEYS,
     sessionScope = "draft",
@@ -126,8 +133,13 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const atBottomRef = useRef(true);
 
   /*
-   * F1 · 等待占位行（§2.2）：streaming 中、且还没有任何可见内容（最后一条是 user，
-   * 或最后的 assistant 尚无可见块）时，在虚拟列表末尾追加一行「等待模型回复」。
+   * F1 · 等待占位行（§2.2 + task-waiting-row-turn-start.md）：streaming 中且 pendingSince
+   * 非空时，三种形态在虚拟列表末尾追加一行「等待模型回复」——
+   * ① awaitingModel：第 2+ 轮的轮间空窗（上一轮已完结、下一轮请求已发出，实测 TTFB
+   *    6.5s–39s+，turn_start 置位 → 本轮 assistant message_start 清除）；
+   * ② 最后一条是 user（首轮请求已发出、回复未至）；
+   * ③ 最后一条是尚无可见内容的 assistant（message_start 已到、首字未到 —— 含 awaitingModel
+   *    清除后与空壳隐藏衔接的短暂窗口，视觉不跳变）。
    * 占位作为普通虚拟行参与 measureElement / 自动滚底，零新增滚动逻辑；
    * 首个可见块（text / thinking / tool_call 任一）到达后条件自然失效，由真实内容顶替。
    */
@@ -136,7 +148,8 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     streaming &&
     pendingSince !== null &&
     lastMessage !== undefined &&
-    (lastMessage.role === "user" ||
+    (awaitingModel ||
+      lastMessage.role === "user" ||
       (lastMessage.role === "assistant" && !hasRenderableContent(lastMessage.blocks)));
 
   /*

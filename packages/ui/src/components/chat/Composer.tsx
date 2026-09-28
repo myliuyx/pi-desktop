@@ -46,6 +46,10 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
   const [value, setValue] = useState("");
 
   const streaming = useChatStore((state) => state.streaming);
+  // 「停止生成」全程可点（task-waiting-row-turn-start.md F4）：streaming 是消息级
+  // （每条 assistant message_end 即 false），awaitingModel 补上工具执行期与 TTFB 空窗
+  // —— 整轮未结束按钮就不退回「发送」。mock 单轮恒 false，行为不变。
+  const awaitingModel = useChatStore((state) => state.awaitingModel);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const abortStream = useChatStore((state) => state.abortStream);
 
@@ -62,11 +66,12 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     el.style.height = `${next}px`;
   }, [value]);
 
-  // 停止态：流式进行中按钮可点（中止）；非流式且空：禁用（验收要求无内容禁用）
-  const disabled = !streaming && value.trim().length === 0;
+  // 停止态：整轮进行中（流式或轮间等待，F4）按钮可点（中止）；空闲且空：禁用（验收要求无内容禁用）
+  const busy = streaming || awaitingModel;
+  const disabled = !busy && value.trim().length === 0;
 
   function handleSend() {
-    if (streaming) {
+    if (busy) {
       abortStream();
       return;
     }
@@ -140,8 +145,8 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
       <button
         type="button"
         data-testid="composer-send"
-        aria-label={streaming ? "停止生成" : "发送"}
-        title={streaming ? "停止生成" : "发送"}
+        aria-label={busy ? "停止生成" : "发送"}
+        title={busy ? "停止生成" : "发送"}
         disabled={disabled}
         onClick={handleSend}
         className={cn(
@@ -157,7 +162,7 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
           bottom: COMPOSER_SEND_INSET,
         }}
       >
-        {streaming ? (
+        {busy ? (
           <Icon icon={Square} size={14} className="text-accent" />
         ) : (
           /* Send 字形质心偏右上（8x 像素实测 (+1.05, -1.17)px @14px），按半量反向

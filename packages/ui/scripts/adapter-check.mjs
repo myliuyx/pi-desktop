@@ -264,6 +264,43 @@ function blocksOfType(state, type) {
 	check("[thinking] 消息结束后思考段 streaming=false", ended.streaming, false);
 }
 
+/* -------------------------------------------------------------------------
+ * 十、等待占位全轮覆盖（task-waiting-row-turn-start.md F1/F3）：
+ *     awaitingModel 的置位/清除时序 —— 轮间空窗期占位行与停止键的数据源。
+ *     关键时序：turn_start 在工具全部跑完之后才发 → 工具执行期必须保持 false。
+ * ---------------------------------------------------------------------- */
+{
+	// 首轮：agent_start 后紧跟 turn_start → 置位（占位行自此覆盖请求发出到首字的 TTFB）
+	let s = createDraft();
+	s = applyEvent(s, { type: "agent_start" });
+	s = applyEvent(s, { type: "turn_start" });
+	check("[awaiting] turn_start 置位", s.awaitingModel, true);
+
+	// assistant message_start（响应流已打开）→ 清除；空壳期占位行由「无可见内容」分支无缝接手
+	s = applyEvent(s, { type: "message_start", message: { role: "assistant", content: [] } });
+	check("[awaiting] assistant message_start 清除", s.awaitingModel, false);
+
+	// 工具执行期（assistant message_end → tool_execution_* → toolResult message_start/end）保持 false
+	s = applyEvent(s, {
+		type: "message_end",
+		message: { role: "assistant", content: [{ type: "toolCall", id: "t1", name: "bash", arguments: {} }] },
+	});
+	s = applyEvent(s, { type: "tool_execution_start", toolCallId: "t1", toolName: "bash", args: { command: "ls" } });
+	s = applyEvent(s, { type: "message_start", message: { role: "toolResult", toolCallId: "t1", content: [] } });
+	s = applyEvent(s, { type: "message_end", message: { role: "toolResult", toolCallId: "t1", content: [{ type: "text", text: "ok" }] } });
+	check("[awaiting] 工具执行期保持 false（不误显等待行）", s.awaitingModel, false);
+
+	// turn_end 是轮次结束标记，不改状态；下一轮 turn_start 再置位
+	s = applyEvent(s, { type: "turn_end" });
+	check("[awaiting] turn_end 不改变状态", s.awaitingModel, false);
+	s = applyEvent(s, { type: "turn_start" });
+	check("[awaiting] 第 2 轮 turn_start 再置位", s.awaitingModel, true);
+
+	// 整轮终态：与 streaming / pendingSince 收口同点清除
+	s = applyEvent(s, { type: "agent_settled" });
+	check("[awaiting] agent_settled 清除", s.awaitingModel, false);
+}
+
 /* ---------------------------------------------------------------------- */
 if (fails.length > 0) {
 	console.error(`\n适配层断言失败 ${fails.length} 项：`);

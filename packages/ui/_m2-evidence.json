@@ -1,6 +1,6 @@
 {
   "origin": "http://127.0.0.1:5182",
-  "startedAt": "2026-09-27T17:33:35.943Z",
+  "startedAt": "2026-09-28T08:00:31.170Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
@@ -394,7 +394,7 @@
     {
       "name": "G7_可聚焦元素",
       "value": {
-        "focusableCount": 77,
+        "focusableCount": 80,
         "noLabelCount": 0,
         "noLabelSamples": [],
         "inputLabelled": true

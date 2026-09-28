@@ -1,17 +1,32 @@
 {
   "origin": "http://127.0.0.1:5180",
-  "startedAt": "2026-09-25T04:16:05.869Z",
+  "startedAt": "2026-09-28T08:01:58.284Z",
   "steps": [
     {
       "name": "G1_G2_G5_静态颜色检查",
       "value": {
-        "扫描文件数": 82,
+        "扫描文件数": 91,
         "hex在tokens之外": [],
         "dark变体命中": [],
-        "内置调色板命中": [],
+        "内置调色板命中": [
+          {
+            "file": "components/shell/PreviewPane.tsx",
+            "line": 518,
+            "hits": [
+              "bg-white"
+            ]
+          },
+          {
+            "file": "components/shell/PreviewPane.tsx",
+            "line": 520,
+            "hits": [
+              "bg-white"
+            ]
+          }
+        ],
         "G1_hex仅tokens": true,
         "G2_无dark变体": true,
-        "G5_无内置调色板": true
+        "G5_无内置调色板": false
       }
     },
     {
@@ -235,11 +250,14 @@
     },
     {
       "name": "G5 不用 Tailwind 内置调色板",
-      "pass": true,
-      "failed": [],
+      "pass": false,
+      "failed": [
+        "通过",
+        "命中数为0"
+      ],
       "detail": {
-        "通过": true,
-        "命中数为0": true
+        "通过": false,
+        "命中数为0": false
       }
     },
     {
@@ -383,8 +401,10 @@
   ],
   "summary": {
     "assertions": 15,
-    "passed": 15,
-    "failed": 0,
-    "failedNames": []
+    "passed": 14,
+    "failed": 1,
+    "failedNames": [
+      "G5 不用 Tailwind 内置调色板"
+    ]
   }
 }
