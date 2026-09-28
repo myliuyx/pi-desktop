@@ -18,7 +18,7 @@
  * core.json → /health 探活 → 整树杀干净 → 无残留进程才算过，对应判据 B3）。
  */
 
-import { app, BrowserWindow, ipcMain, Menu, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, dialog, shell } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
@@ -288,6 +288,17 @@ function createWindow(url: string): void {
 		},
 	});
 	registerWindowIpc(mainWindow);
+	/*
+	 * 导航守卫（2026-09-28 review P2）：agent 输出的链接是不可信内容，Markdown 渲染的
+	 * 外链是 target="_blank" —— 触发的 window.open 一律拒绝弹窗，http/https 转交系统默认
+	 * 浏览器（纯 deny 会把外链变成无声死链），其他协议静默拒绝。will-navigate 兜底主窗口
+	 * 永不离站：hash 路由属 in-page 导航不触发该事件（electron 44 d.ts 口径），SPA 不受影响。
+	 */
+	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+		if (url.startsWith("http://") || url.startsWith("https://")) void shell.openExternal(url);
+		return { action: "deny" };
+	});
+	mainWindow.webContents.on("will-navigate", (e) => e.preventDefault());
 	mainWindow.loadURL(url);
 	mainWindow.on("closed", () => {
 		mainWindow = null;
