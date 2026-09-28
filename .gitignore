@@ -20,6 +20,9 @@ packages/ui/run/
 packages/ui/_*.png
 # 各探针自起 core 的 stderr 日志（probe:settings:live / probe:onboarding …）
 packages/ui/_*-core.log
+# 探针/验收证据 JSON（同上可复跑产物，不入库；evidence 不在结尾的形态如
+# _probe-settings-plugins-evidence-live.json 也要盖住，故用 _*evidence*.json）
+packages/ui/_*evidence*.json
 
 # 截图缓存（可随时重新生成，不入库）
 .workbuddy/
