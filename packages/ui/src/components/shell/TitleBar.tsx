@@ -33,6 +33,8 @@ const MAC_DOT_META = [
  */
 interface WindowActions {
   maximized: boolean;
+  /** 桌面 live = `window.piDesktop` 存在；web/mock 为 false，此时控件为惰性装饰件（不可聚焦、不进无障碍树） */
+  available: boolean;
   minimize: () => void;
   toggleMaximize: () => void;
   close: () => void;
@@ -44,12 +46,14 @@ function useWindowActions(): WindowActions {
     const api = window.piDesktop;
     if (!api) return;
     let unsubscribe: (() => void) | undefined;
-    void api.isMaximized().then(setMaximized);
+    api.isMaximized().then(setMaximized).catch(() => {});
     unsubscribe = api.onMaximizeChange(setMaximized);
     return () => unsubscribe?.();
   }, []);
   return {
     maximized,
+    // 与 effect 的守卫同源：window.piDesktop 存在即为桌面 live，否则 web/mock 退化为惰性装饰件
+    available: Boolean(window.piDesktop),
     minimize: () => window.piDesktop?.minimize(),
     toggleMaximize: () => window.piDesktop?.toggleMaximize(),
     close: () => window.piDesktop?.close(),
@@ -58,7 +62,7 @@ function useWindowActions(): WindowActions {
 
 function MacTrafficLights({ actions }: { actions: WindowActions }) {
   return (
-    <div className="flex shrink-0 items-center gap-2">
+    <div className="flex shrink-0 items-center gap-2" aria-hidden={actions.available ? undefined : true}>
       {MAC_DOT_CLASS.map((dotClass, i) => {
         const meta = MAC_DOT_META[i];
         const label = meta.action === "maximize" && actions.maximized ? "还原" : meta.label;
@@ -69,6 +73,7 @@ function MacTrafficLights({ actions }: { actions: WindowActions }) {
             aria-label={label}
             title={label}
             data-testid={`titlebar-mac-${meta.action}`}
+            tabIndex={actions.available ? undefined : -1}
             onClick={
               meta.action === "close"
                 ? actions.close
@@ -133,7 +138,7 @@ function WindowControls({ os, actions }: { os: OsName; actions: WindowActions })
   if (os === "mac") return <MacTrafficLights actions={actions} />;
 
   return (
-    <div className="flex shrink-0 items-center">
+    <div className="flex shrink-0 items-center" aria-hidden={actions.available ? undefined : true}>
       {WIN_CONTROLS.map(({ shape, label, testId }) => {
         const text = shape === "maximize" && actions.maximized ? "还原" : label;
         return (
@@ -143,6 +148,7 @@ function WindowControls({ os, actions }: { os: OsName; actions: WindowActions })
             aria-label={text}
             title={text}
             data-testid={testId}
+            tabIndex={actions.available ? undefined : -1}
             onClick={
               shape === "minimize"
                 ? actions.minimize
