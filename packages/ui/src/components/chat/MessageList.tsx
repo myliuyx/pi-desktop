@@ -351,6 +351,17 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
             // 收起轮次的中间行整行隐藏：包装保留（testid 与 data-total-count 探针契约不变），
             // 内边距归零避免叠出一串空隙
             const rowHidden = turn !== undefined && turn.collapsed && !turn.isTail;
+            // 空壳整行隐藏（2026-09-28 用户裁决·渲染层方向A）：message_start 即建壳
+            // （模型名/时间戳先挂上），首个可见块到达前它只会顶着占位行冒充「正在回复」——
+            // 内容不渲染，占位行直接贴上一条消息，模型标签随首个可见块一起现身。
+            // 数据层不动（pending 判定 / turnIndex 照旧）；包装保留（testid 与
+            // data-total-count 探针契约不变），内边距归零（同 rowHidden 先例）；
+            // 折叠行宿主豁免（兜底：空壳若为可折叠轮首/尾条，不能吞掉切换行）。
+            const shellHidden =
+              !isPendingRow &&
+              !(turn?.hostsToggle ?? false) &&
+              message.role === "assistant" &&
+              !hasRenderableContent(message.blocks);
             return (
               <div
                 key={virtualRow.key}
@@ -370,7 +381,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
                   width: "100%",
                   transform: `translateY(${virtualRow.start}px)`,
                   // 消息间距放进测量高度，避免绝对定位下的重叠（隐藏行除外，见上）
-                  paddingBottom: rowHidden ? 0 : MESSAGE_GAP,
+                  paddingBottom: rowHidden || shellHidden ? 0 : MESSAGE_GAP,
                 }}
               >
                 {isPendingRow ? (
@@ -423,7 +434,8 @@ const SPEED_TONE_CLASS: Record<SpeedTone, string> = {
  * title 悬停给原始事实（全仓惯例）：请求/实际 id 分叉时写「请求 X，实际响应 Y」，
  * 不用展示名冒充事实。渲染条件：assistant 且消息带模型事实 —— user 消息、
  * 压缩摘要 / custom_message 映射出的消息、旧会话文件都没有 model → 整行不渲染
- * （同 usage 诚实展示纪律）。
+ * （同 usage 诚实展示纪律）。另：无可见内容的空壳消息在 MessageList 行级整行隐藏
+ * （2026-09-28 裁决·方向A）—— 标签的实际现身时机与首个可见块一致，等待期不冒充「正在回复」。
  */
 function ModelLabelRow({ message }: { message: Message }) {
   const models = useModelsStore((s) => s.payload);
@@ -519,6 +531,10 @@ function MessageItem({ message, turn }: { message: Message; turn?: MessageTurnIn
    * 尾条负责渲染折叠行 + 最终文本（见下）。
    */
   if (turn?.collapsed && !turn.isTail) return null;
+  // 空壳（无任何可见内容的 assistant）不渲染 —— 与 MessageList 的 shellHidden 同一判定、
+  // 两处各写一份（rowHidden 先例同款）；模型标签/时间戳随首个可见块一起出现（2026-09-28 裁决）
+  if (message.role === "assistant" && !hasRenderableContent(message.blocks) && !(turn?.hostsToggle ?? false))
+    return null;
   /*
    * 视图层合并（2026-09-26 用户裁决）：live 的 bash 执行此前渲染两块 ——
    * tool_call 行（bash + 命令预览）+「终端」卡；现在同一条消息内按 toolCallId

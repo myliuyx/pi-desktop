@@ -131,6 +131,9 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 		case "message_start": {
 			if (!isRenderable(event.message)) return state;
 			// 实测：一次 prompt 可产生多条 assistant 消息（多 turn），所以这里要能**追加**
+			// 壳在此刻先追加（模型名/时间戳先挂上）；渲染层把「首个可见块之前」的空壳整行
+			// 藏掉（2026-09-28 裁决·方向A，见 MessageList shellHidden）—— 数据层照旧，
+			// pending 判定 / currentAssistantId 挂载 / 事件回放断言均不受影响
 			const id = `a-${state.messages.length}`;
 			return {
 				messages: [
