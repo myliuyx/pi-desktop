@@ -746,6 +746,14 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			}
 		}
 
+		// API_ROUTES 声明过的路径落到这里 = 声明了却没匹配上（漏实现 / core 落后于前端），
+		// 明确 404，绝不回 SPA HTML——否则 404 伪装成「HTTP 200」，前端 res.json() 解析失败
+		// 只会报出自相矛盾的错误（2026-09-28 技能清单事故的根因路径在此关闭）。
+		// 未声明路径的 GET 仍走 SPA 回退（应用用 hash 路由，单页即可）。
+		if (API_ROUTES.has(urlPath)) {
+			return json(404, { error: `端点未实现: ${urlPath}（core 版本可能落后于前端，请重新构建）` });
+		}
+
 		// 静态资源（SPA）：仅处理 GET，其余返回 404
 		if (req.method === "GET") {
 			return serveStatic(res, urlPath);

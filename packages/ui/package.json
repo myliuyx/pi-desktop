@@ -38,6 +38,7 @@
     "probe:new-session": "node scripts/probe-new-session.mjs",
     "probe:new-session:live": "node scripts/probe-new-session.mjs --live",
     "probe:process-collapse": "node scripts/probe-process-collapse.mjs",
+    "probe:spa-fallback": "node scripts/probe-spa-fallback.mjs",
     "shots:m1": "node scripts/m1-shots.mjs"
   },
   "dependencies": {

@@ -297,10 +297,17 @@ export class HttpAgentTransport implements AgentTransport {
     const url = `${this.cfg.baseUrl}/events`;
     try {
       const res = await fetch(url, { headers: this.authHeader(), signal: ctrl.signal });
-      if (!res.ok || !res.body) {
-        console.error("[live] SSE 连接失败:", res.status);
+      // 200 却非 event-stream = 旧 core 把 /events 落进 SPA 回退（200 HTML）：照读不报错的
+      // 话表现为「连上了但永远没事件」的死等，这里与断线同口径处理（触发提示与重连）
+      const sseCt = res.headers.get("content-type") ?? "";
+      if (!res.ok || !res.body || !sseCt.includes("text/event-stream")) {
+        console.error("[live] SSE 连接失败:", res.status, sseCt);
         this.esAbort = null;
-        this.notifyOutage(`与 core 的事件流连接失败（HTTP ${res.status}），正在重连…`);
+        this.notifyOutage(
+          res.ok && !sseCt.includes("text/event-stream")
+            ? "与 core 的事件流连接异常（响应非 SSE 流，core 版本可能落后于前端），正在重连…"
+            : `与 core 的事件流连接失败（HTTP ${res.status}），正在重连…`,
+        );
         this.scheduleReconnect();
         return;
       }
@@ -354,6 +361,7 @@ export class HttpAgentTransport implements AgentTransport {
   private async get<T>(path: string): Promise<T> {
     const res = await fetch(`${this.cfg.baseUrl}${path}`, { headers: this.authHeader() });
     if (!res.ok) throw new Error(`core ${path} -> ${res.status}`);
+    this.assertJson(res, `core ${path}`);
     return (await res.json()) as T;
   }
 
@@ -364,6 +372,7 @@ export class HttpAgentTransport implements AgentTransport {
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`core ${path} -> ${res.status}`);
+    this.assertJson(res, `core ${path}`);
     try {
       return (await res.json()) as T;
     } catch {
@@ -378,6 +387,7 @@ export class HttpAgentTransport implements AgentTransport {
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`core ${path} -> ${res.status}`);
+    this.assertJson(res, `core ${path}`);
     try {
       return (await res.json()) as T;
     } catch {
@@ -400,6 +410,20 @@ export class HttpAgentTransport implements AgentTransport {
       throw new Error(String((body as { error: unknown }).error));
     }
     return body as T;
+  }
+
+  /**
+   * SPA 回退伪装识别点（2026-09-28 review P1 第二层纵深）：core 对全部数据端点（含错误
+   * 响应）都回 application/json，唯独「API_ROUTES 声明了却没实现」的请求在旧 core 上会
+   * 落进 SPA 回退回 200 HTML —— 此时 `!res.ok` 拦不住（状态码真是 200），res.json() 抛
+   * SyntaxError 又把根因埋掉（9-28 技能清单事故「HTTP 200」文案的来源）。content-type
+   * 由服务端写死、前端伪造不了，故在 res.json() 之前最先暴露真相。
+   */
+  private assertJson(res: Response, label: string): void {
+    const ct = res.headers.get("content-type") ?? "";
+    if (!ct.includes("application/json")) {
+      throw new Error(`${label}（响应非 JSON，core 版本可能落后于前端）`);
+    }
   }
 
   sendMessage(text: string): Promise<void> {
@@ -464,6 +488,7 @@ export class HttpAgentTransport implements AgentTransport {
       headers: { "Content-Type": "application/json", ...this.authHeader() },
       body: JSON.stringify(dir === null ? {} : { dir }),
     });
+    this.assertJson(res, "切换工作目录失败");
     const body = (await res.json().catch(() => null)) as {
       ok?: boolean;
       cwd?: unknown;
@@ -495,6 +520,7 @@ export class HttpAgentTransport implements AgentTransport {
     if (opts?.includeFiles) parts.push("include=files");
     const query = parts.length > 0 ? `?${parts.join("&")}` : "";
     const res = await fetch(`${this.cfg.baseUrl}/fs/list${query}`, { headers: this.authHeader() });
+    this.assertJson(res, "读取目录失败");
     const body = (await res.json().catch(() => null)) as {
       ok?: boolean;
       path?: unknown;
@@ -533,6 +559,7 @@ export class HttpAgentTransport implements AgentTransport {
     const res = await fetch(`${this.cfg.baseUrl}/fs/read?path=${encodeURIComponent(path)}`, {
       headers: this.authHeader(),
     });
+    this.assertJson(res, "读取文件失败");
     const body = (await res.json().catch(() => null)) as {
       ok?: boolean;
       path?: unknown;
@@ -618,6 +645,7 @@ export class HttpAgentTransport implements AgentTransport {
    */
   async listSkills(): Promise<SkillsPayload> {
     const res = await fetch(`${this.cfg.baseUrl}/skills`, { headers: this.authHeader() });
+    this.assertJson(res, "读取技能清单失败");
     const body = (await res.json().catch(() => null)) as
       | (SkillsPayload & { ok?: unknown; error?: unknown })
       | null;
@@ -638,6 +666,7 @@ export class HttpAgentTransport implements AgentTransport {
       headers: { "Content-Type": "application/json", ...this.authHeader() },
       body: JSON.stringify(req),
     });
+    this.assertJson(res, "切换技能失败");
     const body = (await res.json().catch(() => null)) as {
       ok?: unknown;
       skills?: SkillsPayload;
@@ -654,6 +683,7 @@ export class HttpAgentTransport implements AgentTransport {
 
   /** C8 通用解包：`{ ok:true, ...payload }` → payload；其余（含 core `{ error }` 原文）抛错 */
   private async unwrapPackages<T>(res: Response, fallbackLabel: string): Promise<T> {
+    this.assertJson(res, fallbackLabel);
     const body = (await res.json().catch(() => null)) as (T & { error?: unknown }) | null;
     if (!res.ok || (body as { ok?: unknown } | null)?.ok !== true) {
       const detail = typeof body?.error === "string" && body.error ? body.error : null;
@@ -673,6 +703,7 @@ export class HttpAgentTransport implements AgentTransport {
 
   async listPackages(): Promise<PackagesPayload> {
     const res = await fetch(`${this.cfg.baseUrl}/packages`, { headers: this.authHeader() });
+    this.assertJson(res, "读取插件清单失败");
     const body = (await res.json().catch(() => null)) as
       | (PackagesPayload & { ok?: unknown; error?: unknown })
       | null;
