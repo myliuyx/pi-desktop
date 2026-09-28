@@ -18,7 +18,7 @@
  * core.json → /health 探活 → 整树杀干净 → 无残留进程才算过，对应判据 B3）。
  */
 
-import { app, BrowserWindow, Menu, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, dialog } from "electron";
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
@@ -43,6 +43,8 @@ const uiDistDir = app.isPackaged
 	? path.join(process.resourcesPath, "ui-dist")
 	: path.join(__dirname, "..", "..", "ui", "dist");
 const runDir = path.join(app.getPath("userData"), "run");
+/** 预加载脚本产物路径（tsc 与 main.js 同目录产出；sandbox 下暴露窗口控制 API） */
+const preloadEntry = path.join(__dirname, "preload.js");
 
 let core: ChildProcess | null = null;
 let quitting = false;
@@ -208,23 +210,68 @@ async function runSmoke(): Promise<void> {
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow(url: string): void {
+	/*
+	 * 无边框（frame:false）：原生标题栏整体移除。
+	 *
+	 * 它显示 document.title（index.html 的 "Atlas Agent · 设计系统基础"）且跟随**系统**
+	 * 主题配色 —— 应用内切深色后顶部会剩一条白色标题栏（2026-09-28 用户反馈；
+	 * web 端无 OS chrome 所以没这个问题）。窗口 chrome 改由 UI 自绘标题栏
+	 * （packages/ui 的 TitleBar）承担：拖拽走 -webkit-app-region，窗口控件经
+	 * preload 的 window.piDesktop 走 IPC 回到下面的 registerWindowIpc。
+	 */
+	if (!fs.existsSync(preloadEntry)) {
+		failLoudly(
+			"Pi-Desktop",
+			`找不到预加载脚本：\n${preloadEntry}\n\n请先在 packages/desktop 下执行 npm run build`,
+		);
+		app.exit(1);
+		return;
+	}
 	mainWindow = new BrowserWindow({
 		width: 1360,
 		height: 860,
 		title: "Pi-Desktop",
 		autoHideMenuBar: true,
 		backgroundColor: "#111114",
+		frame: false,
 		webPreferences: {
 			contextIsolation: true,
 			nodeIntegration: false,
 			sandbox: true,
+			preload: preloadEntry,
 		},
 	});
+	registerWindowIpc(mainWindow);
 	mainWindow.loadURL(url);
 	mainWindow.on("closed", () => {
 		mainWindow = null;
 	});
 }
+
+/**
+ * 窗口控制 IPC —— 渲染层（TitleBar 的窗口控件）经 preload 调到这里。
+ *
+ * 单窗口应用，随 createWindow 注册一次（IPC handler 不重复注册）；
+ * win 由闭包持有，不再走 mainWindow 判空。maximize/unmaximize 事件回送
+ * 渲染层，供最大化按钮在「最大化 / 还原」之间切换图标与标签。
+ */
+function registerWindowIpc(win: BrowserWindow): void {
+	ipcMain.on("window:minimize", () => win.minimize());
+	ipcMain.on("window:toggle-maximize", () => {
+		if (win.isMaximized()) win.unmaximize();
+		else win.maximize();
+	});
+	ipcMain.on("window:close", () => win.close());
+	ipcMain.handle("window:is-maximized", () => win.isMaximized());
+	const notifyMaximizeChange = () => {
+		if (!win.isDestroyed()) win.webContents.send("window:maximize-change", win.isMaximized());
+	};
+	win.on("maximize", notifyMaximizeChange);
+	win.on("unmaximize", notifyMaximizeChange);
+}
+
+/** 窗口壳形态随平台（UI TitleBar 的 OsName）：darwin→mac 交通灯，win32→win，其余→linux */
+const shellOs = process.platform === "darwin" ? "mac" : process.platform === "win32" ? "win" : "linux";
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -253,7 +300,7 @@ if (!gotLock) {
 				app.exit(1);
 				return;
 			}
-			createWindow(`http://127.0.0.1:${info.port}/?live=1`);
+			createWindow(`http://127.0.0.1:${info.port}/?live=1&os=${shellOs}`);
 		});
 	});
 
