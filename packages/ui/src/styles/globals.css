@@ -48,6 +48,7 @@
   --color-window-close: var(--window-close);
   --color-window-minimize: var(--window-minimize);
   --color-window-maximize: var(--window-maximize);
+  --color-window-glyph: var(--window-glyph);
 
   /* 圆角 */
   --radius-sm: var(--radius-sm);
@@ -294,4 +295,20 @@
   .thinking-dot {
     animation: thinking-pulse 1.1s ease-in-out infinite;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * 窗口拖拽区（无边框桌面壳专用，2026-09-28）
+ *
+ * desktop 主进程 frame:false 后，窗口移动 / 双击最大化由 UI 标题栏承担：
+ * 标题栏根节点标 drag 使整条可拖；内部所有可交互元素必须标 no-drag，
+ * 否则点击会被拖拽语义吞掉（app-region 会被子元素继承）。
+ * web / mock 形态没有原生窗口可拖，这两个类零效果、零影响。
+ * ------------------------------------------------------------------------- */
+@utility app-region-drag {
+  -webkit-app-region: drag;
+}
+
+@utility app-region-no-drag {
+  -webkit-app-region: no-drag;
 }

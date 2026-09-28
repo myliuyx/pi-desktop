@@ -19,6 +19,10 @@
   --window-minimize: #febc2e;
   --window-maximize: #28c840;
 
+  /* 交通灯 hover 浮出符号的固定深色：圆点是固定品牌色（不随主题派生），
+     其上的符号同理必须固定 —— 用主题文字色会在浅色模式下变成白字看不清。 */
+  --window-glyph: rgba(0, 0, 0, 0.55);
+
   /* 背景 */
   --bg-app: #ffffff; /* 页面底 */
   --bg-surface: #fcfcfd; /* 面板、卡片 */

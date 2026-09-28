@@ -9,6 +9,8 @@ import { ShellsScreen } from "@/screens/ShellsScreen";
 import { createStressSession, EMPTY_SESSION } from "@/mock/sessions";
 import { useChatStore } from "@/store/chat-store";
 import { useUiStore, type PreviewTab } from "@/store/ui-store";
+import { isOsName } from "@/mock/shells";
+import type { OsName } from "@/components/shell/TitleBar";
 
 /**
  * 屏幕路由。
@@ -64,6 +66,20 @@ function readScreen(): ScreenId {
 }
 
 /**
+ * 桌面壳的窗口形态（`?os=mac|win|linux`，desktop 主进程按 process.platform 拼进加载 URL）。
+ *
+ * 无边框化（frame:false）后，标题栏的窗口控件按**真实平台**渲染：mac 交通灯 /
+ * win·linux 三键。web 与 mock 形态没有这个参数，恒为缺省 "mac"（设计稿默认壳，
+ * ShellPreview / 06 屏不受影响）。与 ShellsScreen 读的 hash `?os=` 是两套互不
+ * 干扰的机制（一个走 location.search，一个走 hash 查询串）。
+ */
+function readShellOs(): OsName {
+  if (typeof window === "undefined") return "mac";
+  const raw = new URLSearchParams(window.location.search).get("os");
+  return isOsName(raw) ? raw : "mac";
+}
+
+/**
  * 压力测试入口（验收 2-2 用）：`?stress=600` 载入 600 条消息的会话。
  *
  * 为什么做成正式能力而不是临时调试代码：验收 2-2 要求「灌入 500+ 条消息后
@@ -109,6 +125,8 @@ function applyEmptyParam(): void {
 
 export default function App() {
   const [screen, setScreen] = useState<ScreenId>(readScreen);
+  // 窗口壳形态：桌面端由主进程 ?os= 注入，web/mock 恒为 mac（与 theme 同理，加载即确定）
+  const [shellOs] = useState<OsName>(readShellOs);
 
   useEffect(() => {
     applyStressParam();
@@ -136,10 +154,10 @@ export default function App() {
   let content: ReactNode;
   switch (screen) {
     case "run-detail":
-      content = <RunDetailScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
+      content = <RunDetailScreen os={shellOs} onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
       break;
     case "skills":
-      content = <SkillsScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
+      content = <SkillsScreen os={shellOs} onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
       break;
     case "tokens":
       content = <TokensScreen onBackToWorkbench={goWorkbench} />;
@@ -148,7 +166,7 @@ export default function App() {
       content = <ShellsScreen onBackToWorkbench={goWorkbench} onOpenSettings={goSettings} />;
       break;
     default:
-      content = <WorkbenchScreen onOpenSettings={goSettings} />;
+      content = <WorkbenchScreen os={shellOs} onOpenSettings={goSettings} />;
   }
 
   return (
