@@ -72,6 +72,52 @@ function failLoudly(title: string, detail: string): void {
 	dialog.showErrorBox(title, detail);
 }
 
+/** 递归取目录下指定扩展名文件的最新 mtime；目录不存在返回 0（调用方按「无从比对」放行） */
+function newestMtime(root: string, exts: string[]): number {
+	let newest = 0;
+	const walk = (dir: string): void => {
+		for (const name of fs.readdirSync(dir)) {
+			const p = path.join(dir, name);
+			const st = fs.statSync(p);
+			if (st.isDirectory()) walk(p);
+			else if (exts.some((e) => name.endsWith(e))) newest = Math.max(newest, st.mtimeMs);
+		}
+	};
+	try {
+		walk(root);
+	} catch {
+		return 0;
+	}
+	return newest;
+}
+
+/**
+ * dev 形态的 core 产物新鲜度闸：core 以 dist 编译产物运行（tsx 直跑只存在于
+ * CORE_PORT=5190 的验收链路），改了 core/src 不重 build 就会跑旧产物 ——
+ * 2026-09-28 实锤事故：dist 停在 9-25，没有 /skills 路由，GET /skills 落进
+ * SPA 回退返回 200 + index.html，前端报「读取技能清单失败（HTTP 200）」。
+ * 这里在拉起 core 前比对 src 与 dist 的最新 mtime，过期点名报错并返回 false
+ * （退出由调用点统一控制，避免 bootCore 同步栈里 exit 后仍把旧 core 拉起来）。
+ * 打包形态 resourcesPath 里没有 core/src，无从比对即放行。
+ */
+function assertCoreDistFresh(): boolean {
+	if (app.isPackaged) return true;
+	const srcDir = path.join(__dirname, "..", "..", "core", "src");
+	const distDir = path.join(__dirname, "..", "..", "core", "dist");
+	if (!fs.existsSync(srcDir) || !fs.existsSync(distDir)) return true;
+	const srcNewest = newestMtime(srcDir, [".ts"]);
+	const distNewest = newestMtime(distDir, [".js"]);
+	if (srcNewest <= distNewest) return true;
+	const fmt = (ms: number) => (ms ? new Date(ms).toLocaleString() : "（无）");
+	failLoudly(
+		"Pi-Desktop",
+		`core 编译产物已过期（core/src 的改动晚于 core/dist）：\n` +
+			`  最新源码：${fmt(srcNewest)}\n  现有产物：${fmt(distNewest)}\n\n` +
+			`请先在 packages/core 下执行 npm run build，再启动 Pi-Desktop。`,
+	);
+	return false;
+}
+
 function bootCore(): ChildProcess {
 	fs.mkdirSync(runDir, { recursive: true });
 	// 上一次运行遗留的 core.json 是死端口，必须清掉——否则 waitForCore 会抢在
@@ -283,6 +329,11 @@ if (!gotLock) {
 
 	app.whenReady().then(() => {
 		Menu.setApplicationMenu(null); // 干净壳：不暴露菜单栏（v1）
+		// core 产物新鲜度闸压在 smoke / 正常启动所有路径之前：过期就不拉 core
+		if (!assertCoreDistFresh()) {
+			app.exit(1);
+			return;
+		}
 		if (SMOKE) {
 			void runSmoke();
 			return;

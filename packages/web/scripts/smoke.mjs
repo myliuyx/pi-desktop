@@ -78,6 +78,27 @@ try {
 	await die(`/health 请求失败：${e.message}`, child);
 }
 
+// 4.5) C7/C8 设置 Tab 的数据端点必须真实在线：过期产物没有这两个路由，
+// GET 会落进 SPA 回退拿 200 + index.html（2026-09-28 事故形态，前端表现为
+// 「读取技能清单失败（HTTP 200）」）—— /health 探不出来，这里一票拦下
+for (const [ep, listKey] of [["/skills", "skills"], ["/packages", "packages"]]) {
+	try {
+		const res = await fetch(`http://127.0.0.1:${conn.port}${ep}`, {
+			headers: { authorization: `Bearer ${conn.token}` },
+		});
+		const body = await res.json().catch(() => null);
+		if (!res.ok || body?.ok !== true || !Array.isArray(body?.[listKey])) {
+			await die(
+				`${ep} 未通过（HTTP ${res.status}，ok=${body?.ok}）—— core 产物疑似过期（路由缺失落 SPA 回退）`,
+				child,
+			);
+		}
+		console.log(`[smoke] ${ep} 200 → ok:true（${body[listKey].length} 项）`);
+	} catch (e) {
+		await die(`${ep} 请求失败：${e.message}`, child);
+	}
+}
+
 // 5) 整树杀 + 清理（events.jsonl 留在临时目录一并删除）
 killTree(child.pid);
 await new Promise((r) => setTimeout(r, 500));
