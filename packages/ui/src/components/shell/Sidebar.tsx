@@ -122,8 +122,18 @@ function HistoryItem({
   return (
     <div
       data-active={active}
+      /*
+       * 2026-09-28 修「第二行点不动」：onSelect 原先只挂在标题 button 上，而
+       * 「x 小时前 x 条消息」那个 span 是容器的兄弟节点、不在 button 内，点了没反应。
+       * 9-28 拆分「容器 div + 标题 button」（为塞行内改名/删除按钮）时丢了整行可点。
+       * 修法：onSelect 上提到容器，两行皆可点。
+       * - 标题 button 保留自己的 onClick + stopPropagation：键盘用户 Tab 到它按
+       *   Enter 仍能切换（容器是 div，无 role/tabIndex，不能承担键盘入口）；
+       * - 下方动作区 / 确认行 / 改名输入框各自 stopPropagation，避免连带切会话。
+       */
+      onClick={onSelect}
       className={cn(
-        "group flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-left",
+        "group flex w-full shrink-0 cursor-pointer flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-left",
         "transition-colors duration-150 ease-out",
         active
           ? "bg-bg-active text-text-primary"
@@ -136,6 +146,8 @@ function HistoryItem({
           value={draft}
           onChange={(e) => setDraft(e.currentTarget.value)}
           onBlur={commitEdit}
+          // 改名输入框在可点击容器内：点击/选中文字不该触发整行的 onSelect
+          onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
             else if (e.key === "Escape") {
@@ -160,13 +172,21 @@ function HistoryItem({
             data-testid={testId}
             aria-pressed={active}
             title={title}
-            onClick={onSelect}
+            // 保留按钮自己的 onClick（键盘 Enter 入口），并截断冒泡避免与容器
+            // onSelect 双重触发
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect?.();
+            }}
             className="min-w-0 flex-1 truncate text-left"
           >
             <span className="truncate">{title}</span>
           </button>
           {(onRename || onDelete) && !confirming && (
             <div
+              // 动作区不能触发整行 onClick（点铅笔/垃圾桶不该连带切换会话）——
+              // 容器已承载 onSelect（A 方案整行可点），这里截断冒泡
+              onClick={(e) => e.stopPropagation()}
               className={cn(
                 "flex shrink-0 items-center gap-0.5",
                 "opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
@@ -201,7 +221,13 @@ function HistoryItem({
         </div>
       )}
       {confirming ? (
-        <div data-testid={testId ? `${testId}-confirm` : undefined} className="flex items-center gap-2 text-xs">
+        <div
+          data-testid={testId ? `${testId}-confirm` : undefined}
+          // 删除确认行同理：整行 onClick 生效后，确认区必须自阻，否则点「取消」
+          // 也会把会话切走（与删除动作的语义无关）
+          onClick={(e) => e.stopPropagation()}
+          className="flex items-center gap-2 text-xs"
+        >
           <span className="min-w-0 flex-1 truncate text-text-tertiary">删除该会话？不可恢复</span>
           <button
             type="button"

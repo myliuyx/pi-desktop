@@ -44,7 +44,7 @@ export function ThinkingCard({ block }: ThinkingCardProps) {
         data-expanded={expanded}
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
-        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-text-secondary transition-colors hover:bg-bg-hover"
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-md text-text-secondary transition-colors hover:bg-bg-hover"
       >
         <Icon icon={Sparkles} className="text-icon-neutral" />
         <span className="font-medium">思考过程</span>

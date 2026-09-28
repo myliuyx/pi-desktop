@@ -30,7 +30,7 @@ export function PlanCard({ block }: PlanCardProps) {
       data-testid="plan-card"
       className="min-w-0 rounded-lg border border-border-subtle bg-bg-surface p-3"
     >
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium text-text-primary">
+      <div className="mb-2 flex items-center gap-2 text-md font-medium text-text-primary">
         <span>执行计划</span>
         <span className="text-text-tertiary">·</span>
         <span className="text-text-tertiary">{block.steps.length} 步</span>
@@ -43,7 +43,7 @@ export function PlanCard({ block }: PlanCardProps) {
               key={step.id}
               data-testid="plan-step"
               data-status={step.status}
-              className="flex items-center gap-2 text-sm"
+              className="flex items-center gap-2 text-md"
             >
               <Icon
                 icon={meta.icon}

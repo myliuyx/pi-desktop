@@ -55,7 +55,7 @@ function CodeBlock({ code, lang }: { code: string; lang: string }) {
         // Shiki 输出含自身 <pre>，背景/配色由 shiki.css 桥接
         <div dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
-        <pre className="m-0 overflow-x-auto p-3 text-sm leading-relaxed">
+        <pre className="m-0 overflow-x-auto p-3 text-md leading-relaxed">
           <code>{code}</code>
         </pre>
       )}
@@ -77,9 +77,9 @@ const MD_COMPONENTS: Components = {
     // 行内代码：用语义令牌底色，不写固定色
     return <code className="rounded bg-bg-subtle px-1 py-0.5 text-[0.9em] text-text-primary">{children}</code>;
   },
-  h1: ({ children }) => <h1 className="mb-1 mt-3 text-md font-semibold text-text-primary">{children}</h1>,
-  h2: ({ children }) => <h2 className="mb-1 mt-3 text-md font-semibold text-text-primary">{children}</h2>,
-  h3: ({ children }) => <h3 className="mb-1 mt-2 text-base font-semibold text-text-primary">{children}</h3>,
+  h1: ({ children }) => <h1 className="mb-1 mt-3 text-lg font-semibold text-text-primary">{children}</h1>,
+  h2: ({ children }) => <h2 className="mb-1 mt-3 text-lg font-semibold text-text-primary">{children}</h2>,
+  h3: ({ children }) => <h3 className="mb-1 mt-2 text-md font-semibold text-text-primary">{children}</h3>,
   p: ({ children }) => <p className="my-1.5 leading-relaxed text-text-primary">{children}</p>,
   ul: ({ children }) => <ul className="my-1.5 list-disc space-y-0.5 pl-5 text-text-primary">{children}</ul>,
   ol: ({ children }) => <ol className="my-1.5 list-decimal space-y-0.5 pl-5 text-text-primary">{children}</ol>,
@@ -91,7 +91,7 @@ const MD_COMPONENTS: Components = {
   ),
   table: ({ children }) => (
     <div className="my-2 w-full overflow-x-auto">
-      <table className="w-full border-collapse text-sm">{children}</table>
+      <table className="w-full border-collapse text-md">{children}</table>
     </div>
   ),
   thead: ({ children }) => <thead className="bg-bg-subtle">{children}</thead>,
@@ -115,7 +115,7 @@ export function Markdown({ content, className }: MarkdownProps) {
   return (
     <div
       data-testid="markdown-body"
-      className={cn("min-w-0 text-sm", className)}
+      className={cn("min-w-0 text-md", className)}
       // overflow-wrap 可继承：挂在根节点即覆盖 p/li/code/td（验收 2-18）
       style={{ overflowWrap: "anywhere", wordBreak: "break-word" }}
     >

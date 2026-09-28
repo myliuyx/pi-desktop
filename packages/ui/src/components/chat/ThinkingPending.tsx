@@ -44,7 +44,7 @@ export function ThinkingPending({ since }: { since: number }) {
           />
         ))}
       </span>
-      <span className="text-sm text-text-secondary">
+      <span className="text-md text-text-secondary">
         {label}
         <span className="ml-2 tabular-nums text-text-tertiary">{elapsed}</span>
       </span>

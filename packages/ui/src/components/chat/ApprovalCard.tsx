@@ -102,11 +102,11 @@ export function ApprovalCard({ block }: ApprovalCardProps) {
       data-expired={expired}
       className="min-w-0 rounded-lg border border-border-default bg-bg-surface p-3"
     >
-      <div className="mb-1.5 flex items-center gap-2 text-sm font-medium leading-5 text-text-primary">
+      <div className="mb-1.5 flex items-center gap-2 text-md font-medium leading-5 text-text-primary">
         <Icon icon={ShieldQuestion} className="shrink-0 text-icon-neutral" />
         {block.title}
       </div>
-      {block.message ? <p className="mb-3 text-sm leading-5 text-text-secondary">{block.message}</p> : null}
+      {block.message ? <p className="mb-3 text-md leading-5 text-text-secondary">{block.message}</p> : null}
 
       {/* A1：input 型只出输入框，不出 options 按钮（二者互斥；method 缺省保持旧渲染逐像素不变） */}
       {isInput ? (

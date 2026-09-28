@@ -39,7 +39,7 @@ export function TerminalCard({ block }: TerminalCardProps) {
     <div data-testid="terminal-card" className="min-w-0 rounded-lg border border-border-subtle bg-bg-surface">
       <div className="flex items-center gap-2 px-3 py-2">
         <Icon icon={Terminal} className="text-icon-neutral" />
-        <span className="text-sm font-medium text-text-primary">终端</span>
+        <span className="text-md font-medium text-text-primary">终端</span>
         <span
           className={cn(
             "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs",

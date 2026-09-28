@@ -52,7 +52,7 @@ export function ToolCallCard({ call, terminal }: ToolCallCardProps) {
         aria-label={open ? "收起工具执行详情" : "展开工具执行详情"}
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "flex w-full min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-sm",
+          "flex w-full min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-left text-md",
           "text-text-secondary transition-colors duration-150 ease-out hover:bg-bg-hover",
         )}
       >

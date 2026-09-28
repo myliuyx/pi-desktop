@@ -50,9 +50,11 @@ const steps = [
 const t0 = Date.now();
 for (const [i, step] of steps.entries()) {
 	console.log(`\n[build-dist] [${i + 1}/${steps.length}] ${step.label}`);
-	// Windows 的 .cmd 必须经 shell 调起；命令全是本文件的常量（无用户输入），拼接无注入面，
-	// 且避开 Node 22 对「shell:true + 参数数组」的 DEP0190 弃用告警
-	const res = spawnSync(`${npmCmd} run ${step.script}`, {
+	// 参数必须拆成数组：shell:false 时 Node 不做分词，把 "npm run build" 整串当
+	// 可执行文件名去找 → ENOENT（非 Windows 平台 100% 失败，2026-09-28 实锤）。
+	// Windows 的 .cmd 需要 shell 走 PATHEXT，故仅在 isWin 时开 shell；命令全为本文件
+	// 的常量（无用户输入），无注入面。
+	const res = spawnSync(npmCmd, ["run", step.script], {
 		cwd: path.join(root, step.cwd),
 		stdio: "inherit",
 		shell: isWin,
