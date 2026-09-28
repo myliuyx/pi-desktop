@@ -219,6 +219,16 @@ export function entriesToMessages(
         const model = role === "assistant" && typeof message.model === "string" ? message.model : undefined;
         const responseModel =
           role === "assistant" && typeof message.responseModel === "string" ? message.responseModel : undefined;
+        // 模型请求失败保留（2026-09-28 用户裁决：失败要可见，不许静默）：Pi 失败落盘
+        // stopReason="error" 的消息，content 常为空壳 —— 此前被 empty-assistant-message
+        // 静默跳过，重载后错误痕迹彻底消失。现保留为带 errorMessage 的消息（空壳也留），
+        // 渲染层据此出错误框；aborted 是用户主动中止，维持原跳过行为。
+        const failed = role === "assistant" && message.stopReason === "error";
+        const errorMessage = failed
+          ? typeof message.errorMessage === "string" && message.errorMessage.trim()
+            ? message.errorMessage
+            : "未知错误"
+          : undefined;
         if (role === "assistant") {
           // 记下 toolCall 宿主，供后面的 toolResult 归位
           for (const b of blocks) {
@@ -229,6 +239,19 @@ export function entriesToMessages(
           }
         }
         if (blocks.length === 0) {
+          if (failed) {
+            messages.push({
+              id: `m-${entry.id}`,
+              role: "assistant",
+              blocks: [],
+              timestamp: ts,
+              ...(model ? { model } : {}),
+              ...(responseModel ? { responseModel } : {}),
+              errorMessage,
+            });
+            lastAssistant = messages.length - 1;
+            continue;
+          }
           skip(role === "user" ? "empty-user-message" : "empty-assistant-message");
           continue;
         }
@@ -240,6 +263,7 @@ export function entriesToMessages(
           ...(usage ? { usage } : {}),
           ...(model ? { model } : {}),
           ...(responseModel ? { responseModel } : {}),
+          ...(errorMessage ? { errorMessage } : {}),
         });
         if (role === "assistant") {
           lastAssistant = messages.length - 1;

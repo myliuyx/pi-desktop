@@ -161,6 +161,13 @@ export interface Message {
    * `responseModel ?? model`（2026-09-27 用户裁决），两者都在时 title 里写明。
    */
   responseModel?: string;
+  /**
+   * 模型请求失败信息（仅 assistant；Pi `AssistantMessage.stopReason === "error"`
+   * 时的 `errorMessage`，此时 content 通常为空壳）。出现即渲染错误框
+   * （2026-09-28 用户裁决：失败要直接可见，不许静默）。user 主动中止（aborted）
+   * 与流式中的 pending 不算失败，不设此字段。
+   */
+  errorMessage?: string;
 }
 
 export interface Session {
@@ -295,6 +302,12 @@ export interface AgentMessage {
   model?: string;
   /** 实际响应的模型 id（仅 assistant；Pi `AssistantMessage.responseModel`，message_end 才确定） */
   responseModel?: string;
+  /**
+   * 模型请求失败信息（仅 assistant 的 error 消息；Pi `AssistantMessage.errorMessage`，
+   * adapt.ts 仅在 stopReason === "error" 时透传）。reducer 据此挂到 Message.errorMessage
+   * 出错误框（2026-09-28 用户裁决：失败要直接可见，不许静默）。
+   */
+  errorMessage?: string;
 }
 
 /** 工具结果内容（与 Pi 事件 result.content 同构） */

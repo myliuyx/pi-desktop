@@ -301,6 +301,49 @@ function blocksOfType(state, type) {
 	check("[awaiting] agent_settled 清除", s.awaitingModel, false);
 }
 
+/* -------------------------------------------------------------------------
+ * 十一、模型请求失败直出（2026-09-28 用户裁决：失败要可见，不许静默）。
+ *     背景：Pi 失败时产出 stopReason="error" 的空壳 assistant 消息，错误文本只在
+ *     errorMessage 字段 —— 此前被「无壳丢弃 / 空壳渲染层隐藏」双重吞掉，用户视角
+ *     就是「消息发出去没影了」（2026-09-28 Linux 实测复现）。core 侧透传断言在
+ *     packages/core 的 check:error-visible（E1-E7）。
+ * ---------------------------------------------------------------------- */
+{
+	// 常规时序：message_start 建壳 → message_end 报错 → errorMessage 挂到消息
+	let s = createDraft();
+	s = applyEvent(s, { type: "message_start", message: { role: "assistant", content: [], model: "laguna-s-2.1-free" } });
+	s = applyEvent(s, {
+		type: "message_end",
+		message: { role: "assistant", content: [], stopReason: "error", errorMessage: "poolside at capacity", model: "laguna-s-2.1-free" },
+	});
+	check("[error] 失败消息保留（1 条）", s.messages.length, 1);
+	check("[error] errorMessage 挂到消息", s.messages[0].errorMessage, "poolside at capacity");
+	check("[error] 模型标签照常（错误框上方）", s.messages[0].model, "laguna-s-2.1-free");
+	check("[error] 终态 streaming=false（等待行收口）", s.streaming, false);
+
+	// 兜底时序：壳缺失（SSE 重连后只收到 end）→ 追加而不是丢弃
+	let s2 = createDraft();
+	s2 = applyEvent(s2, {
+		type: "message_end",
+		message: { role: "assistant", content: [], stopReason: "error", errorMessage: "boom" },
+	});
+	check("[error] 无壳兜底追加", s2.messages.length, 1);
+	check("[error] 兜底消息带 errorMessage", s2.messages[0].errorMessage, "boom");
+
+	// 正常消息不凭空挂 errorMessage 键（诚实展示：没有失败就没有错误框）
+	let s3 = createDraft();
+	s3 = applyEvent(s3, { type: "message_start", message: { role: "assistant", content: [{ type: "text", text: "正常" }] } });
+	s3 = applyEvent(s3, { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "正常" }] } });
+	check("[error] 正常消息无 errorMessage 键", "errorMessage" in s3.messages[0], false);
+
+	// 翻译层端到端：原始 Pi 事件（stopReason 挂在 raw message 上）→ 译后带 errorMessage
+	const translated = toAgentEvent({
+		type: "message_end",
+		message: { role: "assistant", content: [], stopReason: "error", errorMessage: "raw 透传" },
+	});
+	check("[error] toAgentEvent 译出 errorMessage", translated.message.errorMessage, "raw 透传");
+}
+
 /* ---------------------------------------------------------------------- */
 if (fails.length > 0) {
 	console.error(`\n适配层断言失败 ${fails.length} 项：`);

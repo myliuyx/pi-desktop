@@ -192,7 +192,32 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 				};
 			}
 			const id = state.currentAssistantId;
-			if (!id) return state;
+			// 模型请求失败直出（2026-09-28 用户裁决）：errorMessage 只在 message_end 出现，
+			// 出现即挂到消息上（渲染层据此出错误框，空壳不再整行隐藏）。
+			// 壳缺失时兜底追加而不是丢弃 —— 重连后只收到 end 的终态消息不再凭空消失。
+			const errorPatch = event.message.errorMessage
+				? { errorMessage: event.message.errorMessage }
+				: {};
+			if (!id) {
+				const fallbackId = `a-${state.messages.length}`;
+				return {
+					messages: [
+						...state.messages,
+						{
+							id: fallbackId,
+							role: "assistant",
+							blocks: blocksFrom(event.message.content, false),
+							timestamp: event.message.timestamp ?? 0,
+							...(event.message.model ? { model: event.message.model } : {}),
+							...(event.message.usage ? { usage: event.message.usage } : {}),
+							...errorPatch,
+						},
+					],
+					currentAssistantId: null,
+					awaitingModel: false,
+					streaming: false,
+				};
+			}
 			return {
 				messages: replaceMessage(state.messages, id, (m) => ({
 					...m,
@@ -209,6 +234,7 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 					 */
 					...(event.message.model ? { model: event.message.model } : {}),
 					...(event.message.responseModel ? { responseModel: event.message.responseModel } : {}),
+					...errorPatch,
 				})),
 				currentAssistantId: null,
 				// awaitingModel 此刻本就为 false（message_start 已清），显式写为保证字段完整

@@ -81,6 +81,14 @@ function asMessage(value: unknown): AgentMessage | null {
 		// message_end 才确定 —— 两个事件里哪个带就哪个透传，reducer 据此创建/覆写
 		if (typeof value.model === "string") message.model = value.model;
 		if (typeof value.responseModel === "string") message.responseModel = value.responseModel;
+		// 模型请求失败直出（2026-09-28 用户裁决：失败要可见，不许静默）：Pi 失败时
+		// 产出 stopReason="error" 的消息，错误文本只在 errorMessage 字段且 content
+		// 常为空壳 —— 此前整条被丢弃，UI 上表现为「发出去就没影了」。仅 error 态
+		// 透传（pending 是流式中常态、aborted 是用户主动中止，都不算失败）。
+		if (value.stopReason === "error") {
+			message.errorMessage =
+				typeof value.errorMessage === "string" && value.errorMessage.trim() ? value.errorMessage : "未知错误";
+		}
 	}
 	return message;
 }

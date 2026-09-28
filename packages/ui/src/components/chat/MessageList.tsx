@@ -32,6 +32,7 @@ import { TerminalCard } from "./TerminalCard";
 import { ToolCallCard } from "./ToolCallCard";
 import { ApprovalCard } from "./ApprovalCard";
 import { ProcessGroupRow } from "./ProcessGroupRow";
+import { MessageErrorCard } from "./MessageErrorCard";
 
 export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   messages: Message[];
@@ -369,12 +370,15 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
             // 内容不渲染，占位行直接贴上一条消息，模型标签随首个可见块一起现身。
             // 数据层不动（pending 判定 / turnIndex 照旧）；包装保留（testid 与
             // data-total-count 探针契约不变），内边距归零（同 rowHidden 先例）；
-            // 折叠行宿主豁免（兜底：空壳若为可折叠轮首/尾条，不能吞掉切换行）。
+            // 折叠行宿主豁免（兜底：空壳若为可折叠轮首/尾条，不能吞掉切换行）；
+            // 模型请求失败的空壳豁免（2026-09-28 用户裁决：失败要可见）——
+            // 带 errorMessage 的空壳渲染成错误框，不能当普通空壳吞掉。
             const shellHidden =
               !isPendingRow &&
               !(turn?.hostsToggle ?? false) &&
               message.role === "assistant" &&
-              !hasRenderableContent(message.blocks);
+              !hasRenderableContent(message.blocks) &&
+              !message.errorMessage;
             return (
               <div
                 key={virtualRow.key}
@@ -545,8 +549,14 @@ function MessageItem({ message, turn }: { message: Message; turn?: MessageTurnIn
    */
   if (turn?.collapsed && !turn.isTail) return null;
   // 空壳（无任何可见内容的 assistant）不渲染 —— 与 MessageList 的 shellHidden 同一判定、
-  // 两处各写一份（rowHidden 先例同款）；模型标签/时间戳随首个可见块一起出现（2026-09-28 裁决）
-  if (message.role === "assistant" && !hasRenderableContent(message.blocks) && !(turn?.hostsToggle ?? false))
+  // 两处各写一份（rowHidden 先例同款）；模型标签/时间戳随首个可见块一起出现（2026-09-28 裁决）。
+  // 带 errorMessage 的失败空壳豁免（2026-09-28 用户裁决：失败要可见），下方渲染错误框。
+  if (
+    message.role === "assistant" &&
+    !hasRenderableContent(message.blocks) &&
+    !message.errorMessage &&
+    !(turn?.hostsToggle ?? false)
+  )
     return null;
   /*
    * 视图层合并（2026-09-26 用户裁决）：live 的 bash 执行此前渲染两块 ——
@@ -627,6 +637,9 @@ function MessageItem({ message, turn }: { message: Message; turn?: MessageTurnIn
           </div>
         );
       })}
+      {/* 模型请求失败直出（2026-09-28 用户裁决）：失败空壳不再被吞，错误框摆在
+          内容块之后 / 时间戳之前 —— 模型标签照常在左上角，与参考截图同构 */}
+      {message.errorMessage ? <MessageErrorCard message={message.errorMessage} /> : null}
       {/* 底部元信息行（F2 用量 + 2026-09-27 消息时间）：两个角色统一交 MessageFooter ——
           usage 契约上只存在于 assistant 消息，user 行自动退化为仅时间的右对齐小字 */}
       <MessageFooter usage={message.usage} timestamp={message.timestamp} />
