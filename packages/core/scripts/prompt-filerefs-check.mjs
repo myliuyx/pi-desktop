@@ -92,14 +92,14 @@ const expand = (refs) => expandFileRefs(refs, tmpRoot);
   check("R4 空文件 ⇒ skipped「空文件」且无块", r.promptText === "" && r.skipped.length === 1 && r.skipped[0].includes("空文件"), r.skipped);
 }
 
-/* ===== R5：不存在 / 目录 / ~ ===== */
+/* ===== R5：不存在 / ~ ===== */
+/* （目录不再 skip——D6 起 @目录 是合法引用，走 R12 的 directory 块） */
 {
-  const r = expand(["no-such.txt", "src", "~/no-such-at-home.txt"]);
+  const r = expand(["no-such.txt", "~/no-such-at-home.txt"]);
   check(
-    "R5 不存在/目录/~ ⇒ 三条 skipped、不崩",
+    "R5 不存在/~ ⇒ 两条 skipped、不崩",
     r.promptText === "" &&
       r.skipped.some((s) => s.includes("文件不存在")) &&
-      r.skipped.some((s) => s.includes("不是文件")) &&
       r.skipped.some((s) => s.startsWith("~/no-such-at-home.txt")),
     r.skipped,
   );
@@ -152,6 +152,41 @@ const expand = (refs) => expandFileRefs(refs, tmpRoot);
       r.promptText.includes(textPath) &&
       r.skipped.length === 2,
     { images: r.images.length, skipped: r.skipped },
+  );
+}
+
+/* ===== R12：目录引用 ⇒ type="directory" 一层清单（D6，2026-09-28 裁决） ===== */
+{
+  // 夹具：src/ 下已有 note.txt、bom.txt（文件）+ 无子目录；再造 src/sub/ 验证目录在前
+  fs.mkdirSync(path.join(tmpRoot, "src", "sub"), { recursive: true });
+  writeBin("src/zz.log", Buffer.from("x", "utf8"));
+  const r = expand(["src"]);
+  const wantHead = `<file name="${path.join(tmpRoot, "src")}" type="directory">\nsub/\nbom.txt\nnote.txt\nzz.log\n`;
+  check(
+    "R12 目录 ⇒ directory 块、目录带 / 拼前、文件在后、码元排序",
+    r.promptText.startsWith(wantHead) && r.promptText.includes("（仅一层，共 4 项）"),
+    { got: r.promptText.slice(0, 160), wantHead },
+  );
+}
+
+/* ===== R13：空目录 ⇒ 共 0 项（不 skip） ===== */
+{
+  fs.mkdirSync(path.join(tmpRoot, "empty-dir"), { recursive: true });
+  const r = expand(["empty-dir"]);
+  check(
+    "R13 空目录 ⇒ 空清单 + 共 0 项、无 skipped",
+    r.promptText.includes("type=\"directory\"") && r.promptText.includes("（仅一层，共 0 项）") && r.skipped.length === 0,
+    { got: r.promptText, skipped: r.skipped },
+  );
+}
+
+/* ===== R14：不存在目录 ⇒ skipped（stat 阶段拦截） ===== */
+{
+  const r = expand(["no-such-dir/"]);
+  check(
+    "R14 不存在目录 ⇒ skipped「文件不存在」",
+    r.promptText === "" && r.skipped[0]?.includes("文件不存在"),
+    r.skipped,
   );
 }
 

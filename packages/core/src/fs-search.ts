@@ -33,6 +33,11 @@ export interface FsSearchEntry {
 	absPath: string;
 	/** 相对搜索根的 POSIX 风格路径（@引用的展示与插入口径，core 端按自身 cwd 反解） */
 	relPath: string;
+	/**
+	 * 条目类型。目录也可引用（2026-09-28 用户裁决 D6）：@目录 = 给模型一层目录清单
+	 * （expandFileRefs 的 type="directory" 块），所以搜索候选**文件与目录同榜**。
+	 */
+	kind: "dir" | "file";
 }
 
 export interface FsSearchOk {
@@ -91,9 +96,9 @@ function listViaGit(dir: string): string[] | null {
 	}
 }
 
-/** walk 收集：返回绝对路径数组（不跟符号链接；越界即停） */
-function listViaWalk(dir: string): string[] {
-	const out: string[] = [];
+/** walk 收集：返回绝对路径数组（不跟符号链接；越界即停）。目录与文件都收（目录可引用，D6） */
+function listViaWalk(dir: string): { abs: string; isDir: boolean }[] {
+	const out: { abs: string; isDir: boolean }[] = [];
 	const walk = (d: string, depth: number): void => {
 		if (depth > WALK_MAX_DEPTH || out.length >= WALK_MAX_FILES) return;
 		let dirents: fs.Dirent[];
@@ -104,11 +109,13 @@ function listViaWalk(dir: string): string[] {
 		}
 		for (const de of dirents) {
 			if (out.length >= WALK_MAX_FILES) return;
+			const abs = path.join(d, de.name);
 			if (de.isDirectory()) {
 				if (WALK_SKIP_DIRS.has(de.name)) continue;
-				walk(path.join(d, de.name), depth + 1);
+				out.push({ abs, isDir: true });
+				walk(abs, depth + 1);
 			} else if (de.isFile()) {
-				out.push(path.join(d, de.name));
+				out.push({ abs, isDir: false });
 			}
 		}
 	};
@@ -147,6 +154,7 @@ interface Candidate {
 	absPath: string;
 	relPath: string;
 	name: string;
+	kind: "dir" | "file";
 }
 
 export function searchFiles(
@@ -170,18 +178,39 @@ export function searchFiles(
 	if (!st.isDirectory()) throw new FsSearchError(400, `不是目录：${target}`);
 
 	const viaGit = listViaGit(target);
-	const candidates: Candidate[] =
-		viaGit !== null
-			? viaGit.map((rel) => ({
-					absPath: path.join(target, ...rel.split("/")),
-					relPath: rel,
-					name: path.basename(rel),
-				}))
-			: listViaWalk(target).map((abs) => ({
-					absPath: abs,
-					relPath: path.relative(target, abs).split(path.sep).join("/"),
-					name: path.basename(abs),
-				}));
+	let candidates: Candidate[];
+	if (viaGit !== null) {
+		// git 模式：ls-files 只列文件，目录候选从文件路径推导父目录集合（去重）
+		const dirSet = new Set<string>();
+		for (const rel of viaGit) {
+			let dir = path.posix.dirname(rel);
+			while (dir && dir !== ".") {
+				dirSet.add(dir);
+				dir = path.posix.dirname(dir);
+			}
+		}
+		candidates = [
+			...viaGit.map((rel) => ({
+				absPath: path.join(target, ...rel.split("/")),
+				relPath: rel,
+				name: path.posix.basename(rel),
+				kind: "file" as const,
+			})),
+			...[...dirSet].map((rel) => ({
+				absPath: path.join(target, ...rel.split("/")),
+				relPath: rel,
+				name: path.posix.basename(rel),
+				kind: "dir" as const,
+			})),
+		];
+	} else {
+		candidates = listViaWalk(target).map(({ abs, isDir }) => ({
+			absPath: abs,
+			relPath: path.relative(target, abs).split(path.sep).join("/"),
+			name: path.basename(abs),
+			kind: isDir ? ("dir" as const) : ("file" as const),
+		}));
+	}
 
 	const q = query.trim().toLowerCase();
 	const scored: { score: number; candidate: Candidate }[] = [];
@@ -206,6 +235,7 @@ export function searchFiles(
 		name: candidate.name,
 		absPath: candidate.absPath,
 		relPath: candidate.relPath,
+		kind: candidate.kind,
 	}));
 
 	const result: FsSearchOk = { ok: true, cwd: target, query, entries };

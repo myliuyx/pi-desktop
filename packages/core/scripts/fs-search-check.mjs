@@ -280,6 +280,27 @@ try {
       want: coreCwd,
     });
   }
+
+  /* ===== S13/S14：目录候选（D6，2026-09-28 裁决：目录可引用，文件与目录同榜） ===== */
+  {
+    const r = await search("docs");
+    const first = r.json?.entries?.[0];
+    check(
+      "S13 q=docs ⇒ 第一名是 kind:dir 的 docs 目录（absPath 绝对）",
+      r.status === 200 &&
+        first?.kind === "dir" &&
+        first?.relPath === "docs" &&
+        path.isAbsolute(first?.absPath ?? ""),
+      { first },
+    );
+    const src = await search("src");
+    const kinds = new Set((src.json?.entries ?? []).map((e) => e.kind));
+    check(
+      "S14 q=src ⇒ 目录与文件同榜（两种 kind 都在）",
+      src.status === 200 && kinds.has("dir") && kinds.has("file"),
+      { kinds: [...kinds] },
+    );
+  }
 } catch (e) {
   check("脚本异常终止", false, String(e));
 } finally {

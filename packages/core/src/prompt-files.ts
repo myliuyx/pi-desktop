@@ -41,6 +41,11 @@ export interface ExpandedFileRefs {
 const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 /** 魔数嗅探窗口：png 8 字节签名 / webp 12 字节 RIFF….WEBP，取最大 */
 const SNIFF_BYTES = 12;
+/**
+ * 目录引用展开的一层条目上限（2026-09-28 用户裁决 D6：@目录 = 一层清单，不递归）。
+ * 与 fs-list 的 500 同量级的防爆炸口径——清单只是给模型「这里长什么样」的骨架。
+ */
+const DIR_LISTING_MAX_ENTRIES = 200;
 
 interface ImageKind {
 	mimeType: string;
@@ -63,8 +68,7 @@ function startsWithOffset(head: Buffer, offset: number, bytes: number[]): boolea
 	return bytes.every((b, i) => head[offset + i] === b);
 }
 
-export function expandFileRefs(refs: string[], cwd: string): ExpandedFileRefs {
-	const blocks: string[] = [];
+export function expandFileRefs(refs: string[], cwd: string): ExpandedFileRefs {	const blocks: string[] = [];
 	const images: PromptImage[] = [];
 	const skipped: string[] = [];
 
@@ -83,6 +87,10 @@ export function expandFileRefs(refs: string[], cwd: string): ExpandedFileRefs {
 			continue;
 		}
 		if (!st.isFile()) {
+			if (st.isDirectory()) {
+				expandDirectory(target, blocks, skip);
+				continue;
+			}
 			skip("不是文件");
 			continue;
 		}
@@ -149,4 +157,45 @@ export function expandFileRefs(refs: string[], cwd: string): ExpandedFileRefs {
 	}
 
 	return { promptText: blocks.join(""), images, skipped };
+}
+
+/**
+ * 目录引用展开（2026-09-28 用户裁决 D6）：`type="directory"` 块装**一层条目清单**——
+ * 子目录带 `/` 后缀拼前、文件名拼后（与侧栏文件树「目录在前文件在后」同款），码元排序
+ * （fs-list 同款确定性口径，ICU 各机差异会让断言漂移），上限 200 项截断。
+ * 符号链接与 socket 等不列（「不认识就不列」口径，fs-list 同源）。
+ * 只给模型结构骨架，深入读哪个由模型自己决定——递归展开是明确否决的选项（体积爆炸）。
+ */
+function expandDirectory(target: string, blocks: string[], skip: (reason: string) => void): void {
+	let dirents: fs.Dirent[];
+	try {
+		dirents = fs.readdirSync(target, { withFileTypes: true });
+	} catch (e) {
+		const code = (e as NodeJS.ErrnoException)?.code;
+		skip(code === "EACCES" || code === "EPERM" ? "无权限" : "读取失败");
+		return;
+	}
+	const dirNames: string[] = [];
+	const fileNames: string[] = [];
+	for (const d of dirents) {
+		if (d.isDirectory()) dirNames.push(`${d.name}/`);
+		else if (d.isFile()) fileNames.push(d.name);
+	}
+	const byCodeUnit = (a: string, b: string) => {
+		const la = a.toLowerCase();
+		const lb = b.toLowerCase();
+		if (la !== lb) return la < lb ? -1 : 1;
+		return a < b ? -1 : a > b ? 1 : 0;
+	};
+	dirNames.sort(byCodeUnit);
+	fileNames.sort(byCodeUnit);
+	const all = [...dirNames, ...fileNames];
+	const truncated = all.length > DIR_LISTING_MAX_ENTRIES;
+	const listed = all.slice(0, DIR_LISTING_MAX_ENTRIES);
+	const summary = truncated
+		? `（仅一层，已截断，共 ${all.length} 项）`
+		: `（仅一层，共 ${all.length} 项）`;
+	blocks.push(
+		`<file name="${target}" type="directory">\n${listed.join("\n")}${listed.length > 0 ? "\n" : ""}${summary}\n</file>\n`,
+	);
 }
