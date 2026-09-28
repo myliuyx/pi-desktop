@@ -1,5 +1,5 @@
-import { forwardRef, useState, type ChangeEvent, type HTMLAttributes, type ReactNode } from "react";
-import { FolderOpen, History, Plus, Search } from "lucide-react";
+import { forwardRef, useRef, useState, type ChangeEvent, type HTMLAttributes, type ReactNode } from "react";
+import { FolderOpen, History, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   SIDEBAR_GAP,
@@ -69,30 +69,166 @@ function MenuItem({ icon, label, active = false, onClick, testId }: MenuItemProp
  * - 两行都用 `truncate` + `title` 提供悬停全称，满足 M5 5-8 长文本合格线；
  * - `items-stretch` 让两行 span 等宽，truncate 才能以容器宽度（而非自身内容宽）生效；
  * - **整块内容左对齐**（2026-09-22 终裁：经「元信息靠右 → 整块靠右」两次迭代后，用户最终
- *   改定靠左——与参考截图像素实测一致）。对齐只写在 button 一处，两行 span 继承。
+ *   改定靠左——与参考截图像素实测一致）。对齐只写在容器一处，两行 span 继承。
  *   历史教训：cn() 曾缺 text-align 组导致 text-left 被颜色类吞掉、按钮回落 UA center，
  *   现已补组并加 cn-check 用例——这里的 text-left 是显式生效，不是 UA 兜底。
+ *
+ * ★ 2026-09-28 行内改名 + 删除（用户需求 + 参考截图）：`onRename`/`onDelete` 给了才渲染
+ * 悬停动作（铅笔/垃圾桶，参考图同款）—— mock/SSR 不传 ⇒ DOM 与验收基线零变化。改造为
+ * 「容器 div + 标题 button」结构：动作按钮不能再嵌在 button 里（HTML 不允许嵌套按钮）。
+ * - 改名 = 标题原位换输入框：Enter/失焦提交、Esc 取消（cancelRef 防 Esc 后 blur 双触发）；
+ *   空串/未变即取消。提交走 store 乐观更新（页头/清单立即反馈，服务端落盘后回拉为准）。
+ * - 删除两步确认（破坏性动作不一键直删）：垃圾桶 → 元信息行换成「删除该会话？删除/取消」。
  */
-function HistoryItem({ title, meta, active = false, testId, onSelect }: { title: string; meta: string; active?: boolean; testId?: string; onSelect?: () => void }) {
+function HistoryItem({
+  title,
+  meta,
+  active = false,
+  testId,
+  onSelect,
+  onRename,
+  onDelete,
+}: {
+  title: string;
+  meta: string;
+  active?: boolean;
+  testId?: string;
+  onSelect?: () => void;
+  onRename?: (nextTitle: string) => void;
+  onDelete?: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const [confirming, setConfirming] = useState(false);
+  // Esc 取消后 input 卸载可能再触发 blur —— 用标记让 blur 提交路径静默退出
+  const cancelEditRef = useRef(false);
+
+  const startEdit = () => {
+    setDraft(title);
+    setConfirming(false);
+    setEditing(true);
+  };
+  const commitEdit = () => {
+    if (cancelEditRef.current) {
+      cancelEditRef.current = false;
+      setEditing(false);
+      return;
+    }
+    const next = draft.trim();
+    setEditing(false);
+    if (next && next !== title) onRename?.(next);
+  };
+
   return (
-    <button
-      type="button"
-      data-testid={testId}
-      aria-pressed={active}
-      title={title}
-      onClick={onSelect}
+    <div
+      data-active={active}
       className={cn(
-        "flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-left",
+        "group flex w-full shrink-0 flex-col items-stretch gap-0.5 rounded-md px-2 py-1.5 text-left",
         "transition-colors duration-150 ease-out",
         active
           ? "bg-bg-active text-text-primary"
           : "text-text-secondary hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
       )}
     >
-      <span className="truncate">{title}</span>
-      {/* 元信息降两级用三级色，即使整条激活也保持弱化层级；对齐继承 button 的 text-left */}
-      <span className="truncate text-xs text-text-tertiary" title={meta}>{meta}</span>
-    </button>
+      {editing ? (
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.currentTarget.value)}
+          onBlur={commitEdit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+            else if (e.key === "Escape") {
+              cancelEditRef.current = true;
+              e.currentTarget.blur();
+            }
+          }}
+          autoFocus
+          onFocus={(e) => e.currentTarget.select()}
+          maxLength={100}
+          aria-label="重命名会话"
+          data-testid={testId ? `${testId}-rename-input` : undefined}
+          className={cn(
+            "h-6 w-full shrink-0 rounded border border-border-strong bg-bg-subtle px-1.5 text-base text-text-primary",
+            "outline-none placeholder:text-text-tertiary",
+          )}
+        />
+      ) : (
+        <div className="flex min-w-0 items-center gap-1">
+          <button
+            type="button"
+            data-testid={testId}
+            aria-pressed={active}
+            title={title}
+            onClick={onSelect}
+            className="min-w-0 flex-1 truncate text-left"
+          >
+            <span className="truncate">{title}</span>
+          </button>
+          {(onRename || onDelete) && !confirming && (
+            <div
+              className={cn(
+                "flex shrink-0 items-center gap-0.5",
+                "opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100",
+              )}
+            >
+              {onRename && (
+                <button
+                  type="button"
+                  data-testid={testId ? `${testId}-edit` : undefined}
+                  title="重命名会话"
+                  aria-label="重命名会话"
+                  onClick={startEdit}
+                  className="flex h-6 w-6 items-center justify-center rounded text-text-tertiary hover:bg-bg-active hover:text-text-primary active:bg-bg-active"
+                >
+                  <Icon icon={Pencil} size={13} />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  data-testid={testId ? `${testId}-delete` : undefined}
+                  title="删除会话"
+                  aria-label="删除会话"
+                  onClick={() => setConfirming(true)}
+                  className="flex h-6 w-6 items-center justify-center rounded text-text-tertiary hover:bg-bg-active hover:text-danger active:bg-bg-active"
+                >
+                  <Icon icon={Trash2} size={13} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {confirming ? (
+        <div data-testid={testId ? `${testId}-confirm` : undefined} className="flex items-center gap-2 text-xs">
+          <span className="min-w-0 flex-1 truncate text-text-tertiary">删除该会话？不可恢复</span>
+          <button
+            type="button"
+            data-testid={testId ? `${testId}-delete-yes` : undefined}
+            onClick={() => {
+              setConfirming(false);
+              onDelete?.();
+            }}
+            className="shrink-0 font-medium text-danger hover:underline"
+          >
+            删除
+          </button>
+          <button
+            type="button"
+            data-testid={testId ? `${testId}-delete-no` : undefined}
+            onClick={() => setConfirming(false)}
+            className="shrink-0 text-text-tertiary hover:text-text-primary hover:underline"
+          >
+            取消
+          </button>
+        </div>
+      ) : (
+        <span className="truncate text-xs text-text-tertiary" title={meta}>
+          {meta}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -176,6 +312,8 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
   const summaries = live ? liveSummaries : SESSION_SUMMARIES;
   const relativeAnchor = live ? Date.now() : SESSION_LIST_NOW;
   const selectSession = useChatStore((state) => state.loadSessionById);
+  const renameSession = useChatStore((state) => state.renameSession);
+  const deleteSession = useChatStore((state) => state.deleteSession);
   const visibleSessionIds = new Set(filterSessionSummaries(summaries, searchQuery).map((session) => session.id));
 
   const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -277,6 +415,9 @@ export const Sidebar = forwardRef<HTMLElement, SidebarProps>(function Sidebar(
                     testId={`sidebar-history-item-${index}`}
                     /* live 形态下点击即按 id 打开历史会话；mock 形态不绑点击（行为零变化） */
                     onSelect={live ? () => selectSession(session.id, session.title) : undefined}
+                    /* 行内改名 / 删除仅 live 形态渲染动作按钮（mock/SSR 基线零变化） */
+                    onRename={live ? (nextTitle) => void renameSession(session.id, nextTitle) : undefined}
+                    onDelete={live ? () => void deleteSession(session.id) : undefined}
                   />
                 ) : null,
               )

@@ -174,6 +174,17 @@ export interface AgentTransport {
    */
   newSession(): Promise<{ id: string }>;
   /**
+   * 重命名会话（2026-09-28 用户需求：侧栏历史会话行内改名）：core 往会话文件追加
+   * session_info name entry，清单/加载标题的 name 口径天然生效。失败（400 空标题 /
+   * 404 会话不存在）抛错，文案取 core 的 `{ error }` 原文。
+   */
+  renameSession(id: string, title: string): Promise<void>;
+  /**
+   * 删除会话：core unlink 会话文件；目标 = 活动会话时 core 内部先换入空白会话。
+   * 失败（404 不存在 / 409 流式中删除活动会话）抛错，文案取 core 的 `{ error }` 原文。
+   */
+  deleteSession(id: string): Promise<void>;
+  /**
    * 运行期热切换工作目录（D7，2026-09-24 裁决）：`dir=null` = core 默认目录
    * （`process.cwd()`）。成功后 core 会经 SSE 广播 `cwd_changed`（UI 重拉清单）。
    * 流式中（409）/ 目录无效（400）抛错，错误文案取 core 的 `{ error }` 原文。
@@ -518,6 +529,29 @@ export class HttpAgentTransport implements AgentTransport {
       throw new Error(detail ?? "新建会话失败");
     }
     return { id: body.id };
+  }
+
+  /** 不用通用 `this.post`（丢 core 文案）：rename/delete 的 404/409 文案要原样给用户，switchCwd 同款手法。 */
+  private async postSessionManage(path: "/sessions/rename" | "/sessions/delete", body: Record<string, string>): Promise<void> {
+    const res = await fetch(`${this.cfg.baseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...this.authHeader() },
+      body: JSON.stringify(body),
+    });
+    this.assertJson(res, `core ${path}`);
+    const payload = (await res.json().catch(() => null)) as { ok?: boolean; error?: unknown } | null;
+    if (!res.ok || !payload?.ok) {
+      const detail = typeof payload?.error === "string" && payload.error ? payload.error : null;
+      throw new Error(detail ?? `core ${path} -> ${res.status}`);
+    }
+  }
+
+  async renameSession(id: string, title: string): Promise<void> {
+    await this.postSessionManage("/sessions/rename", { id, title });
+  }
+
+  async deleteSession(id: string): Promise<void> {
+    await this.postSessionManage("/sessions/delete", { id });
   }
 
   /**

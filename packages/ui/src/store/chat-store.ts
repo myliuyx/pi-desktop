@@ -102,6 +102,13 @@ export interface ChatState {
   refreshSessions: () => void;
   /** 按 id 打开历史会话（live 形态；mock 形态是空操作） */
   loadSessionById: (id: string, title?: string) => void;
+  /**
+   * 重命名会话（2026-09-28 用户需求）：乐观改清单与页头标题，core 落盘后
+   * `refreshSessions` 以服务端为准；失败弹通知并回拉（乐观态被服务端真值冲掉）。
+   */
+  renameSession: (id: string, title: string) => Promise<void>;
+  /** 删除会话：core unlink 文件；删的是当前打开的会话时回到新建草稿态 */
+  deleteSession: (id: string) => Promise<void>;
 
   /* ---------------------------------------------------- 新建会话草稿（task-new-session-page.md） */
   /**
@@ -495,6 +502,40 @@ export const useChatStore = create<ChatState>((set, get) => ({
         useNoticeStore.getState().notify({ tone: "warning", text: "会话列表刷新失败" });
         // 失败时**不动** liveCwd：保留上一次已知真值，绝不拿本地偏好顶替
       });
+  },
+
+  renameSession: async (id, title) => {
+    const transport = getLiveTransport();
+    if (!transport) return;
+    const trimmed = title.trim();
+    if (!trimmed) return;
+    // 乐观更新：清单行与页头立即反馈，core 落盘后 refreshSessions 以服务端为准
+    useChatStore.setState((state) => ({
+      sessionSummaries: state.sessionSummaries.map((s) => (s.id === id ? { ...s, title: trimmed } : s)),
+      ...(state.liveSessionId === id ? { sessionTitle: trimmed } : {}),
+    }));
+    try {
+      await transport.renameSession(id, trimmed);
+    } catch (e) {
+      notifyFailure("重命名会话失败", e);
+    } finally {
+      get().refreshSessions();
+    }
+  },
+
+  deleteSession: async (id) => {
+    const transport = getLiveTransport();
+    if (!transport) return;
+    try {
+      await transport.deleteSession(id);
+    } catch (e) {
+      notifyFailure("删除会话失败", e);
+      return;
+    }
+    // 删的是当前打开的会话 ⇒ 回到新建草稿态（消息区清空、侧栏高亮去掉）；
+    // core 侧已换入空白活动会话，草稿态首条消息会再走 /sessions/new（幂等，空白→空白）
+    if (get().liveSessionId === id) get().startNewSession();
+    get().refreshSessions();
   },
 
   loadSessionById: (id, title) => {

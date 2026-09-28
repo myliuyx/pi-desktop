@@ -24,7 +24,7 @@ import { FsSearchError, searchFiles } from "./fs-search.ts";
 import { FileReadError, readTextFile } from "./fs-read.ts";
 import { expandFileRefs } from "./prompt-files.ts";
 import { isRecord } from "./guards.ts";
-import { InvalidCwdError, type CoreRuntime } from "./session.ts";
+import { InvalidCwdError, SessionManageError, type CoreRuntime } from "./session.ts";
 import { SkillNotFoundError } from "./skills.ts";
 import { PackageNotFoundError } from "./packages.ts";
 
@@ -58,6 +58,9 @@ const API_ROUTES = new Set([
 	"/sessions/continue-recent",
 	// 新建（换入）空白活动会话（task-new-session-page.md D7）
 	"/sessions/new",
+	// 重命名 / 删除会话（2026-09-28 用户需求：侧栏历史会话行内改名 + 删除）
+	"/sessions/rename",
+	"/sessions/delete",
 	// C5 · 04/05 屏数据源
 	"/resources",
 	"/models",
@@ -495,6 +498,38 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				return json(200, { ok: true, id });
 			} catch (e) {
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		// 重命名会话（2026-09-28 用户需求）：写 Pi 的 session_info name entry，
+		// 清单与加载标题的 name 口径天然生效。false = 会话不存在（404）。
+		if (req.method === "POST" && urlPath === "/sessions/rename") {
+			const body = (await readBody(req)) as { id?: unknown; title?: unknown };
+			const id = typeof body.id === "string" ? body.id : "";
+			const title = typeof body.title === "string" ? body.title : "";
+			if (!id) return json(400, { ok: false, error: "缺少 id" });
+			if (!title.trim()) return json(400, { ok: false, error: "缺少 title" });
+			try {
+				const found = await runtime.renameSession(id, title);
+				if (!found) return json(404, { ok: false, error: `会话不存在：${id}` });
+				return json(200, { ok: true });
+			} catch (e) {
+				if (e instanceof SessionManageError) return json(e.status, { ok: false, error: e.message });
+				return json(500, { ok: false, error: String(e) });
+			}
+		}
+
+		// 删除会话（同上）：unlink 会话文件；目标是活动会话时 runtime 内部先换入空白会话。
+		if (req.method === "POST" && urlPath === "/sessions/delete") {
+			const body = (await readBody(req)) as { id?: unknown };
+			const id = typeof body.id === "string" ? body.id : "";
+			if (!id) return json(400, { ok: false, error: "缺少 id" });
+			try {
+				await runtime.deleteSession(id);
+				return json(200, { ok: true });
+			} catch (e) {
+				if (e instanceof SessionManageError) return json(e.status, { ok: false, error: e.message });
+				return json(500, { ok: false, error: String(e) });
 			}
 		}
 

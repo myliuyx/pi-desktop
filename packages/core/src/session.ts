@@ -72,7 +72,7 @@ import { createProvidersController, type ProvidersController } from "./providers
 import type { PromptImage } from "./prompt-files.ts";
 import { collectResources } from "./resources.ts";
 import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
-import { continueRecentSession, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
+import { continueRecentSession, findSessionPath, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
 import { getToolsState, setToolsState } from "./tools.ts";
@@ -145,6 +145,25 @@ export interface CoreRuntime {
 	 * 返回新会话 id；流式中抛错（端点另有前置判据回 409，这里是兜底）。
 	 */
 	newSession(): Promise<string>;
+
+	/**
+	 * 重命名会话（2026-09-28 用户需求：侧栏历史会话行内改名）：往该会话文件追加一条
+	 * Pi 的 `session_info` name entry —— 清单（`SessionInfo.name`）与加载标题
+	 * （`titleOf` 的 `getSessionName()` 口径）都优先读 name，天然生效，无需迁移。
+	 * 活动会话直接写活实例（外部再 open 一份会让活实例的 leaf 落后于文件）；
+	 * 其余会话另开一个 manager 追加（list 直读磁盘，无需关闭句柄）。
+	 * 返回 false = 会话不存在（server 回 404）；空标题抛 `SessionManageError(400)`。
+	 */
+	renameSession(id: string, title: string): Promise<boolean>;
+
+	/**
+	 * 删除会话：找到会话文件后 `unlink`（Pi 没有删除 API，entry 不可变；整文件删除
+	 * 即会话消失）。目标 = **活动会话**时先 `newSession()` 换入空白会话（旧
+	 * AgentSession/manager 一并 dispose，文件不再被活动链路引用）再删 —— 流式中拒绝
+	 * （`SessionManageError(409)`，不偷偷中止正在生成的回复）。文件已不存在（竞态）
+	 * 视为删除成功。
+	 */
+	deleteSession(id: string): Promise<void>;
 
 	/* -------------------------------------------------------------------------
 	 * C5 · 04/05 屏数据源（`resources.ts` / `models.ts` 的转发）
@@ -224,6 +243,20 @@ export interface CoreBootstrap {
 
 /** `switchCwd` 的可预期失败（目录不存在 / 不是目录）：server 据此回 400，与意外错误（500）区分 */
 export class InvalidCwdError extends Error {}
+
+/**
+ * 会话管理操作（重命名 / 删除）的可预期失败：`status` 即 HTTP 状态码
+ * （400 空标题 / 404 未知 id / 409 活动会话流式中），server 据此透传，
+ * 与意外错误（500）区分。
+ */
+export class SessionManageError extends Error {
+	constructor(
+		public status: number,
+		message: string,
+	) {
+		super(message);
+	}
+}
 
 export interface CreateRuntimeOptions {
 	agentDir?: string;
@@ -778,9 +811,51 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		// 推零快照（D9 live 半）：让 UI 的 TokenStats 立即归零，不等下一轮 usage 事件
 		emitUsage();
 		previous?.dispose();
-		const id = session.sessionManager.getSessionId();
-		console.log(`[core] 已新建会话：${id}（首条消息后才落盘）`);
-		return id;
+	const id = session.sessionManager.getSessionId();
+	console.log(`[core] 已新建会话：${id}（首条消息后才落盘）`);
+	return id;
+};
+
+	/*
+	 * 重命名 / 删除（2026-09-28 用户需求：侧栏历史会话行内改名 + 删除）。
+	 * 改名写 Pi 的 session_info name entry（清单与 titleOf 的 name 口径天然优先，
+	 * 无需迁移存量）；删除 = 找到文件后 unlink（Pi 无删除 API）。活动会话改名走
+	 * 活实例、删除先换入空白会话再删文件 —— 手势与 newSession / rebuildSession 同规。
+	 */
+	const renameSession = async (id: string, title: string): Promise<boolean> => {
+		await ready;
+		const name = title.trim();
+		if (!name) throw new SessionManageError(400, "会话标题不能为空");
+		if (session?.sessionManager.getSessionId() === id) {
+			session.sessionManager.appendSessionInfo(name);
+			return true;
+		}
+		const file = findSessionPath(sessionRef(), id);
+		if (!file) return false;
+		// list/加载都直读磁盘，这里 open 追加一条 name entry 即落盘，无需关闭句柄
+		SessionManager.open(file, sessionRef().sessionDir, cwd).appendSessionInfo(name);
+		return true;
+	};
+
+	const deleteSession = async (id: string): Promise<void> => {
+		await ready;
+		const file = findSessionPath(sessionRef(), id);
+		if (!file) throw new SessionManageError(404, `会话不存在：${id}`);
+		if (session?.sessionManager.getSessionId() === id) {
+			if (session.isStreaming) {
+				throw new SessionManageError(409, "会话正在生成回复，请先停止再删除");
+			}
+			// 先换入空白活动会话（旧 AgentSession/manager dispose），再删文件
+			await newSession();
+		}
+		try {
+			fs.unlinkSync(file);
+		} catch (e) {
+			// 竞态：已被删（另一窗口/请求先到）⇒ 视为成功；其余按可预期失败透出
+			if ((e as NodeJS.ErrnoException)?.code === "ENOENT") return;
+			throw new SessionManageError(500, `删除会话文件失败：${e instanceof Error ? e.message : String(e)}`);
+		}
+		console.log(`[core] 已删除会话：${file}`);
 	};
 
 	const runtime: CoreRuntime = {
@@ -855,6 +930,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			return loaded.result;
 		},
 		newSession,
+		renameSession,
+		deleteSession,
 
 		/* ------------------------------------------------------------ C5 */
 		getResources: async () => {
