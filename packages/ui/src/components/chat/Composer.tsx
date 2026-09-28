@@ -134,14 +134,20 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     el.style.height = `${next}px`;
   }, [composerDraft]);
 
-  /* at-file ①：消费「插入引用」请求（文件树 @ 按钮发起；seq 相同不重复消费） */
+  /* at-file ①：消费「插入引用」请求（文件树 @ 按钮发起）。
+     ⚠️ 依赖只放 composerInsertRequest（seq 自增保证每次请求都触发一次消费）——
+     绝不能把 composerDraft 列进依赖：消费会 setComposerDraft ⇒ draft 变 ⇒ effect
+     重跑 ⇒ 再插一次 ⇒ 无限循环（React Maximum update depth 崩溃，实弹抓到的真崩）。
+     最新草稿经 draftRef 镜像读取（WorkingDirFileTree 的 expandedRef 同款手法）。 */
+  const draftRef = useRef(composerDraft);
+  draftRef.current = composerDraft;
   useEffect(() => {
     if (!composerInsertRequest) return;
     const el = taRef.current;
     if (!el) return;
     const text = composerInsertRequest.text;
-    const pos = el.selectionStart ?? composerDraft.length;
-    const next = composerDraft.slice(0, pos) + text + composerDraft.slice(pos);
+    const pos = el.selectionStart ?? draftRef.current.length;
+    const next = draftRef.current.slice(0, pos) + text + draftRef.current.slice(pos);
     setComposerDraft(next);
     const caret = pos + text.length;
     // rAF：等受控 value 提交后再聚焦/设光标，否则 setSelectionRange 会被重渲染覆盖
@@ -149,8 +155,7 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
       el.focus();
       el.setSelectionRange(caret, caret);
     });
-    // composerDraft 在依赖里让 effect 拿到最新草稿；seq 相同的重跑由上方 if 拦下（幂等）
-  }, [composerInsertRequest, composerDraft, setComposerDraft]);
+  }, [composerInsertRequest, setComposerDraft]);
 
   /** onChange / onSelect 共用：按当前光标重算 @ 弹层开关与查询词 */
   const syncAtState = () => {

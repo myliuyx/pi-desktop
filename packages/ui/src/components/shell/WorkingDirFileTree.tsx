@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronRight, File, Folder, Loader2 } from "lucide-react";
+import { AtSign, ChevronRight, File, Folder, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
 import { isLiveEnabled } from "@/lib/feature-flags";
@@ -34,7 +34,15 @@ import { useUiStore } from "@/store/ui-store";
  * 目录行是 button（展开/收起；加载失败时点击 = 原地重试）；文件行也是 button——
  * dir-file-preview 批次起点击 = 在右侧预览区打开该文件（ui-store.previewFilePath，
  * 预览区折叠中则顺带展开），当前打开的文件行保持选中高亮（data-selected）。
- * 「看着能点但没动作」仍是明令禁止的哑交互；引用（@）语义留后续批次。
+ * 「看着能点但没动作」仍是明令禁止的哑交互。
+ *
+ * ## @ 引用入口（at-file 批次，task-composer-at-file.md §4.4 · D2-A）
+ *
+ * 文件行 hover 浮现 AtSign 小按钮：点击 = 把 `@<相对 liveCwd 的 POSIX 路径> ` 插入
+ * Composer 光标处并聚焦输入框（ui-store.insertComposerText，Composer 消费）。点击
+ * 本身仍是预览（D1 不变）——引用是新增的第二手势，两种动作各有明确归属。
+ * 行结构相应从单 button 改为 div 包裹「主体 button + 绝对定位引用 button」
+ * （button 嵌 button 不合 HTML；探针检查过无行结构断言，重构安全）。
  */
 
 /** 单个已展开目录的子级状态（含加载失败——失败不收起，点击重试） */
@@ -193,6 +201,16 @@ export function WorkingDirFileTree() {
     if (ui.previewCollapsed) ui.togglePreview();
   }, []);
 
+  /**
+   * 文件行 @ 引用：把 `@<POSIX 相对路径> ` 发给 Composer（插光标处 + 聚焦）。
+   * 路径口径与 @ 弹层一致——相对 liveCwd 的 POSIX 风格，core 端按自身 cwd 反解。
+   */
+  const citeFile = useCallback((filePath: string) => {
+    const cwd = useChatStore.getState().liveCwd;
+    if (!cwd) return;
+    useUiStore.getState().insertComposerText(`@${toRelPosixPath(filePath, cwd)} `);
+  }, []);
+
   /*
    * 渲染门槛（hooks 之后才返回 null —— 规则 of hooks；SSR / mock / unavailable 都走这里）。
    * root === null 且 liveCwd 就绪 = 首拉在途，按 loading 行呈现（effect 在 commit 后立刻发出）。
@@ -250,6 +268,7 @@ export function WorkingDirFileTree() {
               onToggle={toggleDir}
               selected={row.entry.kind === "file" && row.entry.path === previewFilePath}
               onOpenFile={openFile}
+              onCiteFile={citeFile}
             />
           ) : (
             <StatusRow
@@ -271,7 +290,28 @@ export function WorkingDirFileTree() {
 const INDENT_BASE = 8;
 const INDENT_STEP = 12;
 
-/** 目录行：真实 button（可点展开/收起/重试）；文件行：button（点击 = 预览区打开，dir-file-preview 批次） */
+/**
+ * 绝对路径 → 相对 liveCwd 的 POSIX 风格路径（@ 引用的展示与插入口径，与 @ 弹层一致；
+ * core 端按自身 cwd 反解，见 prompt-files.ts）。浏览器无 node:path，手工切前缀；
+ * win32 盘符大小写不敏感，前缀比较统一 toLowerCase（拼接结果仍取原样保留大小写）。
+ * 不在 cwd 下时兜底返回归一化的绝对路径——core 的 expandHome/resolve 同样接受。
+ */
+function toRelPosixPath(absPath: string, cwd: string): string {
+  const norm = (p: string) => p.replace(/\\/g, "/").replace(/\/+$/, "");
+  const a = absPath.replace(/\\/g, "/");
+  const c = norm(cwd);
+  if (a.toLowerCase().startsWith(`${c.toLowerCase()}/`)) {
+    return a.slice(c.length + 1);
+  }
+  return a;
+}
+
+/**
+ * 目录行：真实 button（可点展开/收起/重试）；
+ * 文件行：div 包「主体 button（点击 = 预览区打开，dir-file-preview 批次）+
+ * hover 浮现的 @ 引用 button（at-file 批次 D2-A）」——button 嵌 button 不合 HTML，
+ * 引用按钮必须挂在 div 上（at-file 批次对既有探针做了检查，无行结构断言）。
+ */
 function EntryRow({
   entry,
   depth,
@@ -281,6 +321,7 @@ function EntryRow({
   selected,
   onToggle,
   onOpenFile,
+  onCiteFile,
 }: {
   entry: DirEntryResult;
   depth: number;
@@ -293,6 +334,7 @@ function EntryRow({
   selected?: boolean;
   onToggle: (dirPath: string) => void;
   onOpenFile: (filePath: string) => void;
+  onCiteFile: (filePath: string) => void;
 }) {
   const isDir = entry.kind === "dir";
   const rowClass = cn(
@@ -303,26 +345,53 @@ function EntryRow({
 
   if (!isDir) {
     return (
-      <button
-        type="button"
-        data-testid={`sidebar-file-tree-entry-${index}`}
-        data-kind="file"
-        data-selected={selected ? "true" : "false"}
-        title={entry.path}
-        onClick={() => onOpenFile(entry.path)}
-        className={cn(
-          rowClass,
-          "text-text-secondary transition-colors duration-150 ease-out",
-          "hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
-          selected && "bg-bg-active text-text-primary",
-        )}
-        style={indentStyle}
+      <div
+        data-testid={`sidebar-file-tree-file-row-${index}`}
+        className="group relative flex min-w-0 items-center"
       >
-        {/* 空档占位：文件没有 chevron，但图标列要与目录行对齐 */}
-        <span className="w-3 shrink-0" aria-hidden="true" />
-        <Icon icon={File} size={13} className="shrink-0 text-text-tertiary" />
-        <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-      </button>
+        <button
+          type="button"
+          data-testid={`sidebar-file-tree-entry-${index}`}
+          data-kind="file"
+          data-selected={selected ? "true" : "false"}
+          title={entry.path}
+          onClick={() => onOpenFile(entry.path)}
+          className={cn(
+            rowClass,
+            // 外层 div 接管了 stretch（原 button 直挂 flex-col 父）；主体按钮改为 flex-1 占满，
+            // hover 高亮与 truncate 的有效宽度才不变
+            "flex-1 text-text-secondary transition-colors duration-150 ease-out",
+            "hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
+            selected && "bg-bg-active text-text-primary",
+          )}
+          style={indentStyle}
+        >
+          {/* 空档占位：文件没有 chevron，但图标列要与目录行对齐 */}
+          <span className="w-3 shrink-0" aria-hidden="true" />
+          <Icon icon={File} size={13} className="shrink-0 text-text-tertiary" />
+          <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+        </button>
+        {/*
+         * @ 引用按钮（D2-A）：hover 浮现；点击不夺预览语义。mousedown preventDefault
+         * 防止点击瞬间 textarea 失焦丢光标（与 @ 弹层 option 同款手法）。
+         */}
+        <button
+          type="button"
+          data-testid={`sidebar-file-tree-cite-${index}`}
+          title={`引用到输入框：${entry.name}`}
+          aria-label={`引用文件 ${entry.name} 到输入框`}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onCiteFile(entry.path)}
+          className={cn(
+            "absolute right-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-md",
+            "bg-bg-elevated text-text-tertiary shadow-sm",
+            "transition-opacity duration-150 ease-out hover:bg-bg-hover hover:text-accent",
+            "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+          )}
+        >
+          <Icon icon={AtSign} size={12} />
+        </button>
+      </div>
     );
   }
 
