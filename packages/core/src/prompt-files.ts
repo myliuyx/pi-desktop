@@ -199,3 +199,30 @@ function expandDirectory(target: string, blocks: string[], skip: (reason: string
 		`<file name="${target}" type="directory">\n${listed.join("\n")}${listed.length > 0 ? "\n" : ""}${summary}\n</file>\n`,
 	);
 }
+
+/* ---------------------------------------------------------------------------
+ * <file> 块的展示层拆解（会话标题兜底用）
+ *
+ * 块的唯一产地是本文件（expandFileRefs / expandDirectory），拆解也必须同源——
+ * 格式改了这里不同步改，会话标题就会漏出机器形态（2026-09-28 用户反馈：
+ * 首条消息是 @引用时侧栏标题显示 `<file name="F:\…`）。
+ * ------------------------------------------------------------------------- */
+
+/** 剥掉 @引用展开的 `<file …>…</file>` 块（含目录块），返回剩余正文（trim 过） */
+export function stripFileRefBlocks(text: string): string {
+	return text.replace(/<file\b[^>]*>[\s\S]*?<\/file>/g, "").trim();
+}
+
+/** 收集块引用的名字（basename 去重、按出现序）；纯引用无正文时的标题兜底素材 */
+export function fileRefNames(text: string): string[] {
+	const names: string[] = [];
+	for (const m of text.matchAll(/<file\b[^>]*?\bname="([^"]*)"[^>]*>/g)) {
+		// name 恒为绝对路径（win 反斜杠 / posix 斜杠都可能出现）；空段与裸盘符段（D:\ 没有 basename）滤掉
+		const base = m[1]
+			.split(/[\\/]/)
+			.filter((seg) => seg && !/^[A-Za-z]:$/.test(seg))
+			.pop();
+		if (base && !names.includes(base)) names.push(base);
+	}
+	return names;
+}

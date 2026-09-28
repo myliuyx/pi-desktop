@@ -44,6 +44,7 @@ import type {
   TokenUsage,
 } from "./contract.ts";
 import { isRecord, num } from "./guards.ts";
+import { fileRefNames, stripFileRefBlocks } from "./prompt-files.ts";
 import { usageOf } from "./adapt.ts";
 
 /* ---------------------------------------------------------------------------
@@ -139,16 +140,30 @@ function foldUsage(target: TokenUsage, usage: unknown): void {
  * SessionInfo → SessionSummary
  * ------------------------------------------------------------------------- */
 
+/**
+ * 首条 user 消息 → 标题兜底素材：@引用展开的 `<file>` 块是前置机器块，直接进标题会以
+ * `<file name="F:\…` 开头（侧栏/页头不可读）。剥块取剩余正文；纯引用无正文时用引用名占位
+ * （单名直出，多名「首名 等 N 个引用」）。块格式与拆解同源在 prompt-files.ts。
+ */
+export function titleFallbackFromFirstMessage(raw: string): string {
+	const body = stripFileRefBlocks(raw);
+	if (body) return body;
+	const names = fileRefNames(raw);
+	if (names.length === 1) return names[0];
+	if (names.length > 1) return `${names[0]} 等 ${names.length} 个引用`;
+	return "";
+}
+
 /** `title = name ?? firstMessage`（`S2 §三` 的裁决；两者皆空时给一个明确占位，不返回空标题） */
 export function toSessionSummary(info: SessionInfo): SessionSummary {
-  const name = typeof info.name === "string" ? info.name.trim() : "";
-  const first = typeof info.firstMessage === "string" ? info.firstMessage.trim() : "";
-  return {
-    id: info.id,
-    title: name || first || "(未命名会话)",
-    updatedAt: toEpochMs(info.modified),
-    messageCount: typeof info.messageCount === "number" ? info.messageCount : 0,
-  };
+	const name = typeof info.name === "string" ? info.name.trim() : "";
+	const first = typeof info.firstMessage === "string" ? info.firstMessage.trim() : "";
+	return {
+		id: info.id,
+		title: name || titleFallbackFromFirstMessage(first) || "(未命名会话)",
+		updatedAt: toEpochMs(info.modified),
+		messageCount: typeof info.messageCount === "number" ? info.messageCount : 0,
+	};
 }
 
 /* ---------------------------------------------------------------------------
@@ -400,13 +415,16 @@ export interface LoadedSession {
 function titleOf(manager: SessionManager, fallback: string): string {
   const name = manager.getSessionName()?.trim();
   if (name) return name;
-  // 没有自定义名时用「首条 user 消息」兜底（与 SessionInfo.firstMessage 同口径）
+  // 没有自定义名时用「首条 user 消息」兜底（与 SessionInfo.firstMessage 同口径；
+  // @引用展开的 <file> 块同样在此剥离，保证 /sessions/load 的标题与清单同形）
   for (const entry of manager.getBranch()) {
     if (entry.type !== "message") continue;
     const message = entry.message as unknown as Record<string, unknown>;
     if (message?.role !== "user") continue;
-    const text = textOfContent(message.content).trim();
-    if (text) return text.slice(0, 80);
+    const raw = textOfContent(message.content).trim();
+    if (!raw) continue;
+    const title = titleFallbackFromFirstMessage(raw);
+    if (title) return title.slice(0, 80);
   }
   return fallback;
 }
