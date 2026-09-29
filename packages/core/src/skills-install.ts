@@ -13,7 +13,8 @@
  * - 冲突不覆盖：目标目录已存在抛 409（v1 无更新/卸载入口，装错手动删目录）。
  * - 写路径加固：技能目录含符号链接抛 422（cp 默认 dereference:false 会原样搬运链接，
  *   装个技能会被升级为「读本机任意文件」）；SKILL.md 位于仓库根抛 400（cp 会连 .git 一起搬）。
- * - 私库/断网 = clone 失败原样报错；临时目录 finally 必清。
+ * - 私库/断网 = clone 失败；git stderr 细节只进 core 本地日志，HTTP 侧只回分类后的
+ *   稳定文案（不逐字回显仓库 URL 认证原文，I3）。临时目录 finally 必清。
  * - 阶段进度经 onProgress 回调发 SSE `skill_progress`（session.ts 接线）。
  */
 
@@ -23,7 +24,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参或仓库组织不合规 / 404 仓库无此技能 / 409 目录冲突 / 422 技能目录不可安全拷贝 / 500 真实 IO 故障，不伪装成 404） */
+/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参或仓库组织不合规 / 404 仓库无此技能或克隆不到 / 409 目录冲突**或项目未信任** / 422 技能目录不可安全拷贝 / 500 真实 IO 或环境故障，不伪装成 404 / 504 克隆超时）。`session.ts` 的 installSkill 也在装前抛本类（未信任项目），故 409 不只表示「目录已存在」。 */
 export class SkillInstallError extends Error {
 	constructor(
 		public status: number,
@@ -53,7 +54,7 @@ export const MAX_SKILL_ID_LENGTH = 128;
 /** 搜索入参 q 的长度上限（防超长 q 撑出超长上游 URL；skills.sh 真实查询都是几个词） */
 export const MAX_QUERY_LENGTH = 200;
 
-/** git clone --depth 1（stderr 尾部进错误文案，ENETNOTFOUND/401 才有得排查） */
+/** git clone --depth 1（失败细节只进本地日志，HTTP 侧只回稳定分类文案，I3） */
 function gitClone(repoUrl: string, destDir: string): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const child = spawn("git", ["clone", "--depth", "1", "--single-branch", repoUrl, destDir], {
@@ -62,15 +63,17 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
 		let stderr = "";
 		const timer = setTimeout(() => {
 			child.kill();
-			reject(new Error(`克隆超时（${CLONE_TIMEOUT_MS / 60000} 分钟）：${repoUrl}`));
+			// 超时文案不含本机临时路径：URL 是用户自己填的 source 拼出来的，非内部信息
+			reject(new SkillInstallError(504, `克隆超时（${CLONE_TIMEOUT_MS / 60000} 分钟）：${repoUrl}`));
 		}, CLONE_TIMEOUT_MS);
 		child.on("error", (e) => {
 			clearTimeout(timer);
 			const code = (e as NodeJS.ErrnoException).code;
+			// 同上：不外送 (e as Error).message（spawn 错误文本可能带本机可执行文件路径）
 			reject(
 				code === "ENOENT"
-					? new Error("未找到 git 命令——请先安装 Git（插件包安装同样依赖它）")
-					: new Error(`git 启动失败：${e.message}`),
+					? new SkillInstallError(500, "未找到 git 命令——请先安装 Git（插件包安装同样依赖它）")
+					: new SkillInstallError(500, `git 启动失败（${code ?? "未知错误"}）`),
 			);
 		});
 		child.stderr.on("data", (chunk) => {
@@ -83,8 +86,28 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
 				resolve();
 				return;
 			}
-			const tail = stderr.trim().split("\n").slice(-3).join("\n");
-			reject(new Error(`git clone 失败（exit ${code}）：${tail || repoUrl}`));
+			// 细节（仓库 URL / 认证失败原文 / 远端主机名）**只进本地日志**，不回传浏览器（I3）：
+			// git stderr 原文含 `fatal: could not read Username for 'https://…'`、认证失败细节、
+			// 远端主机名，完整逐字回显给前端是超出必要的暴露面（经 server.ts 的 { error }
+			// → transport 原文抛 → UI 直出）。与同文件 500 只带 errno code 同精神。
+			console.error(`[skills-install] git clone 失败（exit ${code}）：${repoUrl}\n${stderr.trim()}`);
+			// 128 = git 通用失败码（仓库不存在 / 无权访问 / 需认证 / 远端不可达）⇒ 归 404，
+			// 对前端语义是「这个技能源取不到」，用户可换一个源；其余退出码（本地 git 配置错、
+			// 磁盘满、clone 被中间件杀等）归 500。
+			//
+			// 注意：此处**必须用 reject 而非 throw** —— throw 发生在 child.on("close", …) 回调里
+			//（不是 Promise executor 同步体），会变成该监听器的未捕获异常，既不让外层 Promise
+			// settle，又会把 installSkillFromGitHub 的调用方挂成永不返回的 pending await。
+			if (code === 128) {
+				reject(
+					new SkillInstallError(
+						404,
+						`无法克隆仓库：${repoUrl}（仓库不存在、无权访问，或需要认证）`,
+					),
+				);
+				return;
+			}
+			reject(new SkillInstallError(500, `git clone 失败（退出码 ${code}）`));
 		});
 	});
 }

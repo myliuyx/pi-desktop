@@ -75,7 +75,7 @@ import { createProvidersController, type ProvidersController } from "./providers
 import type { PromptImage } from "./prompt-files.ts";
 import { collectResources } from "./resources.ts";
 import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
-import { installSkillFromGitHub } from "./skills-install.ts";
+import { installSkillFromGitHub, SkillInstallError } from "./skills-install.ts";
 import { searchSkillsSh } from "./skills-search.ts";
 import { continueRecentSession, findSessionPath, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
@@ -226,8 +226,8 @@ export interface CoreRuntime {
 	/**
 	 * 从 GitHub 仓库安装单个技能（skills-install.ts：clone → frontmatter 匹配 →
 	 * 拷贝到目标 skills 目录）→ `session.reload()` → 返回最新清单。流式中抛错
-	 * （端点前置判据回 409）；非法来源/无此技能/目录冲突抛 `SkillInstallError`
-	 * （端点回 400/404/409）。进度经 SSE `skill_progress` 下发。
+	 * （端点前置判据回 409）；非法来源/无此技能/目录冲突/**项目未信任**抛
+	 * `SkillInstallError`（端点回 400/404/409）。进度经 SSE `skill_progress` 下发。
 	 */
 	installSkill(req: SkillInstallRequest): Promise<SkillInstallResult>;
 
@@ -1052,6 +1052,29 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 				throw new Error("会话正在生成回复，请先停止再安装技能");
 			}
 			if (!session || !resourceLoader) throw new Error("会话组件未就绪");
+			// 未信任项目不得写入项目级资源（I7）：`.pi/skills` 属 Pi 的需信任资源
+			//（trust-manager.js:8-16 的 TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES 含
+			//「skills」）。未信任时安装**会成功**——落盘正常、端点 200、reload 也不报错，
+			// 但 collectSkillsPayload 对未信任项目技能直接 continue 不列
+			//（skills.ts:87-90）→ UI 弹「技能已安装」success 而列表里没有、详情空白。
+			// 与官方 DefaultPackageManager.assertProjectTrustedForScope 同口径
+			//（package-manager.js:1421-1425，install/remove 均在动手前先断言）。
+			// 判据用 `trust?.trusted !== true` 而非 `=== false`：trust 初值为 null
+			//（session.ts:400），ready 未兑现时也必须挡住 —— 那是「尚不知信任状态」，
+			// 语义上同样不能写项目目录。
+			//
+			// 抛 SkillInstallError 而非裸 Error：端点只对前者回 e.status
+			//（server.ts:689），裸 Error 一律 500 —— 把「项目未信任、换个 scope 即可」
+			// 报成服务端故障，是本条要消灭的那类「提示与实际不符」换个方向复发。
+			// 409 与端点的两条前置判据（流式中 409 / 入参缺失 400）语义一致：都是
+			// 「此刻不能装」，且都不是 core 自身故障。
+			if (req.scope === "project" && trust?.trusted !== true) {
+				throw new SkillInstallError(
+					409,
+					"当前项目未信任，无法安装到项目级技能目录。" +
+						"请先在该项目完成信任确认，或改用 global 范围安装。",
+				);
+			}
 			const targetSkillsDir =
 				req.scope === "project" ? path.join(cwd, ".pi", "skills") : path.join(agentDir, "skills");
 			// 阶段进度直发 SSE skill_progress（与 package_progress 同管道，不经 toAgentEvent）
