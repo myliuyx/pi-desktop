@@ -201,6 +201,18 @@ async function expectStatus(fn) {
  * 现场构造，替换目标按源码/复刻字面量（缺省 "-"）取。源码白名单一放宽，
  * 落盘名就跟着越界 ⇒ 断言变红。抠不到（形态大改）时**显式标红并跳过语义判据**，
  * 绝不静默改用硬编码兜底（那正是本轮堵掉的那个假绿口子）。
+ *
+ * **fix round 2/5（评审 Important ×2）：消掉抠取器的两处假红 + 一处新假绿。**
+ *   - 假红 A：`readStringLiteral` 只认双引号 ⇒ 把源码等价改成**单引号**（`'a\'b'` 这类
+ *     带转义的字面量也算）就抠不到，`replaceCalls` 变空 ⇒ 23 条 A2 全红，且
+ *     **同时废掉「剥首尾」那道真正的防线**（`".."` 剥不出来），红得没有指向性。
+ *     现在引号风格单双皆收，且要求前后**配对**。
+ *   - 假红 B + 新假绿：原先按出现顺序取前两个 `replace(`，既没剥注释、也没收紧定位。
+ *     注释里出现 `replace(...)` ⇒ 抠到注释里的正则（红 10 条，且 detail 把「第 1 遍换成 `..`」
+ *     这种结论指错了方向）；**追加第 3 遍 replace** ⇒ 前两遍照抠不误、判据沉默全绿，
+ *     连 `replace(/-/g, "/")` 这种真破坏都接不住。现在先抹白注释/字符串内容，
+ *     再要求 `replace` 是**独立的成员调用 token**（见下方 isReplaceCall 的注释：为什么
+ *     不能用「语句起点」的字面定义），并显式断言「恰好两遍」，多一遍/少一遍都红。
  */
 {
 	const m = /function sanitizeDirName\(skillId: string\): string \{([\s\S]*?)\n\}/.exec(installSource);
@@ -210,7 +222,8 @@ async function expectStatus(fn) {
 	//   - 正则字面量：`/.../` 内部允许出现转义斜杠 `\/`，字面量以「未被转义的 `/`」收尾，
 	//     标志位只收 g / i / m / s / u / y（拿不到 g 就当场标红并短路，绝不静默改用非全局版 ——
 	//     非全局的 replace 只换首个匹配，会让「白名单敏感」这件事测不出来）；
-	//   - 替换目标：字符串字面量（取字面量里的原文作为 replacement，常见转义由 JSON.parse 还原）。
+	//   - 替换目标：字符串字面量（单引号 / 双引号皆可，要求前后配对；取字面量原文，
+	//     常见转义（\\ \' \" \n …）由下面那段还原成真值）。
 	// 源码若改用非字面量（变量 / 函数 / 模板串），抠取失败即如实标红并短路语义判据。
 	const readRegexLiteral = (text, from) => {
 		let i = text.indexOf("/", from);
@@ -243,13 +256,71 @@ async function expectStatus(fn) {
 		}
 		return null;
 	};
+	// **fix round 2/5（假红 A）**：单/双引号都收，且要求前后**配对**。
+	// 正则用 `/^(['"])((?:[^\\]|\\.)*?)\1/`：`(?:[^\\]|\\.)` 保证不会在
+	// 转义序列中间收尾（例如 `'a\'b'` 里 `\'` 被整体吃掉，配对引号仍是外层那两个），
+	// 惰性 `*?` + 反向引用 `\1` 保证「后引号与前引号同种」，不会把 `'a"b'` 读成两个字面量。
 	const readStringLiteral = (text, from) => {
-		const m = /^"((?:[^"\\]|\\.)*)"/.exec(text.slice(from));
+		const m = /^(['"])((?:[^\\]|\\.)*?)\1/.exec(text.slice(from));
 		if (!m) return null;
-		return { end: from + m[0].length, raw: m[1] };
+		return { end: from + m[0].length, raw: m[2] };
 	};
+	// **fix round 2/5（假红 B / 新假绿）**：抹白注释与字符串**内容**（保留换行以维持行号），
+	// 否则函数体开头一句 `// 见下方 replace(...) 调用` 就会把注释里的正则抠成「第 1 遍」。
+	// 抹白是**字符等长**的：只把内容换成空格、不动任何位置 ⇒ 抠出来的 pattern/flags 与
+	// 抹白前逐字一致，行号也仍然对得上。模板串整体抹白（反引号当作引号处理）。
+	const codeOnly = (text) => {
+		let out = "";
+		let i = 0;
+		const blank = (from, to) => text.slice(from, to).replace(/[^\n]/g, " ");
+		while (i < text.length) {
+			const c = text[i];
+			const d = text[i + 1];
+			if (c === "/" && d === "/") {
+				let j = i;
+				while (j < text.length && text[j] !== "\n") j++;
+				out += blank(i, j);
+				i = j;
+			} else if (c === "/" && d === "*") {
+				let j = i + 2;
+				while (j < text.length && !(text[j] === "*" && text[j + 1] === "/")) j++;
+				j = Math.min(j + 2, text.length);
+				out += blank(i, j);
+				i = j;
+			} else if (c === '"' || c === "'" || c === "`") {
+				const lit = readStringLiteral(text, i); // 配对引号 + 转义序列一起吃掉
+				const j = lit ? lit.end : i + 1;
+				out += blank(i, j);
+				i = j;
+			} else {
+				out += c;
+				i++;
+			}
+		}
+		return out;
+	};
+	// **fix round 2/5**：收紧 `replace(` 的定位，不把「任意位置出现的 replace」当一遍调用：
+	//   - 先由 codeOnly 抹掉注释/字符串内容（这是「函数体前面一句 `// 见下方 replace(…)` 就把
+	//     注释里的正则抠成第 1 遍」的病根，见上）；
+	//   - `replace` 必须是**独立的成员调用 token**：前面不是标识符字符（否则 `replaceAll` /
+	//     `xreplace` 不算），且要么紧跟在 `.` 之后（`receiver.replace(`），要么自身在行首
+	//     （裸 `replace(` 调用）。
+	// 注意这里**没有**用「语句起点」的字面定义（行首 / 分号后）：源码的合法形态就是
+	// `const cleaned = skillId.replace(A).replace(B)` —— 一条语句里链式两遍，两个 `replace`
+	// 都不在行首、第一个前面还是接收者 `skillId`。按字面定义会把**源码本身**判成抠不到
+	// （假红）。真正能区分「源码本来两遍」与「有人**追加**了第三遍」的是下面那条
+	// `length === 2` 断言：链式几遍都放过，多出第三遍就红。
+	const isReplaceCall = (text, idx) => {
+		if (idx > 0 && /[A-Za-z0-9_$]/.test(text[idx - 1])) return false; // 更长标识符的一部分
+		if (idx > 0 && text[idx - 1] === ".") return true; // receiver.replace(
+		const lineStart = text.lastIndexOf("\n", idx - 1) + 1;
+		return text.slice(lineStart, idx).trim() === ""; // 行首的裸 replace(
+	};
+	const codeBody = codeOnly(fnBody);
 	const replaceCalls = [];
-	for (let idx = fnBody.indexOf("replace("); idx >= 0; idx = fnBody.indexOf("replace(", idx + 1)) {
+	for (let idx = codeBody.indexOf("replace("); idx >= 0; idx = codeBody.indexOf("replace(", idx + 1)) {
+		// indexOf 命中的是 `replace(` 的开头，回退校验 `replace` 是独立 token（排除 replaceAll）
+		if (!isReplaceCall(codeBody, idx)) continue;
 		// `replace(` 与第一个参数之间可能已有空格
 		const afterCall = idx + "replace(".length + (fnBody.slice(idx + "replace(".length).match(/^\s*/) ?? [""])[0].length;
 		const re0 = readRegexLiteral(fnBody, afterCall);
@@ -259,11 +330,13 @@ async function expectStatus(fn) {
 		const str0 = readStringLiteral(fnBody, argStart);
 		if (!str0) continue;
 		let replacement = str0.raw;
-		try {
-			replacement = JSON.parse(`"${str0.raw}"`);
-		} catch {
-			/* 罕见转义：保留字面量原文（等价即可） */
-		}
+		// 把字面量里的常见转义还原成真值（= 源码里那个字面量的实际内容）：
+		// `\\ \' \"` 取字面量本身，`\n \r \t \b \f \v \0` 取对应控制字符；
+		// 其余（`\xNN` / `\uNNNN` 等）源码里不出现，保持原样（等价即可，不影响“抠到哪两遍”）。
+		replacement = str0.raw.replace(/\\([\s\S])/g, (_m, e) => {
+			const simple = { n: "\n", r: "\r", t: "\t", b: "\b", f: "\f", v: "\v", 0: "\0" };
+			return Object.prototype.hasOwnProperty.call(simple, e) ? simple[e] : e;
+		});
 		replaceCalls.push({ pattern: re0.pattern, flags: re0.flags, replacement });
 	}
 	const firstCall = replaceCalls[0] ?? null; // 第 1 遍：字符白名单
@@ -282,6 +355,10 @@ async function expectStatus(fn) {
 	// 它的后果正是目录穿越：skillId ".." 会拼出 targetSkillsDir 的父目录，
 	// "." 会拼出 targetSkillsDir 本身。源码的剥首尾正则就是堵这个的唯一一道。
 	check("A2 两遍 replace 都能从源码抠出（正则字面量+全局标志+替换目标，同源不硬编码）", compiled, { 抠出: replaceCalls, 原因: compiled ? "两遍均为 g" : "未抠到两遍 / 缺 g / 替换目标非字面量" });
+	// **fix round 2/5**：遍数必须**恰为两**。取前两个的抠取器会在这里沉默全绿 ——
+	// 追加第 3 遍时前两遍照抠不误，连 `replace(/-/g, "/")` 这种真破坏都接不住。
+	// 「遍数被改动」不在下面那 20+ 条语义判据的覆盖里，所以必须在这里显式钉住。
+	check("A2 抠到的 replace 恰为两遍（追加第 3 遍 ⇒ 这里红；否则新增的遍会被静默忽略）", replaceCalls.length === 2, { 遍数: replaceCalls.length, 抠出: replaceCalls });
 	// 判据要求：第 1 遍是一个**逐字符**的否定类（`[^…]`）且替换目标就是 "-"；
 	// 量词/锚点/回溯一旦出现（即不再逐字符）即红。`[^…]` 里的 `^` 属于类语法，不算锚点。
 	const firstIsPerCharClass = (p) => {
@@ -300,12 +377,23 @@ async function expectStatus(fn) {
 			!/\\w/.test(secondCall?.pattern ?? ""),
 		{ 第1遍: firstCall ? `/${firstCall.pattern}/${firstCall.flags} → "${firstCall.replacement}"` : "未找到", 第2遍: secondCall ? `/${secondCall.pattern}/${secondCall.flags} → "${secondCall.replacement}"` : "未找到" },
 	);
-	check("A2 源码里 sanitizeDirName 的第 2 遍是「首尾交替 run」口径", /replace\(\/\^\[-\.\]\+\|\[-\.\]\+\$\/g, ""\)/.test(fnBody), fnBody || "未匹配到函数体");
+	// 口径只认「第二遍的**正则字面量**就是首尾交替 run + 空替换目标」；引号风格（"" / ''）不参与判定，
+	// 否则源码等价改用单引号就会被这条文本断言假红（fix round 2/5 必修 1 的直接后果）。
+	check("A2 源码里 sanitizeDirName 的第 2 遍是「首尾交替 run」口径", /replace\(\/\^\[-\.\]\+\|\[-\.\]\+\$\/g, (""|'')\)/.test(fnBody), fnBody || "未匹配到函数体");
 	const noStrip = (s) => {
 		if (!compiled) return null;
 		const cleaned = s.replace(firstRe, firstCall.replacement);
 		return cleaned.length > 0 ? cleaned : "skill";
-	};	const dstEscape = path.join(tmpRoot, "a2-dst");
+	};
+	// **fix round 2/5（顺带 1）**：抠取失败时既标红、也把「压根没跑语义判据」写进 SKIPPED ——
+	// 只看证据 JSON 的人得能区分「判据在看着白名单红」与「抠取器失灵，语义判据一条都没跑」。
+	if (!compiled) {
+		SKIPPED.push({
+			id: "A2-抠取",
+			reason: `未能从 sanitizeDirName 抠出两遍「replace(/正则/标志位, 字符串字面量)」：实际抠到 ${replaceCalls.length} 遍 —— 下方全部 A2 语义判据（越界/单段/剥空回落/白名单敏感度）**按失败计入**，不是通过；detail 字段描述的是「抠取失败」而非「源码语义不符」。形态大改（参数改成非字面量、helper 化、换成 replaceAll、拆成多次 replace）即触发，属有意接受的假红：静默改用硬编码兜底才是上上轮堵掉的假绿。`,
+		});
+	}
+	const dstEscape = path.join(tmpRoot, "a2-dst");
 	fs.mkdirSync(dstEscape, { recursive: true });
 	// 以下 13 条语义判据全部跑在「由源码驱动的复刻」上：源码第 1 遍白名单一旦放宽
 	// （放过 / 或丢掉 .），sanitize 的产出就会越界/多段 ⇒ 这里当场变红。
@@ -340,10 +428,13 @@ async function expectStatus(fn) {
 	// **反向对照（白名单敏感度）**：源码当前把 `/` 换成 `-`。若这一点失守（白名单放过
 	// 分隔符），下面 13 条越界/单段判据会同时变红 —— 用一条显式对照把「它们会红」写成
 	// 断言里的**前提**，避免整套语义判据退化成「不成立的恒真」。
-	const whitelistsSlash = (s) => s.replace(/[^\w.-]/g, "-");
+	// 这里的 `[^\w.-]` 是**假设值、不是判据**：`assumedWhitelist("a/b") === "a-b"` 与源码无关
+	// （恒真的自检项），它唯一的作用是让断言里的人一眼看出「白名单放过 `/` 时 sanitize 会产出什么」，
+	// 进而确认后面那些判据**确实**依赖这一点。
+	const assumedWhitelist = (s) => s.replace(/[^\w.-]/g, "-");
 	check(
 		"A2 源码第 1 遍白名单确实把 `/` 换成 `-`（13 条越界/单段判据的敏感度前提）",
-		compiled && whitelistsSlash("a/b") === "a-b" && sanitize("a/b") === "a-b" && path.resolve(dst, sanitize("a/b")) === path.join(resolvedDst, "a-b"),
+		compiled && assumedWhitelist("a/b") === "a-b" && sanitize("a/b") === "a-b" && path.resolve(dst, sanitize("a/b")) === path.join(resolvedDst, "a-b"),
 		{ 源码第1遍换成: sanitize("a/b"), 白名单若放过斜杠则: path.resolve(dst, "a/b") },
 	);
 	// 复刻保真（两遍都在同一函数上）：把两遍的顺序调换、只留其中一遍、替换目标写错，
@@ -377,7 +468,8 @@ async function expectStatus(fn) {
 		"A2 复刻与源码两遍同源：顺序不可换、遍数不可减、首遍必须全局（任一改法 ⇒ 与复刻结果不同）",
 		!!viaSwapped && swappable.length > 0 && stripOnlyDiffers.length > 0 && nonGlobalDiffers.length > 0,
 		{ 抠出的两遍: replaceCalls, 两遍互换后不一致的输入: swappable.length, 去掉首遍后不一致的输入: stripOnlyDiffers.length, 首遍非全局后不一致的输入: nonGlobalDiffers.length },
-	);	check(
+	);
+	check(
 		"A2 复刻与源码两遍同源（剥空回落靠两遍串联得出，任一遍单独都算不出）",
 		compiled && sanitize("///") === "skill" && sanitize("   ") === "skill" && viaStripOnly("///") !== sanitize("///") && viaStripOnly("   ") !== sanitize("   "),
 		{ 两遍串联: sanitize("///"), 只剥首尾: viaStripOnly("///"), 两遍串联空格: sanitize("   "), 只剥首尾空格: viaStripOnly("   ") },
