@@ -27,7 +27,8 @@
     "smoke": "node node_modules/tsx/dist/cli.mjs src/main.ts",
     "check:session-title": "node node_modules/tsx/dist/cli.mjs scripts/session-title-check.mjs",
     "check:error-visible": "node node_modules/tsx/dist/cli.mjs scripts/error-visible-check.mjs",
-    "check:sessions-manage": "node scripts/sessions-manage-check.mjs"
+    "check:sessions-manage": "node scripts/sessions-manage-check.mjs",
+    "check:skills-install": "node node_modules/tsx/dist/cli.mjs scripts/skills-install-check.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1"
