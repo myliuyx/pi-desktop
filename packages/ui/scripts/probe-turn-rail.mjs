@@ -1,24 +1,25 @@
 /**
  * probe:turn-rail —— 会话提问导航刻度栏探针（task-turn-rail.md 步骤 7 · M 段 mock :5180）。
+ * 常显（task-turn-rail-always-visible.md）后刻度栏恒渲染，T7（移离收起）随之退役。
  *
  * 断言：
- * ① 初始（未 hover）：turn-rail 不在 DOM（无常驻遮罩条，决策 2）；
- * ② 左缘 mousemove（clientX ≤ 24）→ turn-rail 出现、data-open="true"、刻度数 = 2
- *    （mock 默认会话恰好两条 user 消息 m1/m6；锚点来自数据层，与虚拟行渲染无关）；
+ * ① 常显：进会话（无任何 mousemove）turn-rail 即渲染（翻转原「初始不在 DOM」）；
+ * ② 刻度数 = 2（mock 默认会话 m1/m6 两条 user 消息，数据层锚点）+ 统一箭头光标；
  * ③ 刻度纵向递增（紧凑居中簇：后问的刻度在下方）且都落在刻度栏高度内、上下留白对称；
  * ④ 悬停首个刻度 → turn-preview 出现：问题含该 user 消息原文前缀、回答非空、
  *    时间行含「第 1 问」、pointer-events:auto（可交互，预览交互修订）；
  * ⑤ 点击刻度 → data-at-bottom 翻 false、scroll-to-bottom 按钮出现、
  *    目标行落视口顶 24px 呼吸位（±64 容差）、行带 message-flash（决策 6）；
  * ⑥ ~1.7s 后 flash 类摘除（计时器无残留）；
- * ⑦ 鼠标移离左缘 → 150ms 宽限后 turn-rail 收起；
  * ⑧ ?stress=40 → 刻度数 = 20（数据层锚点，紧凑簇档距全等）+ 截图；
  * ⑨ 离列 → 气泡宽限桥：rail mouseout 起 150ms 宽限 → mouseover 气泡取消 → 300ms 后
- *    气泡仍在、刻度栏仍开；mouseout 气泡 → 气泡收起（task-turn-rail-preview-interaction.md）；
- * ⑩ 走廊粘滞：列内移到非刻度区 300ms 气泡保持、内容不变；rail mouseout 离列 → 收起
- *    （task-turn-rail-sticky-column.md）；
- * ⑪ 粘滞区定界：界内（两刻度之间）保持；越出刻度簇上方 60px → 150ms 宽限后气泡与
- *    刻度栏收起（task-turn-rail-corridor-bound.md）。
+ *    气泡仍在；mouseout 气泡 → 气泡收起（task-turn-rail-preview-interaction.md）；
+ * ⑩ 走廊粘滞：列内移到非刻度区 300ms 气泡保持、内容不变；rail mouseout 离列 → 气泡收起、
+ *    栏常显（task-turn-rail-sticky-column.md）；
+ * ⑪ 粘滞区定界：界内（两刻度之间）保持；越出刻度簇上方 60px → 150ms 宽限后气泡收起、
+ *    栏常显（task-turn-rail-corridor-bound.md）；
+ * ⑫ 扫动节流：快速扫过（各 <80ms）气泡内容不逐颗换、停下 ≥80ms 后结算为停留那颗
+ *    （task-turn-rail-smooth-sweep.md）。
  *
  * 运行前置：packages/ui dev server（:5180，cdp.mjs 自检并提示启动命令）。
  * 证据：_probe-turn-rail-evidence.json；截图 _probe-turn-rail-shot-{preview,rail,stress}.png；
@@ -60,12 +61,12 @@ try {
     await ctx.open("/");
     await cdp.eval(HELPERS);
 
-    /* ---- T1 初始无刻度栏 ---- */
+    /* ---- T1 常显：初始即渲染（无任何 mousemove） ---- */
     {
-      const absent = await cdp.eval(`(() => !window.__R.rail())()`);
-      ctx.record("T1_初始无刻度栏", { absent });
-      failures += ctx.assert("T1 初始（未悬停）无常驻刻度栏（决策 2：无常驻遮罩条）", {
-        初始不渲染: absent === true,
+      const present = await cdp.eval(`(() => !!window.__R.rail())()`);
+      ctx.record("T1_常显初始渲染", { present });
+      failures += ctx.assert("T1 进会话即常显，无需鼠标靠近左缘（常显翻转决策 2）", {
+        初始即渲染: present === true,
       })
         ? 0
         : 1;
@@ -80,13 +81,14 @@ try {
       })()`);
       await sleep(250);
       const s = await cdp.eval(`(() => ({
-        open: window.__R.rail()?.dataset.open ?? null,
         ticks: window.__R.ticks().length,
+        tickCursor: window.__R.ticks()[0] ? getComputedStyle(window.__R.ticks()[0]).cursor : null,
+        railCursor: window.__R.rail() ? getComputedStyle(window.__R.rail()).cursor : null,
       }))()`);
-      ctx.record("T2_左缘浮现", { rect, ...s });
-      failures += ctx.assert("T2 左缘 mousemove 浮现刻度栏，刻度数 = 2（m1/m6 两条提问）", {
-        栏出现: s.open === "true",
+      ctx.record("T2_常显刻度数", { rect, ...s });
+      failures += ctx.assert("T2 常显刻度数 = 2（m1/m6 两条提问）+ 统一箭头光标", {
         刻度数2: s.ticks === 2,
+        统一箭头: s.tickCursor === "default" && s.railCursor !== "pointer",
       })
         ? 0
         : 1;
@@ -202,24 +204,7 @@ try {
         : 1;
     }
 
-    /* ---- T7 移离左缘 → 宽限收起 ---- */
-    {
-      await cdp.eval(`(() => {
-        // 走廊粘滞（sticky-column）：收起扳机 = 离列；真实鼠标移开必触发 rail mouseout，
-        // 合成 moveAt 不派发——先补上，否则预览 hold 悬空、刻度栏收不起来
-        window.__R.rail().dispatchEvent(new MouseEvent("mouseout", { bubbles: true }));
-        const r = window.__R.root().getBoundingClientRect();
-        window.__R.moveAt(r.left + 200, r.top + r.height / 2);
-        return true;
-      })()`);
-      await sleep(450);
-      const closed = await cdp.eval(`(() => !window.__R.rail())()`);
-      failures += ctx.assert("T7 鼠标移离左缘，150ms 宽限后刻度栏收起", {
-        已收起: closed === true,
-      })
-        ? 0
-        : 1;
-    }
+    /* T7（移离左缘 → 宽限收起）已随常显退役：rail 恒渲染，不再有收起语义。 */
 
     /* ---- T8 stress：多刻度紧凑簇 ---- */
     {
@@ -233,7 +218,7 @@ try {
       await sleep(300);
       const s = await cdp.eval(`(() => {
         const rail = window.__R.rail();
-        if (!rail) return { open: null, ticks: 0, gapMin: null, gapMax: null };
+        if (!rail) return { open: false, ticks: 0, gapMin: null, gapMax: null };
         const railTop = rail.getBoundingClientRect().top;
         const ticks = window.__R.ticks();
         const centers = ticks.map(
@@ -241,7 +226,7 @@ try {
         );
         const gaps = centers.slice(1).map((c, i) => c - centers[i]);
         return {
-          open: rail.dataset.open,
+          open: true,
           ticks: ticks.length,
           gapMin: gaps.length ? Math.min(...gaps) : null,
           gapMax: gaps.length ? Math.max(...gaps) : null,
@@ -249,7 +234,7 @@ try {
       })()`);
       ctx.record("T8_stress多刻度", s);
       failures += ctx.assert("T8 ?stress=40 会话：刻度数 = 20（数据层锚点，紧凑簇档距全等）", {
-        栏出现: s.open === "true",
+        栏常显: s.open === true,
         刻度20: s.ticks === 20,
         间距全等: s.gapMin !== null && s.gapMax - s.gapMin <= 1.5,
       })
@@ -294,12 +279,12 @@ try {
       await sleep(300);
       const s1 = await cdp.eval(`(() => ({
         bubble: !!window.__R.q('[data-testid="turn-preview"]'),
-        railOpen: window.__R.rail()?.dataset.open ?? null,
+        rail: !!window.__R.rail(),
       }))()`);
       ctx.record("T9_悬停保持", s1);
-      failures += ctx.assert("T9 离列→气泡宽限桥：移入气泡 300ms 后气泡仍在、刻度栏仍开", {
+      failures += ctx.assert("T9 离列→气泡宽限桥：移入气泡 300ms 后气泡仍在（栏常显）", {
         气泡保持: s1.bubble === true,
-        栏保持: s1.railOpen === "true",
+        栏常显: s1.rail === true,
       })
         ? 0
         : 1;
@@ -386,9 +371,9 @@ try {
         `(() => ({ bubble: !!window.__R.q('[data-testid="turn-preview"]'), rail: !!window.__R.rail() }))()`,
       );
       ctx.record("T10_离列收起", s2);
-      failures += ctx.assert("T10 离开列 → 预览与刻度栏收起", {
+      failures += ctx.assert("T10 离开列 → 预览收起、刻度栏仍常显", {
         气泡收起: s2.bubble === false,
-        栏收起: s2.rail === false,
+        栏常显: s2.rail === true,
       })
         ? 0
         : 1;
@@ -442,10 +427,62 @@ try {
         `(() => ({ bubble: !!window.__R.q('[data-testid="turn-preview"]'), rail: !!window.__R.rail() }))()`,
       );
       ctx.record("T11_粘滞区定界", { 界内气泡保持: s1.bubble, 越界后: s2 });
-      failures += ctx.assert("T11 粘滞区定界：界内保持、越出刻度簇上方后气泡与刻度栏收起", {
+      failures += ctx.assert("T11 粘滞区定界：界内保持、越出刻度簇上方后气泡收起（栏常显）", {
         界内保持: s1.bubble === true,
         越界收起: s2.bubble === false,
-        栏收起: s2.rail === false,
+        栏常显: s2.rail === true,
+      })
+        ? 0
+        : 1;
+    }
+
+    /* ---- T12 扫动节流：快速扫过不逐颗换内容、停下后结算 ---- */
+    {
+      await ctx.open("/");
+      await cdp.eval(HELPERS);
+      await cdp.eval(`(() => {
+        const r = window.__R.root().getBoundingClientRect();
+        window.__R.moveAt(r.left + 8, r.top + r.height / 2);
+        return true;
+      })()`);
+      await sleep(300);
+      // 悬停刻度 0，等节流结算
+      await cdp.eval(`(() => {
+        const tick = window.__R.ticks()[0];
+        const tr = tick.getBoundingClientRect();
+        const opts = { bubbles: true, clientX: tr.left + 5, clientY: tr.top + 1 };
+        tick.dispatchEvent(new MouseEvent("mouseover", opts));
+        tick.dispatchEvent(new MouseEvent("mousemove", opts));
+        return true;
+      })()`);
+      await sleep(250);
+      const q0 = await cdp.eval(
+        `(() => (window.__R.q('[data-testid="turn-preview-question"]')?.textContent ?? "").slice(0, 30))()`,
+      );
+      // 快速扫 1→0→1（同一帧内，节流窗不断重置），停在刻度 1
+      await cdp.eval(`(() => {
+        const ticks = window.__R.ticks();
+        for (const i of [1, 0, 1]) {
+          const tr = ticks[i].getBoundingClientRect();
+          const opts = { bubbles: true, clientX: tr.left + 5, clientY: tr.top + 1 };
+          ticks[i].dispatchEvent(new MouseEvent("mouseover", opts));
+          ticks[i].dispatchEvent(new MouseEvent("mousemove", opts));
+        }
+        return true;
+      })()`);
+      // 立即读（CDP 往返 ~20ms < 80ms 节流窗）：内容应仍是刻度 0 的
+      const mid = await cdp.eval(
+        `(() => (window.__R.q('[data-testid="turn-preview-question"]')?.textContent ?? "").slice(0, 30))()`,
+      );
+      // 停下 ≥80ms → 结算为刻度 1
+      await sleep(250);
+      const q1 = await cdp.eval(
+        `(() => (window.__R.q('[data-testid="turn-preview-question"]')?.textContent ?? "").slice(0, 30))()`,
+      );
+      ctx.record("T12_扫动节流", { q0, mid, q1 });
+      failures += ctx.assert("T12 扫动节流：快速扫过内容不逐颗换、停下后结算为停留刻度", {
+        扫动中不换: mid === q0,
+        停下结算: q1 !== q0 && q1.length > 0,
       })
         ? 0
         : 1;

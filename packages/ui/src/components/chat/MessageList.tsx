@@ -7,7 +7,6 @@ import {
   useRef,
   useState,
   type HTMLAttributes,
-  type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -22,11 +21,8 @@ import {
   TURN_FLASH_MS,
   TURN_PREVIEW_ANSWER_CHARS,
   TURN_PREVIEW_QUESTION_CHARS,
-  TURN_RAIL_CLOSE_GRACE_MS,
   TURN_RAIL_TICK_HALF,
   TURN_RAIL_TICK_PITCH,
-  TURN_RAIL_TRIGGER_WIDTH,
-  TURN_RAIL_WIDTH,
 } from "@/lib/layout";
 import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { COMPOSER_MODELS } from "@/mock/composer";
@@ -248,15 +244,11 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   }, []);
 
   /*
-   * 会话提问导航刻度栏（task-turn-rail.md）：锚点 / 预览随 messages 记忆，开合是本地视图态。
-   * 触发 = 左缘邻近检测（规格书决策 2）：无常驻遮罩条 —— 常驻条是滚动容器的兄弟节点，
-   * 滚轮不冒泡给容器，会在左缘吃出一条滚轮死区；刻度栏开着时滚轮经 TurnRail 透传兜底。
+   * 会话提问导航刻度栏（task-turn-rail.md）：锚点 / 预览随 messages 记忆。
+   * 常显（task-turn-rail-always-visible.md，2026-09-29 用户裁决翻转决策 2）：触屏豁免 +
+   * 有提问即恒渲染——邻近检测 / 收起宽限 / focus·preview hold 的开合状态机整体退役；
+   * 常显条永久盖住 24px 内边距带，滚轮经 TurnRail 透传兜底（由「开着时兜底」升级为关键路径）。
    */
-  const [railOpen, setRailOpen] = useState(false);
-  const railCloseTimer = useRef<number | null>(null);
-  const railFocusRef = useRef(false);
-  /** 预览气泡悬停保持（task-turn-rail-preview-interaction.md 决策 3，focus-hold 同款） */
-  const railPreviewHoldRef = useRef(false);
   const railRef = useRef<HTMLDivElement | null>(null);
   const [railHeight, setRailHeight] = useState(0);
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
@@ -289,76 +281,14 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     [railAnchors, messages],
   );
 
-  const cancelRailClose = useCallback(() => {
-    if (railCloseTimer.current !== null) {
-      window.clearTimeout(railCloseTimer.current);
-      railCloseTimer.current = null;
-    }
-  }, []);
-
-  const scheduleRailClose = useCallback(() => {
-    if (railCloseTimer.current !== null || railFocusRef.current || railPreviewHoldRef.current)
-      return;
-    railCloseTimer.current = window.setTimeout(() => {
-      railCloseTimer.current = null;
-      setRailOpen(false);
-    }, TURN_RAIL_CLOSE_GRACE_MS);
-  }, []);
-
-  /** 左缘邻近检测（决策 2）：≤ 触发带浮现；> 刻度宽 +4 走宽限收起（防手抖闪没） */
-  const handleRootMouseMove = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      if (!hoverable || railAnchors.length === 0) return;
-      const offsetX = event.clientX - event.currentTarget.getBoundingClientRect().left;
-      if (offsetX <= TURN_RAIL_TRIGGER_WIDTH) {
-        cancelRailClose();
-        setRailOpen(true);
-      } else if (offsetX > TURN_RAIL_WIDTH + 4) {
-        scheduleRailClose();
-      }
-    },
-    [hoverable, railAnchors.length, cancelRailClose, scheduleRailClose],
-  );
-
-  const handleRootMouseLeave = useCallback(() => scheduleRailClose(), [scheduleRailClose]);
-
-  /** focus-within 保持展开（决策 7）；离开刻度栏走正常宽限收起 */
-  const handleRailFocusChange = useCallback(
-    (focused: boolean) => {
-      railFocusRef.current = focused;
-      if (focused) {
-        cancelRailClose();
-        setRailOpen(true);
-      } else {
-        scheduleRailClose();
-      }
-    },
-    [cancelRailClose, scheduleRailClose],
-  );
-
-  /** 预览气泡悬停期间保持展开（预览交互修订决策 3）：鼠标在气泡内时根节点收不到
-      mousemove（portal 不冒泡给根），无此 hold 会在 150ms 宽限后连刻度栏一起收掉 */
-  const handlePreviewOpenChange = useCallback(
-    (previewOpen: boolean) => {
-      railPreviewHoldRef.current = previewOpen;
-      if (previewOpen) {
-        cancelRailClose();
-        setRailOpen(true);
-      } else {
-        scheduleRailClose();
-      }
-    },
-    [cancelRailClose, scheduleRailClose],
-  );
-
   const handleRailWheel = useCallback((deltaY: number) => {
     const el = parentRef.current;
     if (el) el.scrollTop += deltaY;
   }, []);
 
-  /** 刻度栏高度（等比映射的分母）；打开期间挂 ResizeObserver 跟随窗口/布局变化 */
+  /** 刻度栏高度（槽位居中映射的栏高）；常显挂 ResizeObserver 跟随窗口/布局变化，
+      依赖锚点数：0 → N 的翻转即 TurnRail 挂载点 */
   useLayoutEffect(() => {
-    if (!railOpen) return;
     const el = railRef.current;
     if (!el) return;
     const update = () => setRailHeight(el.clientHeight);
@@ -366,7 +296,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [railOpen]);
+  }, [hoverable, railAnchors.length]);
 
   /**
    * 跳转到某次提问（决策 6）：测量定位 → 双 rAF 读行 DOM 校正（scrollToBottom 同款
@@ -409,10 +339,9 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     [virtualizer],
   );
 
-  // 卸载清计时器（StrictMode 双挂载同样安全：两个 ref 各自清理）
+  // 卸载清计时器（StrictMode 双挂载同样安全）
   useEffect(
     () => () => {
-      if (railCloseTimer.current !== null) window.clearTimeout(railCloseTimer.current);
       if (flashTimer.current !== null) window.clearTimeout(flashTimer.current);
     },
     [],
@@ -482,11 +411,11 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
 
   /*
    * 刻度纵向位置（紧凑居中簇，task-turn-rail-compact-cluster.md 第二次修订）：位置只由
-   * 提问数、栏高与固定档距决定，不读 virtualizer 测量。只在打开时有意义 —— 不 useMemo，
-   * 每渲染期直算（N = 提问数，代价可忽略）。关闭 / 未量到高度时给空表（刻度栏不渲染）。
+   * 提问数、栏高与固定档距决定，不读 virtualizer 测量。常显渲染、每渲染期直算
+   * （N = 提问数，代价可忽略）。未量到高度时给空表（刻度不渲染）。
    */
   let railTops: number[] = [];
-  if (railOpen && railHeight > 0 && railAnchors.length > 0) {
+  if (railHeight > 0 && railAnchors.length > 0) {
     railTops = layoutTickTops(railAnchors.length, railHeight, TURN_RAIL_TICK_PITCH).map((top) =>
       // 居中刻度的视觉半高钳制：中心收进 [半高, 栏高-半高]。紧凑簇下仅溢出压缩
       // 的极端多轮会贴边，保留作渲染层保险（纯函数层不动）
@@ -532,11 +461,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   }
 
   return (
-    <div
-      className={cn("relative flex min-h-0 flex-1")}
-      onMouseMove={handleRootMouseMove}
-      onMouseLeave={handleRootMouseLeave}
-    >
+    <div className={cn("relative flex min-h-0 flex-1")}>
       <div
         ref={setScrollRef}
         data-testid="message-list"
@@ -631,19 +556,18 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
         </button>
       ) : null}
 
-      {/* 会话提问导航刻度栏（task-turn-rail.md）：hover 浮现（决策 2/3）；无提问的会话
-          （纯 assistant 开头 / 空会话）不渲染，触屏（hover:none）整体豁免（决策 8） */}
+      {/* 会话提问导航刻度栏（task-turn-rail.md）：常显（task-turn-rail-always-visible.md
+          翻转决策 2）；无提问的会话（纯 assistant 开头 / 空会话）不渲染，触屏（hover:none）
+          整体豁免（决策 8）；key=sessionScope 切会话重挂、双通道 state 天然清零 */}
       {hoverable && railAnchors.length > 0 ? (
         <TurnRail
-          open={railOpen}
+          key={sessionScope}
           anchors={railAnchors}
           tops={railTops}
           previews={railPreviews}
           railRef={railRef}
           onJump={jumpToMessage}
           onWheelScroll={handleRailWheel}
-          onRailFocusChange={handleRailFocusChange}
-          onPreviewOpenChange={handlePreviewOpenChange}
         />
       ) : null}
     </div>
