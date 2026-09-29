@@ -385,7 +385,6 @@ export async function installSkillFromGitHub(args: {
 		// 落盘走「staging + rename」（I1）。**旧行为**是 cp 直接写 targetDir：
 		// cp 中途失败（ENOSPC/EIO/进程被杀）会留下含完整 SKILL.md 的残目录，
 		// 造成「报错说失败、reload 后技能却生效」的错位，且残留目录让重试永久 409。
-		await fs.promises.mkdir(targetSkillsDir, { recursive: true });
 		// staging 名以 `.` 开头且落在 targetSkillsDir 内：① Pi 的 loadSkillsFromDir
 		// 只跳过 `.` 开头的条目（skills.js:161-164），故崩溃/SIGKILL 留下的 staging
 		// 不会被发现成幽灵技能；② 同目录 ⇒ rename 不跨卷，无 EXDEV。
@@ -396,6 +395,7 @@ export async function installSkillFromGitHub(args: {
 		);
 		args.onProgress?.(`正在安装到 ${targetDir}…`);
 		try {
+			await fs.promises.mkdir(targetSkillsDir, { recursive: true });
 			await fs.promises.cp(skillDir, stagingDir, { recursive: true });
 			await fs.promises.rename(stagingDir, targetDir);
 		} catch (e) {
@@ -404,7 +404,15 @@ export async function installSkillFromGitHub(args: {
 			// 409 检查之后被别人建出来）时，这份已拷完整的 staging 也被删掉，
 			// 用户重试一次即可换回技能，不丢用户已有数据。
 			await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
-			throw e;
+			// 裸 fs 错误**没有 .status**，会被 server.ts 的兜底分支逐字回显
+			// `(e as Error).message`——它含 errno **和真实本机路径**（实测曾回显
+			// `ENOTDIR: not a directory, mkdir '/tmp/…/not-a-dir/skills'`）。
+			// 同文件其余几处（readFrontmatterName / findSkillFiles / assertSkillDirSafe）
+			// 早已统一成「只带 errno code」，这里补齐最后一条漏网路径。
+			// 注意必须先判 SkillInstallError 原样重抛：否则连 409/422/400 也会被降级成 500。
+			if (e instanceof SkillInstallError) throw e;
+			const code = (e as NodeJS.ErrnoException).code ?? "未知错误";
+			throw new SkillInstallError(500, `写入技能目录失败（${code}）`);
 		}
 		args.onProgress?.("安装完成");
 
