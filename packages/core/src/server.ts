@@ -102,17 +102,25 @@ const API_ROUTES = new Set([
 /**
  * core 直发 AgentEvent 的放行判据（C1 根治，2026-09-29 用户裁决）。
  *
- * **为什么是穷尽式放行而不是枚举白名单**：原实现是 5 个 `e.type === "..."` 的
- * 正向枚举，新增事件类型要靠人记得手加 —— `skill_progress` 就是这么被静默丢掉的
+ * **为什么是集中登记放行而不是散落在函数体内的枚举白名单**：原实现是 5 个
+ * `e.type === "..."` 的正向枚举，登记点混在 `dispatchAgent` 的函数体里，新增事件类型
+ * 要靠人记得手加 —— `skill_progress` 就是这么被静默丢掉的
  * （session.ts:1062-1068 已经发事件，UI 也在订阅，contract.ts:755-762 也已声明，
  * 唯独这里没放行 → 进度条永远不出现；探针/tsc/契约检查全绿也发现不了，
- * 因为漏项不产生任何错误）。改为「**core 直发通道已登记的一律放行、其余丢弃**」
- * 后，新类型只差在本集合补一行，不会再被静默吞掉。
+ * 因为漏项不产生任何错误）。改为「**core 直发通道已登记的一律放行、其余丢弃**」后，
+ * 登记点从函数体内的 if 链提到模块级、与 `hostnameOf`/`contentTypeOf` 并列，成为单一
+ * 可视的登记处：下一个人搜 `skill_progress` 一定能在本文件撞见这一行。
+ *
+ * **先说清局限，别把它当编译期保证**：本集合运行时仍是 `Set<string>` 白名单，判定逻辑
+ * 一个字都没变 —— 新增第 7 种直发 type 而忘登记，**依旧静默丢弃，与 C1 同病同后果**。
+ * 防复发不靠类型系统，靠两件事：这个显眼且有文档的登记处（比散落在 if 链里更难漏），
+ * 以及 Task 6 落地的端到端 SSE 断言与静态断言兜底。登记依旧靠人记得；真要编译期保证
+ * （类型级互斥联合 + 单一真源）需单独立项，本批不做。
  *
  * **本集合不是 `AgentEvent` 的全集**（别当全集看、也别把会话流那批塞进来）：
  * 两条通道是互斥的 —— `dispatch`（批量节流，吃 `runtime.onEvent` 的 Pi 原始事件，
- * 经 toAgentEvent 翻译，见 server.ts:221-231）与 `dispatchAgent`（终态立即下发，
- * 吃 `runtime.onAgentEvent` 的 core 直发事件，见 server.ts:234-239）若同时放行
+ * 经 toAgentEvent 翻译，见 server.ts:238-248）与 `dispatchAgent`（终态立即下发，
+ * 吃 `runtime.onAgentEvent` 的 core 直发事件，见 server.ts:251-256）若同时放行
  * 同一 type，就会双推。故此处只登记**不经会话流翻译**的 6 种：
  * usage、approval_request、approval_settled、cwd_changed、package_progress
  * （contract.ts:372）、skill_progress（contract.ts:374）。
@@ -123,12 +131,14 @@ const API_ROUTES = new Set([
  *   agent_settled —— 走 `dispatch` 通道（adapt.ts:103-139 的翻译清单，与本集合无关）；
  * - core 直发 6 种：usage、approval_request、approval_settled、cwd_changed、
  *   package_progress、skill_progress —— 走本通道。
- * 前者里 `message_update` 另走批量节流（server.ts:224-227），其余即时下发。
+ * 前者里 `message_update` 另走批量节流（server.ts:241-244），其余即时下发。
  *
- * 维护约定：新增 core 直发事件时，在此补一行，并在 UI 侧确认有消费方
- * （`package_progress` 见 ui/src/adapter/reduce.ts:363；`skill_progress` 见
- * ui/src/screens/settings/SkillsSettingsTab.tsx:134）。补了没消费方无害（前端忽略即可），
- * 不补则事件静默消失（正是 C1 的病根）。
+ * 维护约定（**C1 防复发的唯一人肉护栏，必须执行**）：新增 core 直发事件时，在此补一行，
+ * 并在 UI 侧确认有消费方（`package_progress` 见 ui/src/adapter/reduce.ts:363；
+ * `skill_progress` 见 ui/src/screens/settings/SkillsSettingsTab.tsx:134）。补了没消费方
+ * 无害（前端忽略即可），不补则事件静默消失（正是 C1 的病根）—— 与上面「先说清局限」
+ * 一致：漏登记不会产生任何编译错误，自动化兜底指望 Task 6 的端到端 SSE 断言与静态断言，
+ * 不要以为 tsc 能替你发现。
  */
 const CORE_DIRECT_EVENT_TYPES = new Set([
 	"approval_request",
@@ -139,7 +149,14 @@ const CORE_DIRECT_EVENT_TYPES = new Set([
 	"skill_progress",
 ]);
 
-/** core 直发事件的放行判据：只认本文件登记过的 type（见 CORE_DIRECT_EVENT_TYPES 的维护约定） */
+/**
+ * core 直发事件的放行判据：只认本文件登记过的 type（见 CORE_DIRECT_EVENT_TYPES 的维护约定）。
+ *
+ * 中间的 `typeof e.type === "string"` 是**类型体操需要、不是行为需要**：`e` 形参是
+ * `unknown`，`isRecord` 只把它收窄到 `Record<string, unknown>`，`.type` 仍推出
+ * `unknown`，而 `Set<string>.has` 不收 `unknown`，tsc 会报错。运行上 `Set.has` 对非
+ * string 天然返回 false，加不加这句结果完全一样。**别当冗余防御删掉，删了 typecheck 就红。**
+ */
 function isDeclaredAgentEvent(e: unknown): boolean {
 	return isRecord(e) && typeof e.type === "string" && CORE_DIRECT_EVENT_TYPES.has(e.type);
 }
