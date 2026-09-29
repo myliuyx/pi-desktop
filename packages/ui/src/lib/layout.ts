@@ -191,8 +191,8 @@ export const TURN_PREVIEW_MAX_HEIGHT = 320;
 /** 预览「问题」摘要的字符截断上限（防超长原文把 portal 撑爆，截断带省略号） */
 export const TURN_PREVIEW_QUESTION_CHARS = 500;
 
-/** 预览「回答」摘要的字符截断上限 */
-export const TURN_PREVIEW_ANSWER_CHARS = 300;
+/** 预览「回答」的字符截断上限（渲染态口径：气泡 320px 内滚看全文，超长截断保护渲染性能） */
+export const TURN_PREVIEW_ANSWER_CHARS = 4000;
 
 /** 跳转落点闪烁时长（ms）—— 渐隐高亮给「你在这里」锚点；动画结束由计时器摘类名 */
 export const TURN_FLASH_MS = 1200;

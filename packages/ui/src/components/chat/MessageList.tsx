@@ -255,6 +255,8 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const [railOpen, setRailOpen] = useState(false);
   const railCloseTimer = useRef<number | null>(null);
   const railFocusRef = useRef(false);
+  /** 预览气泡悬停保持（task-turn-rail-preview-interaction.md 决策 3，focus-hold 同款） */
+  const railPreviewHoldRef = useRef(false);
   const railRef = useRef<HTMLDivElement | null>(null);
   const [railHeight, setRailHeight] = useState(0);
   const [flashIndex, setFlashIndex] = useState<number | null>(null);
@@ -295,7 +297,8 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   }, []);
 
   const scheduleRailClose = useCallback(() => {
-    if (railCloseTimer.current !== null || railFocusRef.current) return;
+    if (railCloseTimer.current !== null || railFocusRef.current || railPreviewHoldRef.current)
+      return;
     railCloseTimer.current = window.setTimeout(() => {
       railCloseTimer.current = null;
       setRailOpen(false);
@@ -324,6 +327,21 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     (focused: boolean) => {
       railFocusRef.current = focused;
       if (focused) {
+        cancelRailClose();
+        setRailOpen(true);
+      } else {
+        scheduleRailClose();
+      }
+    },
+    [cancelRailClose, scheduleRailClose],
+  );
+
+  /** 预览气泡悬停期间保持展开（预览交互修订决策 3）：鼠标在气泡内时根节点收不到
+      mousemove（portal 不冒泡给根），无此 hold 会在 150ms 宽限后连刻度栏一起收掉 */
+  const handlePreviewOpenChange = useCallback(
+    (previewOpen: boolean) => {
+      railPreviewHoldRef.current = previewOpen;
+      if (previewOpen) {
         cancelRailClose();
         setRailOpen(true);
       } else {
@@ -625,6 +643,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
           onJump={jumpToMessage}
           onWheelScroll={handleRailWheel}
           onRailFocusChange={handleRailFocusChange}
+          onPreviewOpenChange={handlePreviewOpenChange}
         />
       ) : null}
     </div>

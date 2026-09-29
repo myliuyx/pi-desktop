@@ -83,6 +83,22 @@ function truncate(text: string, max: number): string {
   return trimmed.length > max ? `${trimmed.slice(0, max)}…` : trimmed;
 }
 
+/** 截断提示（回答渲染态专用；问题路径保持纯文本口径不加提示） */
+const ANSWER_TRUNCATED_NOTE = "（预览已截断，点击刻度查看全文）";
+
+/**
+ * 回答截断（渲染态口径，task-turn-rail-preview-interaction.md 决策 6）：截断到 max
+ * 字符后，若 ``` 围栏数为奇数补一行闭合（防截断把余下正文吞进未闭合代码块），再追加
+ * 截断提示。与 question 的 truncate 分径：问题含 📎 行且多为手打文本，不做围栏修补。
+ */
+function truncateAnswer(text: string, max: number): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= max) return trimmed;
+  let cut = `${trimmed.slice(0, max)}…`;
+  if (((cut.match(/```/g) ?? []).length & 1) === 1) cut += "\n```";
+  return `${cut}\n\n${ANSWER_TRUNCATED_NOTE}`;
+}
+
 /**
  * 预览文本组装（规格书决策 5）：
  * - 问题 = user 消息全部 text 块，注入文件块折成「📎 文件名」行（与气泡折叠条同口径；
@@ -90,9 +106,10 @@ function truncate(text: string, max: number): string {
  * - 回答 = 尾条 assistant 消息**最后一个非空** text 块（最终答复；thinking / 工具卡
  *   不进预览 —— 过程内容的入口是「处理详情」折叠行，两处各司其职）。
  *
- * 纯文本输出（面板不进 Markdown）；截断带省略号；空串表示「无内容」，由组件层
- * 决定占位文案。时间不在这里组装 —— formatMessageTime 的 now 必须由组件边界传
- * （format.ts 同一条纪律），本函数保持可被脚本直跑复跑。
+ * 纯文本输出（问题侧 = 纯文本 + 📎 行；回答侧 = Markdown 源文，组件层用共享 Markdown
+ * 渲染成「预览效果」，task-turn-rail-preview-interaction.md 决策 4）；截断带省略号；
+ * 空串表示「无内容」，由组件层决定占位文案。时间不在这里组装 —— formatMessageTime 的
+ * now 必须由组件边界传（format.ts 同一条纪律），本函数保持可被脚本直跑复跑。
  */
 export function buildPreviewTexts(
   userMsg: Message | undefined,
@@ -133,6 +150,6 @@ export function buildPreviewTexts(
   }
   return {
     question: truncate(questionParts.join("\n"), questionMaxChars),
-    answer: truncate(answer, answerMaxChars),
+    answer: truncateAnswer(answer, answerMaxChars),
   };
 }

@@ -110,6 +110,23 @@ function check(name, actual, expected) {
   check("案例8 跳过空白取最终", p.answer, "最终答复");
 }
 
+/* 9. 回答截断（渲染态口径，task-turn-rail-preview-interaction.md 决策 6）：
+      截断 + 奇数围栏补闭合 + 截断提示；无围栏只加提示；未截断原样；问题路径不修补 */
+{
+  // 每段 16 字符含 1 个 ```：截到 300 字符时围栏数 19（奇）→ 补闭合后必为偶数
+  const a1 = buildPreviewTexts(user("问"), assistant([text("text\n```js\ncode\n".repeat(200))]), 500, 300);
+  check("案例9 截断触发", a1.answer.length > 300, true);
+  check("案例9 围栏闭合（偶数个 ```）", (a1.answer.match(/```/g) ?? []).length % 2, 0);
+  check("案例9 截断提示", a1.answer.endsWith("（预览已截断，点击刻度查看全文）"), true);
+  const a3 = buildPreviewTexts(user("问"), assistant([text("x".repeat(400))]), 500, 300);
+  check("案例9 无围栏只加提示", a3.answer.includes("```"), false);
+  check("案例9 无围栏也有提示", a3.answer.endsWith("（预览已截断，点击刻度查看全文）"), true);
+  const a2 = buildPreviewTexts(user("问"), assistant([text("短回答")]), 500, 300);
+  check("案例9 未截断原样", a2.answer, "短回答");
+  const q1 = buildPreviewTexts(user("```\nabc".repeat(80)), undefined, 500, 300);
+  check("案例9 问题路径不修补不提示", q1.question.includes("（预览已截断"), false);
+}
+
 if (failed > 0) {
   console.error(`\n刻度栏断言失败 ${failed} 项`);
   process.exit(1);

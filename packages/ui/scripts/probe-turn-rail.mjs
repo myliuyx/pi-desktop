@@ -7,12 +7,14 @@
  *    （mock 默认会话恰好两条 user 消息 m1/m6；锚点来自数据层，与虚拟行渲染无关）；
  * ③ 刻度纵向递增（紧凑居中簇：后问的刻度在下方）且都落在刻度栏高度内、上下留白对称；
  * ④ 悬停首个刻度 → turn-preview 出现：问题含该 user 消息原文前缀、回答非空、
- *    时间行含「第 1 问」、pointer-events:none（纯展示，决策 5）；
+ *    时间行含「第 1 问」、pointer-events:auto（可交互，预览交互修订）；
  * ⑤ 点击刻度 → data-at-bottom 翻 false、scroll-to-bottom 按钮出现、
  *    目标行落视口顶 24px 呼吸位（±64 容差）、行带 message-flash（决策 6）；
  * ⑥ ~1.7s 后 flash 类摘除（计时器无残留）；
  * ⑦ 鼠标移离左缘 → 150ms 宽限后 turn-rail 收起；
- * ⑧ ?stress=40 → 刻度数 = 20（数据层锚点，紧凑簇档距全等）+ 截图。
+ * ⑧ ?stress=40 → 刻度数 = 20（数据层锚点，紧凑簇档距全等）+ 截图；
+ * ⑨ 刻度 → 气泡宽限桥：mouseout 刻度起 150ms 宽限 → mouseover 气泡取消 → 300ms 后
+ *    气泡仍在、刻度栏仍开；mouseout 气泡 → 气泡收起（task-turn-rail-preview-interaction.md）。
  *
  * 运行前置：packages/ui dev server（:5180，cdp.mjs 自检并提示启动命令）。
  * 证据：_probe-turn-rail-evidence.json；截图 _probe-turn-rail-shot-{preview,rail,stress}.png；
@@ -125,23 +127,23 @@ try {
           question: p?.querySelector('[data-testid="turn-preview-question"]')?.textContent ?? "",
           answer: p?.querySelector('[data-testid="turn-preview-answer"]')?.textContent ?? "",
           time: p?.querySelector('[data-testid="turn-preview-time"]')?.textContent ?? "",
-          pointerNone: p ? getComputedStyle(p).pointerEvents === "none" : false,
+          pointerAuto: p ? getComputedStyle(p).pointerEvents === "auto" : false,
         };
       })()`);
       ctx.record("T4_预览气泡", {
         question: s.question.slice(0, 40),
         answerHead: s.answer.slice(0, 30),
         time: s.time,
-        pointerNone: s.pointerNone,
+        pointerAuto: s.pointerAuto,
       });
       failures += ctx.assert(
-        "T4 悬停刻度出预览：问题原文 + 回答摘要 + 第 N 问 + 纯展示层（决策 5）",
+        "T4 悬停刻度出预览：问题原文 + 回答摘要 + 第 N 问 + 可交互（预览交互修订）",
         {
           气泡出现: s.exists === true,
           问题含原文前缀: s.question.includes("帮我调研一下怎么把 Pi 工具链接进我们的桌面 Agent"),
           回答非空: s.answer.length > 0,
           序号正确: s.time.includes("第 1 问"),
-          纯展示层: s.pointerNone === true,
+          可交互: s.pointerAuto === true,
         },
       )
         ? 0
@@ -199,6 +201,11 @@ try {
     /* ---- T7 移离左缘 → 宽限收起 ---- */
     {
       await cdp.eval(`(() => {
+        // 真实鼠标移开必触发 tick mouseout（合成 moveAt 不派发）——先补上，
+        // 否则预览 hold 悬空、刻度栏被 keep 住收不起来
+        window.__R.ticks().forEach((t) =>
+          t.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })),
+        );
         const r = window.__R.root().getBoundingClientRect();
         window.__R.moveAt(r.left + 200, r.top + r.height / 2);
         return true;
@@ -247,6 +254,73 @@ try {
         ? 0
         : 1;
       await cdp.screenshot(path.join(uiDir, "_probe-turn-rail-shot-stress.png"));
+    }
+
+    /* ---- T9 预览悬停保持：刻度 → 气泡宽限桥 + 离开即收 ---- */
+    {
+      await ctx.open("/");
+      await cdp.eval(HELPERS);
+      await cdp.eval(`(() => {
+        const r = window.__R.root().getBoundingClientRect();
+        window.__R.moveAt(r.left + 8, r.top + r.height / 2);
+        return true;
+      })()`);
+      await sleep(300);
+      // 悬停首刻度，等气泡渲染出来（setHover 异步，同帧取不到 portal 节点）
+      await cdp.eval(`(() => {
+        const tick = window.__R.ticks()[0];
+        const tr = tick.getBoundingClientRect();
+        const opts = { bubbles: true, clientX: tr.left + 5, clientY: tr.top + 1 };
+        tick.dispatchEvent(new MouseEvent("mouseover", opts));
+        tick.dispatchEvent(new MouseEvent("mousemove", opts));
+        return true;
+      })()`);
+      await sleep(200);
+      // 刻度 mouseout（起 150ms 宽限）→ 气泡 mouseover（取消）——同一帧内完成宽限桥
+      const bridged = await cdp.eval(`(() => {
+        const tick = window.__R.ticks()[0];
+        const bubble = window.__R.q('[data-testid="turn-preview"]');
+        if (!bubble) return { noBubble: true };
+        const tr = tick.getBoundingClientRect();
+        const br = bubble.getBoundingClientRect();
+        const tOpts = { bubbles: true, clientX: tr.left + 5, clientY: tr.top + 1 };
+        tick.dispatchEvent(new MouseEvent("mouseout", tOpts));
+        const bOpts = { bubbles: true, clientX: br.left + 10, clientY: br.top + 10 };
+        bubble.dispatchEvent(new MouseEvent("mouseover", bOpts));
+        bubble.dispatchEvent(new MouseEvent("mousemove", bOpts));
+        return { noBubble: false };
+      })()`);
+      ctx.record("T9_桥派发", bridged);
+      await sleep(300);
+      const s1 = await cdp.eval(`(() => ({
+        bubble: !!window.__R.q('[data-testid="turn-preview"]'),
+        railOpen: window.__R.rail()?.dataset.open ?? null,
+      }))()`);
+      ctx.record("T9_悬停保持", s1);
+      failures += ctx.assert("T9 刻度→气泡宽限桥：移入气泡 300ms 后气泡仍在、刻度栏仍开", {
+        气泡保持: s1.bubble === true,
+        栏保持: s1.railOpen === "true",
+      })
+        ? 0
+        : 1;
+      // 移出气泡 → 立即收起
+      await cdp.eval(`(() => {
+        const bubble = window.__R.q('[data-testid="turn-preview"]');
+        if (!bubble) return false;
+        const br = bubble.getBoundingClientRect();
+        const opts = { bubbles: true, clientX: br.left + 10, clientY: br.top + 10 };
+        bubble.dispatchEvent(new MouseEvent("mouseout", opts));
+        bubble.dispatchEvent(new MouseEvent("mouseleave", opts));
+        return true;
+      })()`);
+      await sleep(250);
+      const s2 = await cdp.eval(`(() => ({ bubble: !!window.__R.q('[data-testid="turn-preview"]') }))()`);
+      ctx.record("T9_离开气泡收起", s2);
+      failures += ctx.assert("T9 移出气泡 → 预览立即收起", {
+        气泡收起: s2.bubble === false,
+      })
+        ? 0
+        : 1;
     }
 
     ctx.save();
