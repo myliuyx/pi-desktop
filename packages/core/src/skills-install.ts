@@ -61,19 +61,39 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
 			windowsHide: true,
 		});
 		let stderr = "";
+		// error 与 close 会互相跟着触发，而**两者都能 settle 外层 Promise**：
+		//   ① spawn 失败（PATH 里没有 git）：error(ENOENT) 之后紧跟 close(-2)；
+		//   ② 超时：setTimeout 里 kill() 之后 close 仍会触发，且 code=null、signal=SIGTERM。
+		// Promise 本身只 settle 一次（客户端拿到的 status/文案一直是对的），但没有这个
+		// 标记时 close 处理器会**再跑一遍**，在 ① 里多打一条「git clone 失败（exit -2）」、
+		// 在 ② 里打「exit null」——与真实原因（未找到 git / 超时）直接矛盾的误导日志，
+		// 排障者会照着它去查磁盘与 git 配置。
+		let settled = false;
+		// 所有 settle 点（含成功 resolve）统一经它：置位 + 停超时定时器 + 执行回调。
+		// `timer` 声明在下方是安全的——settle 只可能由 spawn 的异步事件回调或定时器
+		// 回调触发，那时 const timer 已完成初始化，不存在 TDZ。
+		const settle = (fn: () => void) => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timer);
+			fn();
+		};
 		const timer = setTimeout(() => {
 			child.kill();
 			// 超时文案不含本机临时路径：URL 是用户自己填的 source 拼出来的，非内部信息
-			reject(new SkillInstallError(504, `克隆超时（${CLONE_TIMEOUT_MS / 60000} 分钟）：${repoUrl}`));
+			settle(() =>
+				reject(new SkillInstallError(504, `克隆超时（${CLONE_TIMEOUT_MS / 60000} 分钟）：${repoUrl}`)),
+			);
 		}, CLONE_TIMEOUT_MS);
 		child.on("error", (e) => {
-			clearTimeout(timer);
 			const code = (e as NodeJS.ErrnoException).code;
 			// 同上：不外送 (e as Error).message（spawn 错误文本可能带本机可执行文件路径）
-			reject(
-				code === "ENOENT"
-					? new SkillInstallError(500, "未找到 git 命令——请先安装 Git（插件包安装同样依赖它）")
-					: new SkillInstallError(500, `git 启动失败（${code ?? "未知错误"}）`),
+			settle(() =>
+				reject(
+					code === "ENOENT"
+						? new SkillInstallError(500, "未找到 git 命令——请先安装 Git（插件包安装同样依赖它）")
+						: new SkillInstallError(500, `git 启动失败（${code ?? "未知错误"}）`),
+				),
 			);
 		});
 		child.stderr.on("data", (chunk) => {
@@ -81,9 +101,11 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
 			if (stderr.length > 4000) stderr = stderr.slice(-4000);
 		});
 		child.on("close", (code) => {
-			clearTimeout(timer);
+			// 首个 settle 点赢：超时/spawn 失败已 settle 时这里直接返回，
+			// 故 ①② 两种场景都不会再打下面那条 console.error（成功路径同样经 settle 置位）。
+			if (settled) return;
 			if (code === 0) {
-				resolve();
+				settle(() => resolve());
 				return;
 			}
 			// 细节（仓库 URL / 认证失败原文 / 远端主机名）**只进本地日志**，不回传浏览器（I3）：
@@ -99,15 +121,17 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
 			//（不是 Promise executor 同步体），会变成该监听器的未捕获异常，既不让外层 Promise
 			// settle，又会把 installSkillFromGitHub 的调用方挂成永不返回的 pending await。
 			if (code === 128) {
-				reject(
-					new SkillInstallError(
-						404,
-						`无法克隆仓库：${repoUrl}（仓库不存在、无权访问，或需要认证）`,
+				settle(() =>
+					reject(
+						new SkillInstallError(
+							404,
+							`无法克隆仓库：${repoUrl}（仓库不存在、无权访问，或需要认证）`,
+						),
 					),
 				);
 				return;
 			}
-			reject(new SkillInstallError(500, `git clone 失败（退出码 ${code}）`));
+			settle(() => reject(new SkillInstallError(500, `git clone 失败（退出码 ${code}）`)));
 		});
 	});
 }
