@@ -2,10 +2,12 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type HTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -17,12 +19,26 @@ import {
   MESSAGE_GAP,
   MESSAGE_LIST_PADDING,
   MESSAGE_MAX_WIDTH,
+  TURN_FLASH_MS,
+  TURN_PREVIEW_ANSWER_CHARS,
+  TURN_PREVIEW_QUESTION_CHARS,
+  TURN_RAIL_CLOSE_GRACE_MS,
+  TURN_RAIL_MIN_GAP,
+  TURN_RAIL_TICK_HALF,
+  TURN_RAIL_TRIGGER_WIDTH,
+  TURN_RAIL_WIDTH,
 } from "@/lib/layout";
 import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { COMPOSER_MODELS } from "@/mock/composer";
 import { useModelsStore } from "@/store/models-store";
-import { speedTone, type SpeedTone } from "@/lib/format";
+import { formatMessageTime, speedTone, type SpeedTone } from "@/lib/format";
 import { buildTurnIndex, type TurnMembership } from "@/lib/turns";
+import {
+  buildPreviewTexts,
+  collectRailTurns,
+  layoutTickTops,
+  type RailPreview,
+} from "@/lib/turn-rail";
 import { MessageBubble } from "./MessageBubble";
 import { ThinkingCard } from "./ThinkingCard";
 import { ThinkingPending } from "./ThinkingPending";
@@ -33,6 +49,7 @@ import { ToolCallCard } from "./ToolCallCard";
 import { ApprovalCard } from "./ApprovalCard";
 import { ProcessGroupRow } from "./ProcessGroupRow";
 import { MessageErrorCard } from "./MessageErrorCard";
+import { TurnRail } from "./TurnRail";
 
 export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   messages: Message[];
@@ -230,6 +247,159 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     );
   }, []);
 
+  /*
+   * 会话提问导航刻度栏（task-turn-rail.md）：锚点 / 预览随 messages 记忆，开合是本地视图态。
+   * 触发 = 左缘邻近检测（规格书决策 2）：无常驻遮罩条 —— 常驻条是滚动容器的兄弟节点，
+   * 滚轮不冒泡给容器，会在左缘吃出一条滚轮死区；刻度栏开着时滚轮经 TurnRail 透传兜底。
+   */
+  const [railOpen, setRailOpen] = useState(false);
+  const railCloseTimer = useRef<number | null>(null);
+  const railFocusRef = useRef(false);
+  const railRef = useRef<HTMLDivElement | null>(null);
+  const [railHeight, setRailHeight] = useState(0);
+  const [flashIndex, setFlashIndex] = useState<number | null>(null);
+  const flashTimer = useRef<number | null>(null);
+  // hover:none（触屏）整体不启用（规格书决策 8）；SSR / 无 window 环境一并豁免
+  const [hoverable] = useState(
+    () => typeof window !== "undefined" && window.matchMedia?.("(hover: hover)").matches === true,
+  );
+
+  const railAnchors = useMemo(
+    () => collectRailTurns(messages, sessionScope),
+    [messages, sessionScope],
+  );
+  const railPreviews = useMemo<RailPreview[]>(
+    () =>
+      railAnchors.map(({ turn }) => {
+        const anchor = messages[turn.startIndex];
+        const texts = buildPreviewTexts(
+          anchor,
+          messages[turn.tailIndex],
+          TURN_PREVIEW_QUESTION_CHARS,
+          TURN_PREVIEW_ANSWER_CHARS,
+        );
+        return {
+          timestamp: anchor?.timestamp ?? 0,
+          time: formatMessageTime(anchor?.timestamp ?? 0, Date.now()),
+          ...texts,
+        };
+      }),
+    [railAnchors, messages],
+  );
+
+  const cancelRailClose = useCallback(() => {
+    if (railCloseTimer.current !== null) {
+      window.clearTimeout(railCloseTimer.current);
+      railCloseTimer.current = null;
+    }
+  }, []);
+
+  const scheduleRailClose = useCallback(() => {
+    if (railCloseTimer.current !== null || railFocusRef.current) return;
+    railCloseTimer.current = window.setTimeout(() => {
+      railCloseTimer.current = null;
+      setRailOpen(false);
+    }, TURN_RAIL_CLOSE_GRACE_MS);
+  }, []);
+
+  /** 左缘邻近检测（决策 2）：≤ 触发带浮现；> 刻度宽 +4 走宽限收起（防手抖闪没） */
+  const handleRootMouseMove = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (!hoverable || railAnchors.length === 0) return;
+      const offsetX = event.clientX - event.currentTarget.getBoundingClientRect().left;
+      if (offsetX <= TURN_RAIL_TRIGGER_WIDTH) {
+        cancelRailClose();
+        setRailOpen(true);
+      } else if (offsetX > TURN_RAIL_WIDTH + 4) {
+        scheduleRailClose();
+      }
+    },
+    [hoverable, railAnchors.length, cancelRailClose, scheduleRailClose],
+  );
+
+  const handleRootMouseLeave = useCallback(() => scheduleRailClose(), [scheduleRailClose]);
+
+  /** focus-within 保持展开（决策 7）；离开刻度栏走正常宽限收起 */
+  const handleRailFocusChange = useCallback(
+    (focused: boolean) => {
+      railFocusRef.current = focused;
+      if (focused) {
+        cancelRailClose();
+        setRailOpen(true);
+      } else {
+        scheduleRailClose();
+      }
+    },
+    [cancelRailClose, scheduleRailClose],
+  );
+
+  const handleRailWheel = useCallback((deltaY: number) => {
+    const el = parentRef.current;
+    if (el) el.scrollTop += deltaY;
+  }, []);
+
+  /** 刻度栏高度（等比映射的分母）；打开期间挂 ResizeObserver 跟随窗口/布局变化 */
+  useLayoutEffect(() => {
+    if (!railOpen) return;
+    const el = railRef.current;
+    if (!el) return;
+    const update = () => setRailHeight(el.clientHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [railOpen]);
+
+  /**
+   * 跳转到某次提问（决策 6）：测量定位 → 双 rAF 读行 DOM 校正（scrollToBottom 同款
+   * 两帧节奏，消化动态测量误差）。**不置 pinningRef** —— scroll 事件里 atBottom 诚实
+   * 翻转，「回到底部」按钮按既有语义自然出现。落点闪烁 TURN_FLASH_MS 给「你在这里」锚点。
+   */
+  const jumpToMessage = useCallback(
+    (anchorIndex: number) => {
+      const el = parentRef.current;
+      if (!el) return;
+      const measurement = virtualizer.measurementsCache[anchorIndex];
+      if (!measurement) return;
+      pinningRef.current = false;
+      // 行文档位置 = 内边距(24) + start；「视口顶 + 24px 呼吸位」⇔ scrollTop = start
+      // （规格书修正：先按 start 落、校正一步到位，免 start+PADDING 再回调的可见跳动）
+      const maxTop = Math.max(el.scrollHeight - el.clientHeight, 0);
+      el.scrollTop = Math.min(Math.max(measurement.start, 0), maxTop);
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          const node = parentRef.current;
+          const row = innerRef.current?.querySelector<HTMLElement>(
+            `[data-index="${anchorIndex}"]`,
+          );
+          if (!node || !row) return;
+          const delta =
+            row.getBoundingClientRect().top - node.getBoundingClientRect().top - MESSAGE_LIST_PADDING;
+          if (delta !== 0) {
+            const top = Math.max(node.scrollHeight - node.clientHeight, 0);
+            node.scrollTop = Math.min(Math.max(node.scrollTop + delta, 0), top);
+          }
+        }),
+      );
+      setFlashIndex(anchorIndex);
+      if (flashTimer.current !== null) window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => {
+        flashTimer.current = null;
+        setFlashIndex(null);
+      }, TURN_FLASH_MS);
+    },
+    [virtualizer],
+  );
+
+  // 卸载清计时器（StrictMode 双挂载同样安全：两个 ref 各自清理）
+  useEffect(
+    () => () => {
+      if (railCloseTimer.current !== null) window.clearTimeout(railCloseTimer.current);
+      if (flashTimer.current !== null) window.clearTimeout(flashTimer.current);
+    },
+    [],
+  );
+
   // 滚动时更新贴底判定（阈值取自 layout.ts，避免硬编码）
   useEffect(() => {
     const el = parentRef.current;
@@ -293,6 +463,24 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const isEmpty = messages.length === 0;
 
   /*
+   * 刻度纵向位置（等比 minimap，决策 3）：量测随 measureElement 持续变化，且只在打开时
+   * 有意义 —— 不 useMemo（virtualizer 内部测量不进依赖，memo 会拿到陈旧分布），
+   * 每渲染期直算（N = 提问数，代价可忽略）。关闭 / 未量到高度时给空表（刻度栏不渲染）。
+   */
+  let railTops: number[] = [];
+  if (railOpen && railHeight > 0 && railAnchors.length > 0) {
+    const totalSize = virtualizer.getTotalSize();
+    const starts = railAnchors.map(
+      ({ turn }) => virtualizer.measurementsCache[turn.startIndex]?.start ?? 0,
+    );
+    railTops = layoutTickTops(starts, totalSize, railHeight, TURN_RAIL_MIN_GAP).map((top) =>
+      // 居中刻度的视觉半高钳制（探针 T3 实测极端刻度探出栏缘 1px）：中心收进
+      // [半高, 栏高-半高]，两端各让 ≤1px，等比观感不变（纯函数层不动）
+      Math.min(Math.max(top, TURN_RAIL_TICK_HALF), railHeight - TURN_RAIL_TICK_HALF),
+    );
+  }
+
+  /*
    * 空会话占位（验收 5-7 / 5-8）。
    *
    * 为什么必须显式占位而不是「什么都不渲染」：`data-testid="message-list"` 是唯一滚动容器，
@@ -330,7 +518,11 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   }
 
   return (
-    <div className={cn("relative flex min-h-0 flex-1")}>
+    <div
+      className={cn("relative flex min-h-0 flex-1")}
+      onMouseMove={handleRootMouseMove}
+      onMouseLeave={handleRootMouseLeave}
+    >
       <div
         ref={setScrollRef}
         data-testid="message-list"
@@ -383,6 +575,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
               <div
                 key={virtualRow.key}
                 data-index={virtualRow.index}
+                className={cn(flashIndex === virtualRow.index && "message-flash")}
                 {...(isPendingRow
                   ? { "data-testid": "thinking-indicator" }
                   : {
@@ -422,6 +615,21 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
         >
           <Icon icon={ArrowDown} className="text-icon-neutral" />
         </button>
+      ) : null}
+
+      {/* 会话提问导航刻度栏（task-turn-rail.md）：hover 浮现（决策 2/3）；无提问的会话
+          （纯 assistant 开头 / 空会话）不渲染，触屏（hover:none）整体豁免（决策 8） */}
+      {hoverable && railAnchors.length > 0 ? (
+        <TurnRail
+          open={railOpen}
+          anchors={railAnchors}
+          tops={railTops}
+          previews={railPreviews}
+          railRef={railRef}
+          onJump={jumpToMessage}
+          onWheelScroll={handleRailWheel}
+          onRailFocusChange={handleRailFocusChange}
+        />
       ) : null}
     </div>
   );

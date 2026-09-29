@@ -19,6 +19,7 @@
     "check:sidebar-layout": "node scripts/sidebar-layout-check.mjs",
     "check:adapter": "node --experimental-strip-types scripts/adapter-check.mjs",
     "check:contract": "node scripts/contract-mirror-check.mjs",
+    "check:turn-rail": "node --experimental-strip-types scripts/turn-rail-check.mjs",
     "accept:m1": "node scripts/m1-acceptance.mjs",
     "accept:m2": "node scripts/m2-acceptance.mjs",
     "accept:m3": "node scripts/m3-acceptance.mjs",
@@ -38,6 +39,7 @@
     "probe:new-session": "node scripts/probe-new-session.mjs",
     "probe:new-session:live": "node scripts/probe-new-session.mjs --live",
     "probe:process-collapse": "node scripts/probe-process-collapse.mjs",
+    "probe:turn-rail": "node scripts/probe-turn-rail.mjs",
     "probe:spa-fallback": "node scripts/probe-spa-fallback.mjs",
     "shots:m1": "node scripts/m1-shots.mjs"
   },

@@ -333,3 +333,32 @@
 @utility pane-scroll-stable {
   scrollbar-gutter: stable both-edges;
 }
+
+/* ---------------------------------------------------------------------------
+ * 提问导航跳转落点闪烁（TurnRail · task-turn-rail.md 决策 6）
+ * 跳转后目标行短暂高亮再渐隐：minimap 语义下远处刻度的落点是估算位置，
+ * 闪烁给一个明确的「你在这里」锚点。类名由 MessageList 计时器在 1.2s 后摘除。
+ * ------------------------------------------------------------------------- */
+@keyframes message-flash {
+  0% {
+    background-color: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  100% {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1px transparent;
+  }
+}
+
+.message-flash {
+  animation: message-flash 1.2s ease-out;
+  border-radius: var(--radius-md);
+}
+
+/* 减弱动效：不做渐隐动画，保留同样的静态高亮 1.2s（headless 默认即 reduce，探针走类名断言） */
+@media (prefers-reduced-motion: reduce) {
+  .message-flash {
+    animation: none;
+    background-color: var(--accent-soft);
+  }
+}
