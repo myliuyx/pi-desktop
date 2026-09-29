@@ -22,9 +22,11 @@ import type { RailPreview, RailTurnAnchor } from "@/lib/turn-rail";
  * - 刻度列 absolute inset-y-0 left-0，宽 TURN_RAIL_WIDTH（< 触发带宽 24）：悬停刻度
  *   时鼠标仍在触发区内，展开态天然稳定，不需要额外的宽限联动。
  * - 预览气泡 portal 到 body + fixed（@菜单 / 工作目录菜单同款先例），可交互
- *   （task-turn-rail-preview-interaction.md）：刻度 mouseleave 起 150ms 宽限桥，移入气泡
- *   取消收起、移出气泡立即收；气泡内滚轮可滚（overscroll-contain 防链动消息流）；
- *   悬停期间经 onPreviewOpenChange 让 MessageList 保持刻度栏展开（focus-hold 同款）。
+ *   （task-turn-rail-preview-interaction.md）。列走廊粘滞（task-turn-rail-sticky-column.md）：
+ *   收起扳机在「离列」（rail onMouseLeave 起 150ms 宽限）——列内上下移动（含刻度间空隙）
+ *   气泡保持、跨刻度切换内容、来源刻度保持放大态；移入气泡取消收起、移出气泡立即收；
+ *   气泡内滚轮可滚（overscroll-contain 防链动消息流）；悬停期间经 onPreviewOpenChange
+ *   让 MessageList 保持刻度栏展开（focus-hold 同款）。
  * - 滚轮透传（onWheelScroll）：刻度栏开着时它盖在 24px 内边距带上，滚轮不冒泡给滚动
  *   容器会形成死区 —— 手动透传 deltaY，死区消除。
  * - 键盘：刻度是 button（focus-visible 环走全局 :focus-visible），聚焦期间经
@@ -123,8 +125,10 @@ export function TurnRail({
     setHover({ index, x, y });
   };
 
-  /** 离开刻度：不立即收——150ms 宽限桥给「移入气泡」（决策 2）；移向别的刻度由 enter 取消 */
-  const handleTickLeave = () => {
+  /** 离开整列（走廊粘滞，sticky-column 决策 1）：收起扳机从刻度 mouseleave 上移到 rail
+      容器——列内上下移动不清 hover（含刻度间空隙），150ms 宽限同时覆盖「移入气泡」
+      与「移出列」两条路；移向别的刻度由 enter 取消并切换内容 */
+  const handleColumnLeave = () => {
     cancelPreviewClose();
     previewCloseTimer.current = window.setTimeout(() => {
       previewCloseTimer.current = null;
@@ -152,6 +156,7 @@ export function TurnRail({
         className="absolute inset-y-0 left-0 z-20"
         style={{ width: TURN_RAIL_WIDTH }}
         onWheel={(event) => onWheelScroll(event.deltaY)}
+        onMouseLeave={handleColumnLeave}
         onFocusCapture={() => onRailFocusChange(true)}
         onBlurCapture={() => onRailFocusChange(false)}
       >
@@ -164,10 +169,12 @@ export function TurnRail({
             data-anchor-index={anchor.anchorIndex}
             aria-label={`跳转到第 ${i + 1} 次提问：${(previews[i]?.question ?? "").slice(0, 20)}`}
             onMouseEnter={handleTickEnter(i)}
-            onMouseLeave={handleTickLeave}
             onClick={() => onJump(anchor.anchorIndex)}
             className={cn(
+              // 命中区加宽（sticky-column 决策 3）：after 伪元素上下各扩 5px、左右各扩 4px
+              // （命中 ≈18×12px，列向近无缝），视觉仍是 10×2/20×4 本体，探针几何口径不变
               "absolute left-1/2 rounded-full transition-all duration-150 ease-out",
+              "after:absolute after:inset-y-[-5px] after:inset-x-[-4px] after:content-['']",
               hover?.index === i
                 ? "h-1 w-5 bg-text-secondary"
                 : "h-0.5 w-2.5 bg-border-strong hover:bg-text-tertiary",
