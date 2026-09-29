@@ -174,6 +174,9 @@ export const TURN_RAIL_WIDTH = 20;
 /** 刻度档距（center-to-center px）—— 紧凑居中簇的固定间距（task-turn-rail-compact-cluster.md） */
 export const TURN_RAIL_TICK_PITCH = 12;
 
+/** 刻度簇粘滞区外扩余量（px）—— 走廊粘滞的定界，越出即起收起宽限（task-turn-rail-corridor-bound.md） */
+export const TURN_RAIL_CORRIDOR_PAD = 12;
+
 /**
  * 刻度视觉半高（px）—— 刻度条渲染为 2px 高（h-0.5）且**居中**贴在布局位置上，
  * 贴边极端位置会各探出栏缘半格（原等比方案探针 T3 实测 top = -1）。

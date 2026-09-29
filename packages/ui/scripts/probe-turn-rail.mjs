@@ -16,7 +16,9 @@
  * ⑨ 离列 → 气泡宽限桥：rail mouseout 起 150ms 宽限 → mouseover 气泡取消 → 300ms 后
  *    气泡仍在、刻度栏仍开；mouseout 气泡 → 气泡收起（task-turn-rail-preview-interaction.md）；
  * ⑩ 走廊粘滞：列内移到非刻度区 300ms 气泡保持、内容不变；rail mouseout 离列 → 收起
- *    （task-turn-rail-sticky-column.md）。
+ *    （task-turn-rail-sticky-column.md）；
+ * ⑪ 粘滞区定界：界内（两刻度之间）保持；越出刻度簇上方 60px → 150ms 宽限后气泡与
+ *    刻度栏收起（task-turn-rail-corridor-bound.md）。
  *
  * 运行前置：packages/ui dev server（:5180，cdp.mjs 自检并提示启动命令）。
  * 证据：_probe-turn-rail-evidence.json；截图 _probe-turn-rail-shot-{preview,rail,stress}.png；
@@ -386,6 +388,63 @@ try {
       ctx.record("T10_离列收起", s2);
       failures += ctx.assert("T10 离开列 → 预览与刻度栏收起", {
         气泡收起: s2.bubble === false,
+        栏收起: s2.rail === false,
+      })
+        ? 0
+        : 1;
+    }
+
+    /* ---- T11 粘滞区定界：越出刻度簇即收 ---- */
+    {
+      await ctx.open("/");
+      await cdp.eval(HELPERS);
+      await cdp.eval(`(() => {
+        const r = window.__R.root().getBoundingClientRect();
+        window.__R.moveAt(r.left + 8, r.top + r.height / 2);
+        return true;
+      })()`);
+      await sleep(300);
+      // 悬停首刻度（簇顶端），等气泡渲染
+      await cdp.eval(`(() => {
+        const tick = window.__R.ticks()[0];
+        const tr = tick.getBoundingClientRect();
+        const opts = { bubbles: true, clientX: tr.left + 5, clientY: tr.top + 1 };
+        tick.dispatchEvent(new MouseEvent("mouseover", opts));
+        tick.dispatchEvent(new MouseEvent("mousemove", opts));
+        return true;
+      })()`);
+      await sleep(200);
+      // 界内 sanity：移到两刻度之间（簇内空隙）→ 气泡保持
+      await cdp.eval(`(() => {
+        const rail = window.__R.rail();
+        const rr = rail.getBoundingClientRect();
+        rail.dispatchEvent(
+          new MouseEvent("mousemove", { bubbles: true, clientX: rr.left + 10, clientY: rr.top + rr.height / 2 }),
+        );
+        return true;
+      })()`);
+      await sleep(200);
+      const s1 = await cdp.eval(`(() => ({ bubble: !!window.__R.q('[data-testid="turn-preview"]') }))()`);
+      // 越界：首刻度中心上方 60px（粘滞区外）→ 150ms 宽限后收
+      await cdp.eval(`(() => {
+        const rail = window.__R.rail();
+        const tick = window.__R.ticks()[0];
+        const rr = rail.getBoundingClientRect();
+        const tr = tick.getBoundingClientRect();
+        rail.dispatchEvent(
+        new MouseEvent("mousemove", { bubbles: true, clientX: rr.left + 10, clientY: tr.top - 60 }),
+      );
+      return true;
+    })()`);
+      // 两段宽限：预览 150ms → hover 清 → hold 释放 → 刻度栏再 150ms；500ms 留足余量
+      await sleep(500);
+      const s2 = await cdp.eval(
+        `(() => ({ bubble: !!window.__R.q('[data-testid="turn-preview"]'), rail: !!window.__R.rail() }))()`,
+      );
+      ctx.record("T11_粘滞区定界", { 界内气泡保持: s1.bubble, 越界后: s2 });
+      failures += ctx.assert("T11 粘滞区定界：界内保持、越出刻度簇上方后气泡与刻度栏收起", {
+        界内保持: s1.bubble === true,
+        越界收起: s2.bubble === false,
         栏收起: s2.rail === false,
       })
         ? 0

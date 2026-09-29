@@ -7,6 +7,7 @@ import {
   TURN_PREVIEW_MAX_HEIGHT,
   TURN_PREVIEW_WIDTH,
   TURN_RAIL_CLOSE_GRACE_MS,
+  TURN_RAIL_CORRIDOR_PAD,
   TURN_RAIL_WIDTH,
 } from "@/lib/layout";
 import { formatFullTimestamp } from "@/lib/format";
@@ -22,11 +23,12 @@ import type { RailPreview, RailTurnAnchor } from "@/lib/turn-rail";
  * - 刻度列 absolute inset-y-0 left-0，宽 TURN_RAIL_WIDTH（< 触发带宽 24）：悬停刻度
  *   时鼠标仍在触发区内，展开态天然稳定，不需要额外的宽限联动。
  * - 预览气泡 portal 到 body + fixed（@菜单 / 工作目录菜单同款先例），可交互
- *   （task-turn-rail-preview-interaction.md）。列走廊粘滞（task-turn-rail-sticky-column.md）：
- *   收起扳机在「离列」（rail onMouseLeave 起 150ms 宽限）——列内上下移动（含刻度间空隙）
- *   气泡保持、跨刻度切换内容、来源刻度保持放大态；移入气泡取消收起、移出气泡立即收；
- *   气泡内滚轮可滚（overscroll-contain 防链动消息流）；悬停期间经 onPreviewOpenChange
- *   让 MessageList 保持刻度栏展开（focus-hold 同款）。
+ *   （task-turn-rail-preview-interaction.md）。列走廊粘滞（task-turn-rail-sticky-column.md）
+ *   + 粘滞区定界（task-turn-rail-corridor-bound.md）：收起判定 = 离列或越出刻度簇外扩
+ *   TURN_RAIL_CORRIDOR_PAD 的范围（rail onMouseMove/onMouseLeave 起 150ms 宽限）——
+ *   簇内上下移动（含刻度间空隙）气泡保持、跨刻度切换内容、来源刻度保持放大态；移入气泡
+ *   取消收起、移出气泡立即收；气泡内滚轮可滚（overscroll-contain 防链动消息流）；悬停
+ *   期间经 onPreviewOpenChange 让 MessageList 保持刻度栏展开（focus-hold 同款）。
  * - 滚轮透传（onWheelScroll）：刻度栏开着时它盖在 24px 内边距带上，滚轮不冒泡给滚动
  *   容器会形成死区 —— 手动透传 deltaY，死区消除。
  * - 键盘：刻度是 button（focus-visible 环走全局 :focus-visible），聚焦期间经
@@ -125,15 +127,27 @@ export function TurnRail({
     setHover({ index, x, y });
   };
 
-  /** 离开整列（走廊粘滞，sticky-column 决策 1）：收起扳机从刻度 mouseleave 上移到 rail
-      容器——列内上下移动不清 hover（含刻度间空隙），150ms 宽限同时覆盖「移入气泡」
-      与「移出列」两条路；移向别的刻度由 enter 取消并切换内容 */
-  const handleColumnLeave = () => {
-    cancelPreviewClose();
+  /** 起收起宽限（走廊定界，corridor-bound 决策 3）：「已挂不重排」——首次越界/离列起
+      150ms 钟，界外反复移动不重置；钟未到回界内即由 cancelPreviewClose 撤销 */
+  const schedulePreviewClose = () => {
+    if (previewCloseTimer.current !== null) return;
     previewCloseTimer.current = window.setTimeout(() => {
       previewCloseTimer.current = null;
       setHover(null);
     }, TURN_RAIL_CLOSE_GRACE_MS);
+  };
+
+  /** 列内移动（走廊定界，corridor-bound 决策 2）：粘滞区 = 刻度簇范围外扩
+      TURN_RAIL_CORRIDOR_PAD——界内取消待收（跨刻度/空隙照常粘滞），越界起收起宽限
+      （首/末刻度外侧的空列段不再常驻气泡） */
+  const handleColumnMove = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const rail = railRef.current;
+    if (!rail || tops.length === 0) return;
+    const y = event.clientY - rail.getBoundingClientRect().top;
+    const corridorTop = Math.min(...tops) - TURN_RAIL_CORRIDOR_PAD;
+    const corridorBottom = Math.max(...tops) + TURN_RAIL_CORRIDOR_PAD;
+    if (y >= corridorTop && y <= corridorBottom) cancelPreviewClose();
+    else schedulePreviewClose();
   };
 
   /** 移入气泡：取消待收定时器，悬停保持 */
@@ -156,7 +170,8 @@ export function TurnRail({
         className="absolute inset-y-0 left-0 z-20"
         style={{ width: TURN_RAIL_WIDTH }}
         onWheel={(event) => onWheelScroll(event.deltaY)}
-        onMouseLeave={handleColumnLeave}
+        onMouseMove={handleColumnMove}
+        onMouseLeave={schedulePreviewClose}
         onFocusCapture={() => onRailFocusChange(true)}
         onBlurCapture={() => onRailFocusChange(false)}
       >
