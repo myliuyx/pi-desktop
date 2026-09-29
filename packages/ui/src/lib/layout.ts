@@ -159,7 +159,7 @@ export const STREAM_TICK_MS = 24;
  * 会话提问导航刻度栏（TurnRail · task-turn-rail.md）
  *
  * 交互（2026-09-29 用户裁决）：鼠标移入消息区左缘浮现一列提问刻度（每次提问一个，
- * 纵向均匀槽位居中分布，task-turn-rail-even-ticks.md 修订决策 3），悬停出
+ * 纵向紧凑居中簇分布，task-turn-rail-compact-cluster.md 第二次修订），悬停出
  * 「问题 + 回答」预览气泡，点击跳转。
  * **无常驻遮罩条**：常驻条会吃掉左缘一条滚轮死区（它是滚动容器的兄弟节点，滚轮
  * 不冒泡给容器），所以触发用邻近检测、刻度栏只在打开时渲染，开着时滚轮透传兜底。
@@ -170,6 +170,9 @@ export const TURN_RAIL_TRIGGER_WIDTH = 24;
 
 /** 刻度栏列宽（< 触发带宽：悬停刻度 = 仍在触发区内，天然保持展开） */
 export const TURN_RAIL_WIDTH = 20;
+
+/** 刻度档距（center-to-center px）—— 紧凑居中簇的固定间距（task-turn-rail-compact-cluster.md） */
+export const TURN_RAIL_TICK_PITCH = 12;
 
 /**
  * 刻度视觉半高（px）—— 刻度条渲染为 2px 高（h-0.5）且**居中**贴在布局位置上，

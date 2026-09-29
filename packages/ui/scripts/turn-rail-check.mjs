@@ -1,8 +1,9 @@
 /**
  * 提问导航刻度栏纯函数断言（task-turn-rail.md 步骤 6）—— 不需要浏览器。
  * 运行：npm run check:turn-rail
- * 口径出处：lib/turn-rail.ts 注释、.plan/task-turn-rail.md 决策 4/5 与
- * .plan/task-turn-rail-even-ticks.md（2026-09-29 修订：决策 3 等比 → 均匀槽位居中）。
+ * 口径出处：lib/turn-rail.ts 注释、.plan/task-turn-rail.md 决策 4/5、
+ * .plan/task-turn-rail-even-ticks.md（第一次修订：等比 → 全高槽位居中）与
+ * .plan/task-turn-rail-compact-cluster.md（第二次修订：紧凑居中簇 + 固定档距）。
  */
 import { buildPreviewTexts, collectRailTurns, layoutTickTops } from "../src/lib/turn-rail.ts";
 
@@ -46,35 +47,34 @@ function check(name, actual, expected) {
   check("案例2 只有 assistant", collectRailTurns([assistant([text("x")])], "s1"), []);
 }
 
-/* 3. layoutTickTops：均匀槽位居中（task-turn-rail-even-ticks.md 修订决策 3） */
+/* 3. layoutTickTops：紧凑居中簇（task-turn-rail-compact-cluster.md 第二次修订） */
 {
-  check("案例3 两刻度槽位居中", layoutTickTops(2, 400), [100, 300]);
-  check("案例3 三刻度等分", layoutTickTops(3, 300), [50, 150, 250]);
+  check("案例3 三刻度紧凑簇", layoutTickTops(3, 300, 12), [138, 150, 162]);
+  check("案例3 两刻度对称簇", layoutTickTops(2, 400, 10), [195, 205]);
 }
 
-/* 4. 间距恒定：相邻差恒等于 railHeight / n（均匀分布天然不叠，无需 minGap 钳制） */
+/* 4. 档距恒定：相邻差恒等于 pitch（簇内等距，无需 minGap 钳制） */
 {
-  const tops = layoutTickTops(3, 300);
-  check(
-    "案例4 相邻间距全等（railHeight/n）",
-    tops[1] - tops[0] === 100 && tops[2] - tops[1] === 100,
-    true,
-  );
+  const tops = layoutTickTops(3, 300, 12);
+  check("案例4 相邻间距全等（pitch）", tops[1] - tops[0] === 12 && tops[2] - tops[1] === 12, true);
 }
 
-/* 5. 多刻度不裁剪：数量全保留，首尾各留半格（整列上下对称） */
+/* 5. 溢出压缩：数量不裁剪，档距压缩为 railHeight/(n-1) 全高铺满 */
 {
-  const tops = layoutTickTops(100, 300);
-  check("案例5 数量不裁剪", tops.length, 100);
-  check("案例5 首刻度上留半格", tops[0], 1.5);
-  check("案例5 末刻度下留半格", tops[99], 298.5);
+  const full = layoutTickTops(31, 300, 10);
+  check("案例5 满簇（档距恰=栏高上限）", full, Array.from({ length: 31 }, (_, i) => i * 10));
+  const squeezed = layoutTickTops(61, 300, 12);
+  check("案例5 压缩后数量不裁剪", squeezed.length, 61);
+  check("案例5 压缩后首刻度贴顶", squeezed[0], 0);
+  check("案例5 压缩后末刻度贴底", squeezed[60], 300);
+  check("案例5 压缩后档距 = railHeight/(n-1)", squeezed[1] - squeezed[0], 5);
 }
 
 /* 6. 边界：空输入 / 单刻度居中 / 非正高度 → 不炸、无 NaN */
 {
-  check("案例6 空输入", layoutTickTops(0, 300), []);
-  check("案例6 单刻度居中", layoutTickTops(1, 300), [150]);
-  check("案例6 railHeight 0", layoutTickTops(2, 0), [0, 0]);
+  check("案例6 空输入", layoutTickTops(0, 300, 12), []);
+  check("案例6 单刻度居中", layoutTickTops(1, 300, 12), [150]);
+  check("案例6 railHeight 0", layoutTickTops(2, 0, 12), [0, 0]);
 }
 
 /* 7. buildPreviewTexts：注入文件块折 📎 行 + 截断带省略号 + 缺省安全 */

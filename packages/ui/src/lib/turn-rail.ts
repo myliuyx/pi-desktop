@@ -48,20 +48,23 @@ export function collectRailTurns(messages: Message[], scope: string): RailTurnAn
 }
 
 /**
- * 刻度纵向位置：均匀槽位居中（task-turn-rail-even-ticks.md，2026-09-29 修订决策 3）。
+ * 刻度纵向位置：紧凑居中簇（task-turn-rail-compact-cluster.md，2026-09-29 第二次修订）。
  *
- * 刻度栏按提问数 n 均分成 n 格，每格刻度垂直居中于自己的格子：
- * `top = railHeight × (i + 0.5) / n` —— 相邻间距恒等于 railHeight / n，顶部与底部
- * 各留半格（整列上下对称），单刻度落栏正中。位置不编码「内容远近」，刻度纯语义化为
- * 「第 N 问 of M」：不再读 virtualizer 测量值，原等比方案「远端未测量行位置有偏差」
- * 的局限随之消失，刻度列在会话内完全静止。
+ * 刻度按固定档距 pitch（center-to-center）排成一簇，簇整体在栏内垂直居中：
+ * `top = railHeight/2 + (i − (n−1)/2) × pitch` —— 位置不编码「内容远近」，刻度纯语义化
+ * 为「第 N 问 of M」：不读 virtualizer 测量值，刻度列在会话内完全静止。
+ *
+ * 溢出压缩（数量不裁剪，沿用原边界原则）：(n−1) × pitch 超过栏高时档距压缩为
+ * railHeight / (n−1)，退化为全高铺满；贴边刻度的 1px 探出由渲染层半高钳制兜底。
  *
  * 防御语义：n ≤ 0 → []；n > 0 且 railHeight ≤ 0（未挂载）→ 长度 n 的全 0 —— 不炸、无 NaN。
  */
-export function layoutTickTops(n: number, railHeight: number): number[] {
+export function layoutTickTops(n: number, railHeight: number, pitch: number): number[] {
   if (!(n > 0)) return [];
   if (!(railHeight > 0)) return Array<number>(n).fill(0);
-  return Array.from({ length: n }, (_, i) => (railHeight * (i + 0.5)) / n);
+  const p = n > 1 ? Math.min(pitch, railHeight / (n - 1)) : pitch;
+  const top = (railHeight - (n - 1) * p) / 2;
+  return Array.from({ length: n }, (_, i) => top + i * p);
 }
 
 /**

@@ -24,6 +24,7 @@ import {
   TURN_PREVIEW_QUESTION_CHARS,
   TURN_RAIL_CLOSE_GRACE_MS,
   TURN_RAIL_TICK_HALF,
+  TURN_RAIL_TICK_PITCH,
   TURN_RAIL_TRIGGER_WIDTH,
   TURN_RAIL_WIDTH,
 } from "@/lib/layout";
@@ -462,15 +463,15 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const isEmpty = messages.length === 0;
 
   /*
-   * 刻度纵向位置（均匀槽位居中，task-turn-rail-even-ticks.md 修订决策 3）：位置只由
-   * 提问数与栏高决定，不读 virtualizer 测量。只在打开时有意义 —— 不 useMemo，
+   * 刻度纵向位置（紧凑居中簇，task-turn-rail-compact-cluster.md 第二次修订）：位置只由
+   * 提问数、栏高与固定档距决定，不读 virtualizer 测量。只在打开时有意义 —— 不 useMemo，
    * 每渲染期直算（N = 提问数，代价可忽略）。关闭 / 未量到高度时给空表（刻度栏不渲染）。
    */
   let railTops: number[] = [];
   if (railOpen && railHeight > 0 && railAnchors.length > 0) {
-    railTops = layoutTickTops(railAnchors.length, railHeight).map((top) =>
-      // 居中刻度的视觉半高钳制：中心收进 [半高, 栏高-半高]。槽位居中公式下
-      // 恒为 no-op，保留作渲染层保险（纯函数层不动）
+    railTops = layoutTickTops(railAnchors.length, railHeight, TURN_RAIL_TICK_PITCH).map((top) =>
+      // 居中刻度的视觉半高钳制：中心收进 [半高, 栏高-半高]。紧凑簇下仅溢出压缩
+      // 的极端多轮会贴边，保留作渲染层保险（纯函数层不动）
       Math.min(Math.max(top, TURN_RAIL_TICK_HALF), railHeight - TURN_RAIL_TICK_HALF),
     );
   }

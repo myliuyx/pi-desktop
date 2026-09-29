@@ -5,14 +5,14 @@
  * ① 初始（未 hover）：turn-rail 不在 DOM（无常驻遮罩条，决策 2）；
  * ② 左缘 mousemove（clientX ≤ 24）→ turn-rail 出现、data-open="true"、刻度数 = 2
  *    （mock 默认会话恰好两条 user 消息 m1/m6；锚点来自数据层，与虚拟行渲染无关）；
- * ③ 刻度纵向递增（均匀槽位居中：后问的刻度在下方）且都落在刻度栏高度内、上下留白对称；
+ * ③ 刻度纵向递增（紧凑居中簇：后问的刻度在下方）且都落在刻度栏高度内、上下留白对称；
  * ④ 悬停首个刻度 → turn-preview 出现：问题含该 user 消息原文前缀、回答非空、
  *    时间行含「第 1 问」、pointer-events:none（纯展示，决策 5）；
  * ⑤ 点击刻度 → data-at-bottom 翻 false、scroll-to-bottom 按钮出现、
  *    目标行落视口顶 24px 呼吸位（±64 容差）、行带 message-flash（决策 6）；
  * ⑥ ~1.7s 后 flash 类摘除（计时器无残留）；
  * ⑦ 鼠标移离左缘 → 150ms 宽限后 turn-rail 收起；
- * ⑧ ?stress=40 → 刻度数 = 20（数据层锚点，均匀槽位间距全等）+ 截图。
+ * ⑧ ?stress=40 → 刻度数 = 20（数据层锚点，紧凑簇档距全等）+ 截图。
  *
  * 运行前置：packages/ui dev server（:5180，cdp.mjs 自检并提示启动命令）。
  * 证据：_probe-turn-rail-evidence.json；截图 _probe-turn-rail-shot-{preview,rail,stress}.png；
@@ -86,7 +86,7 @@ try {
         : 1;
     }
 
-    /* ---- T3 刻度纵向递增 + 上下留白对称（均匀槽位居中） ---- */
+    /* ---- T3 刻度纵向递增 + 上下留白对称（紧凑居中簇） ---- */
     {
       const s = await cdp.eval(`(() => {
         const rail = window.__R.rail();
@@ -97,8 +97,8 @@ try {
         );
         return { rh, tops };
       })()`);
-      ctx.record("T3_均匀槽位分布", s);
-      failures += ctx.assert("T3 刻度纵向递增 + 上下留白对称（均匀槽位居中，修订决策 3）", {
+      ctx.record("T3_紧凑居中簇", s);
+      failures += ctx.assert("T3 刻度纵向递增 + 上下留白对称（紧凑居中簇，第二次修订）", {
         递增: s.tops.length === 2 && s.tops[1] > s.tops[0],
         都在栏内: s.tops.every((t) => t >= 0 && t <= s.rh),
         上下对称: Math.abs(s.tops[0] - (s.rh - s.tops[1])) <= 1.5,
@@ -212,7 +212,7 @@ try {
         : 1;
     }
 
-    /* ---- T8 stress：多刻度均匀槽位 ---- */
+    /* ---- T8 stress：多刻度紧凑簇 ---- */
     {
       await ctx.open("/?stress=40");
       await cdp.eval(HELPERS);
@@ -239,7 +239,7 @@ try {
         };
       })()`);
       ctx.record("T8_stress多刻度", s);
-      failures += ctx.assert("T8 ?stress=40 会话：刻度数 = 20（数据层锚点，均匀槽位间距全等）", {
+      failures += ctx.assert("T8 ?stress=40 会话：刻度数 = 20（数据层锚点，紧凑簇档距全等）", {
         栏出现: s.open === "true",
         刻度20: s.ticks === 20,
         间距全等: s.gapMin !== null && s.gapMax - s.gapMin <= 1.5,

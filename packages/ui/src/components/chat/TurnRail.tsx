@@ -104,7 +104,7 @@ export function TurnRail({
             className={cn(
               "absolute left-1/2 rounded-full transition-all duration-150 ease-out",
               hover?.index === i
-                ? "h-1 w-3.5 bg-text-secondary"
+                ? "h-1 w-5 bg-text-secondary"
                 : "h-0.5 w-2.5 bg-border-strong hover:bg-text-tertiary",
             )}
             style={{ top: tops[i] ?? 0, transform: "translate(-50%, -50%)" }}
