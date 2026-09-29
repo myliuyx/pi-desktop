@@ -10,8 +10,9 @@
  *   · P4 底部统计条「2 ext · 14 skills · 0 prompts · 0 themes」+ 检查更新/刷新 + 添加插件钉底；
  *   · P5 mock 开关本地翻转（关→开→关）；
  *   · P6 mock 移除两步确认（移除 → 确认移除 → 条目消失）；
- *   · P7 添加插件 → 右栏表单视图（S3，参考图2：Source 输入 / Examples 点击回填 /
- *     scope 切换路径副标题变化 / mock 安装 → notice「live 可用」/ 点条目回详情）。
+ *   · P7 添加插件 → 右栏表单视图（S3，参考图2：Source 输入 / Examples 纯展示·
+ *     点击不回填（2026-09-29 裁决）/ scope 切换路径副标题变化 / mock 安装 →
+ *     notice「live 可用」/ 点条目回详情）。
  * - L 段（live，临时 agentDir + 本地路径夹具包，真实 core :5197，dist 同源托管，全程离线）：
  *   · L1 GET /packages 清单正确（status=installed / 版本 1.2.3 / resourceSummary=1技能 / totals）；
  *   · L2 UI 渲染真实包（版本「已安装 1.2.3」、状态 Installed、CWD=全局、技能分节 demo-skill）；
@@ -238,7 +239,7 @@ try {
 					标题: (view?.querySelector('p')?.textContent || '').trim(),
 				};
 			})()`);
-			// 点 Examples 第二条 → 输入框回填
+			// 点 Examples → 2026-09-29 主控裁决改为纯展示：点击**不**回填输入框
 			await cdp.eval(`(() => { window.__S.qa('[data-testid="settings-plugin-example"]')[1].click(); return true; })()`);
 			await sleep(150);
 			const filled = await cdp.eval(
@@ -253,7 +254,15 @@ try {
 			const hintProject = await cdp.eval(
 				`(() => (window.__S.q('[data-testid="settings-plugin-path-hint"]')?.textContent || '').trim())()`,
 			);
-			// mock 安装 → notice「live 可用」（停留添加视图）
+			// mock 安装 → notice「live 可用」（停留添加视图）；Examples 已不回填，输入框须显式填值才能点安装
+			await cdp.eval(`(() => {
+				const input = window.__S.q('[data-testid="settings-package-install-source"]');
+				const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+				set.call(input, 'git:github.com/demo/demo');
+				input.dispatchEvent(new Event('input', { bubbles: true }));
+				return true;
+			})()`);
+			await sleep(150);
 			await cdp.eval(`(() => { window.__S.q('[data-testid="settings-package-install-confirm"]').click(); return true; })()`);
 			await sleep(350);
 			const notice = await cdp.eval(`(() => {
@@ -268,7 +277,7 @@ try {
 				addViewGone: !window.__S.q('[data-testid="settings-plugin-add-view"]'),
 			}))()`);
 			ctx.record("P7_添加插件视图", { opened, filled, hintProject, notice, back });
-			failures += ctx.assert("P7 添加插件 → 右栏表单：Source 输入/ Examples 点击回填 / scope 切换副标题变化 / mock 安装提示仅 live / 点条目回详情", {
+			failures += ctx.assert("P7 添加插件 → 右栏表单：Source 输入 / Examples 纯展示（点击不回填）/ scope 切换副标题变化 / mock 安装提示仅 live / 点条目回详情", {
 				表单视图出现: opened.viewExists === true,
 				详情已让位: opened.detailGone === true,
 				Source输入框: opened.input === true,
@@ -277,7 +286,7 @@ try {
 				路径副标题全局: opened.pathHint.includes("~/.pi/agent/") === true,
 				Examples三条: opened.examples.length === 3 && opened.examples[0] === "npm:@scope/pi-plugin",
 				标题添加插件: opened.标题 === "添加插件",
-				Example回填: filled === "git:https://github.com/user/repo",
+				Example纯展示不回填: filled === "" || filled === null,
 				切project副标题变化: hintProject.startsWith(".pi/") === true,
 				mock安装notice: notice.count > 0 && notice.text.includes("mock") === true,
 				点条目回详情: back.detailBack === true && back.addViewGone === true,

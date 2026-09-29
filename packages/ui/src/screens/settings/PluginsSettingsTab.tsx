@@ -430,23 +430,20 @@ export function PluginsSettingsTab() {
 							</Button>
 						</div>
 
-						{/* Examples（参考图2 三条；点击回填输入框） */}
+						{/* Examples（参考图2 三条；2026-09-29 主控裁决：**纯展示**，无点击回填） */}
 						<div className="flex min-w-0 flex-col gap-1.5">
 							<p className="text-xs text-text-tertiary">Examples</p>
 							<div className="flex min-w-0 flex-col gap-1.5">
 								{["npm:@scope/pi-plugin", "git:https://github.com/user/repo", "/absolute/path/to/plugin"].map(
 									(example) => (
-										<button
+										<div
 											key={example}
-											type="button"
-											onClick={() => setInstallSource(example)}
-											disabled={installing}
 											data-testid="settings-plugin-example"
 											data-value={example}
-											className="min-w-0 truncate rounded-md border border-border-subtle px-3 py-2 text-left font-mono text-xs text-text-secondary transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
+											className="min-w-0 truncate rounded-md border border-border-subtle px-3 py-2 font-mono text-xs text-text-secondary"
 										>
 											{example}
-										</button>
+										</div>
 									),
 								)}
 							</div>
