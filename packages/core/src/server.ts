@@ -26,6 +26,7 @@ import { expandFileRefs } from "./prompt-files.ts";
 import { isRecord } from "./guards.ts";
 import { InvalidCwdError, SessionManageError, type CoreRuntime } from "./session.ts";
 import { SkillNotFoundError } from "./skills.ts";
+import { SkillInstallError } from "./skills-install.ts";
 import { PackageNotFoundError } from "./packages.ts";
 
 export interface ServerHandle {
@@ -77,6 +78,9 @@ const API_ROUTES = new Set([
 	// C7 · 设置弹窗 · 技能 Tab（全量清单含禁用项 + 开关写 settings 模式数组）
 	"/skills",
 	"/skills/toggle",
+	// S1-S2 · 设置弹窗「添加技能」（skills.sh 搜索代理 + GitHub 克隆安装）
+	"/skills/search",
+	"/skills/install",
 	// C8 · 设置弹窗 · 插件 Tab（清单/开关/移除/安装/检查更新）+ 重新加载会话
 	"/packages",
 	"/packages/toggle",
@@ -576,6 +580,50 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			} catch (e) {
 				// 技能不存在（被删/被移走）→ 404，与意外错误 500 区分
 				if (e instanceof SkillNotFoundError) return json(404, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "GET" && urlPath === "/skills/search") {
+			const q = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`).searchParams
+				.get("q")
+				?.trim();
+			if (!q) {
+				return json(400, { ok: false, error: "缺少查询参数 q" });
+			}
+			try {
+				const payload = await runtime.searchSkills(q);
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				// 上游失败/超时原文透出（带 skills.sh host），不美化
+				return json(502, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "POST" && urlPath === "/skills/install") {
+			const body = (await readBody(req)) as { source?: unknown; skillId?: unknown; scope?: unknown };
+			if (
+				typeof body.source !== "string" ||
+				body.source.trim().length === 0 ||
+				typeof body.skillId !== "string" ||
+				body.skillId.trim().length === 0 ||
+				(body.scope !== "user" && body.scope !== "project")
+			) {
+				return json(400, { ok: false, error: "请求体缺少 source / skillId / scope" });
+			}
+			if (runtime.isStreaming()) {
+				return json(409, { ok: false, error: "会话正在生成回复，请先停止再安装技能" });
+			}
+			try {
+				const result = await runtime.installSkill({
+					source: body.source.trim(),
+					skillId: body.skillId.trim(),
+					scope: body.scope,
+				});
+				return json(200, { ok: true, ...result });
+			} catch (e) {
+				// 可预期失败（非法来源 400 / 仓库无此技能 404 / 同名目录冲突 409）与意外错误（500）区分
+				if (e instanceof SkillInstallError) return json(e.status, { ok: false, error: e.message });
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
 		}

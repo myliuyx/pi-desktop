@@ -41,6 +41,12 @@ export type {
   SkillsPayload,
   SkillToggleRequest,
   SkillToggleResult,
+  /* S1-S2 新增：设置弹窗「添加技能」（搜索代理 + 克隆安装 + 进度事件） */
+  SkillSearchEntry,
+  SkillSearchPayload,
+  SkillInstallRequest,
+  SkillInstallResult,
+  SkillProgressEvent,
   /* C8 新增：设置弹窗 · 插件 Tab 载荷（清单/开关/移除/安装/检查更新 + 进度事件） */
   PackageDetail,
   PackageInstallRequest,

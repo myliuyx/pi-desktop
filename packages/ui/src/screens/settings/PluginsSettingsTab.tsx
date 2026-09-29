@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { Plus, RefreshCw, DownloadCloud } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
-import { Button, Dialog } from "@/components/primitives";
+import { Button } from "@/components/primitives";
 import { Switch } from "@/components/screens/Switch";
+import { ScopeToggle } from "./ScopeToggle";
 import {
 	SETTINGS_DIALOG_FORM_PADDING,
 	SETTINGS_DIALOG_LEFT_WIDTH,
@@ -28,7 +29,8 @@ import { MOCK_PACKAGES_PAYLOAD } from "@/mock/plugins";
  * 数据形态：**自取自渲染**（同 SkillsSettingsTab 范式）—— mock 以
  * `MOCK_PACKAGES_PAYLOAD` 起步、开关/移除本地变更；live 挂载时 `GET /packages`
  * 拉全量（含未安装的 missing 项），变更走 `POST /packages/*` 并用**返回的最新清单**
- * 整体替换。安装（B2）走弹窗 + SSE `package_progress` 进度；检查更新走
+ * 整体替换。安装（S3 改版）走右栏「添加插件」表单视图 + SSE `package_progress`
+ * 进度，scope 可选（project → `local:true`，此前恒装全局）；检查更新走
  * `POST /packages/check-updates`（npm/git 需联网，本地包自动跳过）。
  *
  * 诚实展示纪律：version/description 缺失不造值（显示「未填」/「未提供描述」）；
@@ -74,12 +76,21 @@ export function PluginsSettingsTab() {
 	const [confirmRemove, setConfirmRemove] = useState(false);
 	/** B2 检查更新结果（有可更新项时详情头部出「更新」按钮） */
 	const [updates, setUpdates] = useState<PackageUpdateEntry[]>([]);
-	/** B2 安装弹窗（open / 输入源 / 进行中 / 错误 / SSE 进度文案） */
-	const [installOpen, setInstallOpen] = useState(false);
+	/** 右栏视图：detail=包详情 / add=添加插件表单（S3，参考图2；Dialog 已退役） */
+	const [mode, setMode] = useState<"detail" | "add">("detail");
+	/** S3 添加表单：安装范围（project → `POST /packages/install` 的 local:true） */
+	const [installScope, setInstallScope] = useState<"user" | "project">("user");
 	const [installSource, setInstallSource] = useState("");
 	const [installing, setInstalling] = useState(false);
 	const [installError, setInstallError] = useState<string | null>(null);
 	const [progressText, setProgressText] = useState<string | null>(null);
+
+	const openAdd = () => {
+		setInstallSource("");
+		setInstallError(null);
+		setInstallScope("user");
+		setMode("add");
+	};
 
 	const refresh = () => {
 		if (!isLiveEnabled()) return;
@@ -254,18 +265,21 @@ export function PluginsSettingsTab() {
 			useNoticeStore
 				.getState()
 				.notify({ tone: "info", text: "mock 形态无 core，安装仅在 live（?live=1）可用" });
-			setInstallOpen(false);
 			return;
 		}
 		setInstalling(true);
 		setInstallError(null);
+		// S3：scope 透传（此前 UI 恒装全局——core 契约早已支持 local，UI 一直没传）
 		transport
-			.installPackage({ source })
+			.installPackage({ source, local: installScope === "project" })
 			.then((res) => {
 				setPayload(res.packages);
-				setInstallOpen(false);
 				setInstallSource("");
+				// 成功回详情并选中新装的包（配置 source = 输入原文，可精确匹配）
+				const added = res.packages.packages.find((p) => p.source === source);
+				if (added) setSelectedSource(added.source);
 				useNoticeStore.getState().notify({ tone: "success", text: `插件已安装：${displaySource(source)}` });
+				setMode("detail");
 			})
 			.catch((e) => setInstallError(e instanceof Error ? e.message : String(e)))
 			.finally(() => setInstalling(false));
@@ -297,13 +311,17 @@ export function PluginsSettingsTab() {
 									<p className="px-3 pb-1 pt-3 text-xs font-medium text-text-tertiary">{group.label}</p>
 									<ul>
 										{group.items.map((pkg) => {
+											// 添加视图下不高亮任何条目（参考图2；详情选中项保留，回详情即恢复）
 											const isActive =
-												pkg.source === selectedSource && pkg.scope === selected?.scope;
+												mode === "detail" && pkg.source === selectedSource && pkg.scope === selected?.scope;
 											return (
 												<li key={`${pkg.scope}::${pkg.source}`}>
 													<button
 														type="button"
-														onClick={() => setSelectedSource(pkg.source)}
+														onClick={() => {
+															setSelectedSource(pkg.source);
+															setMode("detail");
+														}}
 														data-testid="settings-plugin-item"
 														data-source={pkg.source}
 														data-scope={pkg.scope}
@@ -346,14 +364,11 @@ export function PluginsSettingsTab() {
 							</div>
 						) : null}
 					</div>
-					{/* 钉底：添加插件（B2） */}
+					{/* 钉底：添加插件（S3 → 右栏添加表单视图） */}
 					<div className="shrink-0 border-t border-border-subtle p-2">
 						<button
 							type="button"
-							onClick={() => {
-								setInstallError(null);
-								setInstallOpen(true);
-							}}
+							onClick={openAdd}
 							data-testid="settings-plugin-add"
 							className="flex w-full min-w-0 items-center justify-center gap-1.5 rounded-md border border-dashed border-border-default px-3 py-2 text-sm text-text-secondary transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
 						>
@@ -363,13 +378,99 @@ export function PluginsSettingsTab() {
 					</div>
 				</div>
 
-				{/* 右栏：包详情（padding 与模型/技能 Tab 同源） */}
-				<div
-					className={cn("min-h-0 min-w-0 flex-1", PANE_SCROLL_CLASS)}
-					style={{ padding: SETTINGS_DIALOG_FORM_PADDING }}
-					data-testid="settings-plugin-detail"
-				>
-					{selected ? (
+				{/* 右栏：S3 · mode=add → 「添加插件」表单（参考图2）；mode=detail → 包详情 */}
+				{mode === "add" ? (
+					<div
+						className={cn("flex min-h-0 min-w-0 flex-1 flex-col gap-4", PANE_SCROLL_CLASS)}
+						style={{ padding: SETTINGS_DIALOG_FORM_PADDING }}
+						data-testid="settings-plugin-add-view"
+					>
+						<p className="text-base font-medium text-text-primary">添加插件</p>
+
+						{/* 路径副标题（随 scope 变化；口径=0.87.1 npm/git 安装根，CONFIG_DIR_NAME=".pi"） */}
+						<p
+							className="min-w-0 truncate font-mono text-xs text-text-tertiary"
+							data-testid="settings-plugin-path-hint"
+						>
+							{installScope === "user" ? "~/.pi/agent/{npm,git}" : ".pi/{npm,git}（项目根）"}
+						</p>
+
+						{/* Source 输入（testid 沿用弹窗时期，探针语义不变） */}
+						<div className="flex min-w-0 flex-col gap-1.5">
+							<p className="text-xs text-text-tertiary">Source</p>
+							<input
+								type="text"
+								value={installSource}
+								onChange={(e) => setInstallSource(e.target.value)}
+								placeholder="npm:@scope/package"
+								disabled={installing}
+								data-testid="settings-package-install-source"
+								className="min-w-0 rounded-md border border-border-default bg-bg-surface px-3 py-2 font-mono text-sm text-text-primary outline-none transition-colors duration-150 focus:border-accent"
+							/>
+						</div>
+
+						{/* 同一行：scope 分段切换（左）+ 安装（右端，参考图2） */}
+						<div className="flex min-w-0 items-center gap-3">
+							<ScopeToggle
+								value={installScope}
+								onChange={setInstallScope}
+								label="安装范围"
+								testId="settings-plugin-scope"
+								disabled={installing}
+							/>
+							<span className="min-w-0 flex-1" aria-hidden="true" />
+							<Button
+								variant="primary"
+								size="sm"
+								disabled={installing || installSource.trim().length === 0}
+								onClick={confirmInstall}
+								data-testid="settings-package-install-confirm"
+							>
+								{installing ? "安装中…" : "安装"}
+							</Button>
+						</div>
+
+						{/* Examples（参考图2 三条；点击回填输入框） */}
+						<div className="flex min-w-0 flex-col gap-1.5">
+							<p className="text-xs text-text-tertiary">Examples</p>
+							<div className="flex min-w-0 flex-col gap-1.5">
+								{["npm:@scope/pi-plugin", "git:https://github.com/user/repo", "/absolute/path/to/plugin"].map(
+									(example) => (
+										<button
+											key={example}
+											type="button"
+											onClick={() => setInstallSource(example)}
+											disabled={installing}
+											data-testid="settings-plugin-example"
+											data-value={example}
+											className="min-w-0 truncate rounded-md border border-border-subtle px-3 py-2 text-left font-mono text-xs text-text-secondary transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
+										>
+											{example}
+										</button>
+									),
+								)}
+							</div>
+						</div>
+
+						{/* 安装进度（SSE package_progress 原文）/ 错误（行内，不弹窗） */}
+						{installing && progressText ? (
+							<p className="text-xs text-text-tertiary" data-testid="settings-package-install-progress">
+								{progressText}
+							</p>
+						) : null}
+						{installError ? (
+							<p className="text-xs text-danger" data-testid="settings-package-install-error">
+								{installError}
+							</p>
+						) : null}
+					</div>
+				) : (
+					<div
+						className={cn("min-h-0 min-w-0 flex-1", PANE_SCROLL_CLASS)}
+						style={{ padding: SETTINGS_DIALOG_FORM_PADDING }}
+						data-testid="settings-plugin-detail"
+					>
+						{selected ? (
 						<div className="flex h-full min-w-0 flex-col gap-4">
 							{/* 头部：scope 徽标 + source + 重新加载会话 / 更新 / 移除 / 开关 */}
 							<div className="flex min-w-0 items-center gap-2">
@@ -500,7 +601,8 @@ export function PluginsSettingsTab() {
 							{packages.length === 0 ? "暂无可展示的插件" : "从左侧选择一个插件"}
 						</div>
 					)}
-				</div>
+					</div>
+				)}
 			</div>
 
 			{/* 底部统计条（参考图2：「2 ext · 14 skills · 0 prompts · 0 themes」+ 检查更新 / 刷新）
@@ -524,62 +626,7 @@ export function PluginsSettingsTab() {
 				</div>
 			</div>
 
-			{/* B2 · 添加插件弹窗（npm:/git:/本地路径；安装进度取 SSE package_progress 原文） */}
-			{/* 注意：Dialog 原语不透传 data-testid（P7 实证被静默丢弃）—— 弹窗态用「输入框所在的 role=dialog」判定 */}
-			<Dialog
-				open={installOpen}
-				onClose={() => {
-					if (!installing) setInstallOpen(false);
-				}}
-				label="添加插件"
-				width={480}
-			>
-				<div className="flex min-w-0 flex-col gap-3">
-					<p className="text-sm text-text-secondary">
-						填写插件来源并安装到用户级（<code className="font-mono text-xs">npm:包名</code> /{" "}
-						<code className="font-mono text-xs">git:host/path</code> / 本地路径；npm/git 需联网）。
-					</p>
-					<input
-						type="text"
-						value={installSource}
-						onChange={(e) => setInstallSource(e.target.value)}
-						placeholder="git:github.com/obra/superpowers"
-						disabled={installing}
-						data-testid="settings-package-install-source"
-						className="min-w-0 rounded-md border border-border-default bg-bg-surface px-3 py-2 font-mono text-sm text-text-primary outline-none transition-colors duration-150 focus:border-accent"
-					/>
-					{installing && progressText ? (
-						<p className="text-xs text-text-tertiary" data-testid="settings-package-install-progress">
-							{progressText}
-						</p>
-					) : null}
-					{installError ? (
-						<p className="text-xs text-danger" data-testid="settings-package-install-error">
-							{installError}
-						</p>
-					) : null}
-					<div className="flex shrink-0 items-center justify-end gap-2">
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={installing}
-							onClick={() => setInstallOpen(false)}
-							data-testid="settings-package-install-cancel"
-						>
-							取消
-						</Button>
-						<Button
-							variant="primary"
-							size="sm"
-							disabled={installing || installSource.trim().length === 0}
-							onClick={confirmInstall}
-							data-testid="settings-package-install-confirm"
-						>
-							{installing ? "安装中…" : "安装"}
-						</Button>
-					</div>
-				</div>
-			</Dialog>
+			{/* S3：B2 的居中 Dialog 已退役 —— 「添加插件」改为右栏表单视图（mode==="add" 分支） */}
 		</div>
 	);
 }

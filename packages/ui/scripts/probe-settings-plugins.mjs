@@ -10,7 +10,8 @@
  *   · P4 底部统计条「2 ext · 14 skills · 0 prompts · 0 themes」+ 检查更新/刷新 + 添加插件钉底；
  *   · P5 mock 开关本地翻转（关→开→关）；
  *   · P6 mock 移除两步确认（移除 → 确认移除 → 条目消失）；
- *   · P7 添加插件弹窗（输入/取消；mock 安装 → notice「live 可用」）。
+ *   · P7 添加插件 → 右栏表单视图（S3，参考图2：Source 输入 / Examples 点击回填 /
+ *     scope 切换路径副标题变化 / mock 安装 → notice「live 可用」/ 点条目回详情）。
  * - L 段（live，临时 agentDir + 本地路径夹具包，真实 core :5197，dist 同源托管，全程离线）：
  *   · L1 GET /packages 清单正确（status=installed / 版本 1.2.3 / resourceSummary=1技能 / totals）；
  *   · L2 UI 渲染真实包（版本「已安装 1.2.3」、状态 Installed、CWD=全局、技能分节 demo-skill）；
@@ -18,7 +19,7 @@
  *     + /skills 该条 enabled=false（session.reload() 生效）；
  *   · L4 UI 开开关 → settings 塌回纯字符串 + /resources 恢复；
  *   · L5 UI 移除两步确认 → settings 条目删除 + GET /packages 清空；
- *   · L6 UI「添加插件」弹窗安装本地路径包（B2，离线）→ 条目恢复 + settings 写回；
+ *   · L6 UI「添加插件」表单安装本地路径包（S3，离线）→ 条目恢复 + settings 写回 + 退回详情；
  *   · L7 检查更新 → notice「全部插件已是最新」（本地包跳过，不出网）；
  *   · L8 install 不存在的本地路径 → 500 + core 原文「Path does not exist」；
  *   · L9 POST /session/reload → 200。
@@ -220,44 +221,66 @@ try {
 				: 1;
 		}
 
-		/* ---- P7 添加插件弹窗（先于 P6：P6 会删条目改变状态） ---- */
+		/* ---- P7 添加插件：右栏表单视图（S3，参考图2；先于 P6：P6 会删条目改变状态） ---- */
 		{
 			await cdp.eval(`(() => { window.__S.q('[data-testid="settings-plugin-add"]').click(); return true; })()`);
 			await sleep(350);
 			const opened = await cdp.eval(`(() => {
-				const input = window.__S.q('[data-testid="settings-package-install-source"]');
-				const dlg = input?.closest('[role="dialog"]');
+				const view = window.__S.q('[data-testid="settings-plugin-add-view"]');
 				return {
-					// Dialog 原语不透传 data-testid（P7 首跑实证）—— 弹窗态以「输入框所在的打开态 dialog」判定
-					dialog: !!dlg && !dlg.hasAttribute('inert'),
-					input: !!input,
-					confirm: !!window.__S.q('[data-testid="settings-package-install-confirm"]'),
-					cancel: !!window.__S.q('[data-testid="settings-package-install-cancel"]'),
+					viewExists: !!view,
+					detailGone: !window.__S.q('[data-testid="settings-plugin-detail"]'),
+					input: !!view?.querySelector('[data-testid="settings-package-install-source"]'),
+					confirm: !!view?.querySelector('[data-testid="settings-package-install-confirm"]'),
+					scope: view?.querySelector('[data-testid="settings-plugin-scope"]')?.dataset.scope ?? null,
+					pathHint: (view?.querySelector('[data-testid="settings-plugin-path-hint"]')?.textContent || '').trim(),
+					examples: [...(view?.querySelectorAll('[data-testid="settings-plugin-example"]') ?? [])].map((el) => el.dataset.value),
+					标题: (view?.querySelector('p')?.textContent || '').trim(),
 				};
 			})()`);
-			// mock 安装 → notice「live 可用」
+			// 点 Examples 第二条 → 输入框回填
+			await cdp.eval(`(() => { window.__S.qa('[data-testid="settings-plugin-example"]')[1].click(); return true; })()`);
+			await sleep(150);
+			const filled = await cdp.eval(
+				`(() => window.__S.q('[data-testid="settings-package-install-source"]')?.value ?? null)()`,
+			);
+			// 切 project → 路径副标题变化
 			await cdp.eval(`(() => {
-				const input = window.__S.q('[data-testid="settings-package-install-source"]');
-				const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-				set.call(input, 'git:github.com/demo/demo');
-				input.dispatchEvent(new Event('input', { bubbles: true }));
+				window.__S.qa('[data-testid="settings-plugin-scope"] [data-scope-value="project"]')[0].click();
 				return true;
 			})()`);
-			await sleep(150);
+			await sleep(200);
+			const hintProject = await cdp.eval(
+				`(() => (window.__S.q('[data-testid="settings-plugin-path-hint"]')?.textContent || '').trim())()`,
+			);
+			// mock 安装 → notice「live 可用」（停留添加视图）
 			await cdp.eval(`(() => { window.__S.q('[data-testid="settings-package-install-confirm"]').click(); return true; })()`);
 			await sleep(350);
 			const notice = await cdp.eval(`(() => {
 				const items = window.__S.qa('[data-testid="notice-item"]');
 				return { count: items.length, text: (items[items.length - 1]?.textContent || '').trim() };
 			})()`);
-			ctx.record("P7_安装弹窗", { opened, notice });
-			failures += ctx.assert("P7 添加插件弹窗打开（输入/确认/取消齐全）；mock 安装提示仅 live 可用", {
-				弹窗打开: opened.dialog === true,
-				输入框: opened.input === true,
-				确认按钮: opened.confirm === true,
-				取消按钮: opened.cancel === true,
-				notice弹出: notice.count > 0,
-				文案含mock: notice.text.includes("mock") === true,
+			// 点左树条目 → 回详情视图
+			await cdp.eval(`(() => { window.__S.qa('${ITEM}')[0].click(); return true; })()`);
+			await sleep(250);
+			const back = await cdp.eval(`(() => ({
+				detailBack: !!window.__S.q('[data-testid="settings-plugin-detail"]'),
+				addViewGone: !window.__S.q('[data-testid="settings-plugin-add-view"]'),
+			}))()`);
+			ctx.record("P7_添加插件视图", { opened, filled, hintProject, notice, back });
+			failures += ctx.assert("P7 添加插件 → 右栏表单：Source 输入/ Examples 点击回填 / scope 切换副标题变化 / mock 安装提示仅 live / 点条目回详情", {
+				表单视图出现: opened.viewExists === true,
+				详情已让位: opened.detailGone === true,
+				Source输入框: opened.input === true,
+				安装按钮: opened.confirm === true,
+				scope默认global: opened.scope === "user",
+				路径副标题全局: opened.pathHint.includes("~/.pi/agent/") === true,
+				Examples三条: opened.examples.length === 3 && opened.examples[0] === "npm:@scope/pi-plugin",
+				标题添加插件: opened.标题 === "添加插件",
+				Example回填: filled === "git:https://github.com/user/repo",
+				切project副标题变化: hintProject.startsWith(".pi/") === true,
+				mock安装notice: notice.count > 0 && notice.text.includes("mock") === true,
+				点条目回详情: back.detailBack === true && back.addViewGone === true,
 			})
 				? 0
 				: 1;
@@ -574,7 +597,7 @@ try {
 					: 1;
 			}
 
-			/* ---- L6 UI「添加插件」弹窗安装本地路径包（B2 离线） ---- */
+			/* ---- L6 UI「添加插件」表单安装本地路径包（S3 离线） ---- */
 			{
 				await cdp.eval(`(() => { window.__S.q('[data-testid="settings-plugin-add"]').click(); return true; })()`);
 				await sleep(350);
@@ -600,15 +623,16 @@ try {
 				await sleep(300);
 				const settings = readSettings();
 				const resources = await request("GET", "/resources");
-				const dialogGone = await cdp.eval(
-					`(() => !window.__S.q('[data-testid="settings-package-install-dialog"]'))()`,
-				);
-				record("L6_安装", { settings, resourcesSkills: resources.json?.skills, dialogGone });
-				failures += ctx.assert("L6 UI 添加插件（本地路径，离线）：条目恢复 + settings 写回 + 资源加载", {
+				const back = await cdp.eval(`(() => ({
+					addViewGone: !window.__S.q('[data-testid="settings-plugin-add-view"]'),
+					detailBack: !!window.__S.q('[data-testid="settings-plugin-detail"]'),
+				}))()`);
+				record("L6_安装", { settings, resourcesSkills: resources.json?.skills, back });
+				failures += ctx.assert("L6 UI 添加插件（本地路径，离线）：条目恢复 + settings 写回 + 成功后退回详情视图", {
 					条目恢复: (await cdp.eval(`(() => !!document.querySelector('${ITEM}'))()`)) === true,
 					// pi 的 addSourceToSettings 会把本地路径相对化存储（L6 首跑实测 `..\fixture-pkg`）
 					settings写回: (settings?.packages ?? []).length === 1 && path.resolve(cwd, settings.packages[0]) === path.resolve(fixturePkg),
-					dialog已关: dialogGone === true,
+					表单退回详情: back.addViewGone === true && back.detailBack === true,
 					resources技能加载: (resources.json?.skills ?? []).some((s) => s.name === "demo-skill") === true,
 				})
 					? 0

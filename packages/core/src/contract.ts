@@ -369,7 +369,9 @@ export type AgentEvent =
   /** 新增：工作目录已热切换（D7，POST /cwd 成功后广播；UI 收到后重拉会话清单与 cwd 展示） */
   | { type: "cwd_changed"; cwd: string }
   /** C8 新增：包操作进度（安装/移除/更新；core 由 setProgressCallback 桥接直接生成） */
-  | PackageProgressEvent;
+  | PackageProgressEvent
+  /** S1-S2 新增：技能安装进度（克隆/定位/拷贝阶段文案；core 直发，同 package_progress 管道） */
+  | SkillProgressEvent;
 
 /* ---------------------------------------------------------------------------
  * C6 · 04 屏工具开关（`GET /tools/active` / `POST /tools/active {names}`）
@@ -698,6 +700,65 @@ export interface SkillToggleRequest {
 /** `POST /skills/toggle` 响应体（切换后的最新清单，UI 直接整体替换免二次拉取） */
 export interface SkillToggleResult {
   skills: SkillsPayload;
+}
+
+/* ---------------------------------------------------------------------------
+ * S1-S2 · 设置弹窗「添加技能」（`GET /skills/search` / `POST /skills/install`）
+ *
+ * 搜索 = skills.sh 公开 API 的 core 只读代理（`GET /api/search?q=`，2026-09-29
+ * 实测无需鉴权；详情接口 401 不可用，故结果只有 name/source/installs 三样）。
+ * 安装 = git clone 官方 skills CLI 同款通道：`--depth 1` 克隆 GitHub 仓库 →
+ * 全树发现 SKILL.md 按 **frontmatter `name`** 匹配（skills.sh 的 skillId 就是
+ * frontmatter name，≠ 仓库目录名，2026-09-29 实证）→ 技能目录整体拷到
+ * `~/.pi/agent/skills/<dir>/`（user）或 `<cwd>/.pi/skills/<dir>/`（project）。
+ * ------------------------------------------------------------------------- */
+
+/** `GET /skills/search` 结果项（skills.sh 搜索响应的字段白名单映射） */
+export interface SkillSearchEntry {
+  /** 归属仓库（`owner/repo`；个别条目非此形态——非 GitHub 源，安装端点会拒绝） */
+  source: string;
+  /** 技能标识 = 目标仓库 SKILL.md frontmatter 的 `name`（install 的定位键） */
+  skillId: string;
+  /** 展示名（skills.sh 原文；通常与 skillId 一致） */
+  name: string;
+  /** skills.sh 累计安装量（展示用） */
+  installs: number;
+}
+
+/** `GET /skills/search?q=` 响应体 */
+export interface SkillSearchPayload {
+  results: SkillSearchEntry[];
+}
+
+/** `POST /skills/install` 请求体 */
+export interface SkillInstallRequest {
+  /** 归属仓库，严格 `owner/repo`（core 固定拼 `https://github.com/<source>.git`） */
+  source: string;
+  /** 要安装的技能（skills.sh 搜索结果的 skillId 原样回传） */
+  skillId: string;
+  /** user = `~/.pi/agent/skills/`；project = `<cwd>/.pi/skills/` */
+  scope: "user" | "project";
+}
+/** `POST /skills/install` 响应体（安装并 reload 后的最新清单，UI 整体替换） */
+export interface SkillInstallResult {
+  skills: SkillsPayload;
+  /** 落盘后的技能目录绝对路径（UI 选中定位用） */
+  installedPath: string;
+  /** SKILL.md frontmatter 的 name（= 清单里新条目的 name，选中匹配键） */
+  skillName: string;
+}
+
+/**
+ * SSE · 技能安装进度（克隆 → 定位 → 拷贝阶段文案）。
+ * 与 PackageProgressEvent 同构同管道（core 直发，不经 toAgentEvent 翻译）。
+ */
+export interface SkillProgressEvent {
+  type: "skill_progress";
+  action: "install";
+  /** `owner/repo/skillId`（定位排错用） */
+  source: string;
+  /** 阶段文案（「正在克隆仓库…」等） */
+  message?: string;
 }
 
 /* ---------------------------------------------------------------------------

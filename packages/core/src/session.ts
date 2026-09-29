@@ -52,6 +52,9 @@ import type {
 	ProvidersSaveResult,
 	PutProvidersRequest,
 	SessionReloadResult,
+	SkillInstallRequest,
+	SkillInstallResult,
+	SkillSearchPayload,
 	SkillToggleRequest,
 	SkillToggleResult,
 	SkillsPayload,
@@ -72,6 +75,8 @@ import { createProvidersController, type ProvidersController } from "./providers
 import type { PromptImage } from "./prompt-files.ts";
 import { collectResources } from "./resources.ts";
 import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
+import { installSkillFromGitHub } from "./skills-install.ts";
+import { searchSkillsSh } from "./skills-search.ts";
 import { continueRecentSession, findSessionPath, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
@@ -213,6 +218,18 @@ export interface CoreRuntime {
 	 * 409）；技能不存在抛 `SkillNotFoundError`（端点回 404）。
 	 */
 	toggleSkill(req: SkillToggleRequest): Promise<SkillToggleResult>;
+	/**
+	 * 搜索 skills.sh 技能注册表（core 只读代理，见 skills-search.ts）。
+	 * 不依赖会话就绪（与 providers.test/listModels 同口径）。
+	 */
+	searchSkills(query: string): Promise<SkillSearchPayload>;
+	/**
+	 * 从 GitHub 仓库安装单个技能（skills-install.ts：clone → frontmatter 匹配 →
+	 * 拷贝到目标 skills 目录）→ `session.reload()` → 返回最新清单。流式中抛错
+	 * （端点前置判据回 409）；非法来源/无此技能/目录冲突抛 `SkillInstallError`
+	 * （端点回 400/404/409）。进度经 SSE `skill_progress` 下发。
+	 */
+	installSkill(req: SkillInstallRequest): Promise<SkillInstallResult>;
 
 	/* -------------------------------------------------------------------------
 	 * C8 · 设置弹窗 · 插件 Tab（`packages.ts` 的转发；`GET /packages` / `POST /packages/*`）
@@ -1017,6 +1034,44 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			 */
 			await session.reload();
 			return {
+				skills: await collectSkillsPayload({
+					packageManager: ensurePackageManager(),
+					loader: resourceLoader,
+					trust: trust ? { trusted: trust.trusted, reason: trust.reason } : null,
+					cwd,
+				}),
+			};
+		},
+		searchSkills: (query) => {
+			// 纯外网只读代理，不依赖会话组件（与 providers.test/listModels 同口径）
+			return searchSkillsSh(query);
+		},
+		installSkill: async (req) => {
+			await ready;
+			if (session?.isStreaming) {
+				throw new Error("会话正在生成回复，请先停止再安装技能");
+			}
+			if (!session || !resourceLoader) throw new Error("会话组件未就绪");
+			const targetSkillsDir =
+				req.scope === "project" ? path.join(cwd, ".pi", "skills") : path.join(agentDir, "skills");
+			// 阶段进度直发 SSE skill_progress（与 package_progress 同管道，不经 toAgentEvent）
+			const result = await installSkillFromGitHub({
+				source: req.source,
+				skillId: req.skillId,
+				targetSkillsDir,
+				onProgress: (message) =>
+					emitAgent({
+						type: "skill_progress",
+						action: "install",
+						source: `${req.source}/${req.skillId}`,
+						message,
+					}),
+			});
+			// 与 installPackage 同范式：装完 reload 让资源装载器发现新技能，再回最新清单
+			await session.reload();
+			return {
+				installedPath: result.installedPath,
+				skillName: result.skillName,
 				skills: await collectSkillsPayload({
 					packageManager: ensurePackageManager(),
 					loader: resourceLoader,

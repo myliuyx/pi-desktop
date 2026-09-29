@@ -26,6 +26,9 @@ import type {
 	SessionLoadResult,
 	SessionReloadResult,
 	SessionSummary,
+	SkillInstallRequest,
+	SkillInstallResult,
+	SkillSearchPayload,
 	SkillToggleRequest,
 	SkillToggleResult,
 	SkillsPayload,
@@ -251,6 +254,17 @@ export interface AgentTransport {
    * 流式中（409）/ 技能不存在（404）抛错，文案取 core 的 `{ error }` 原文。
    */
   toggleSkill(req: SkillToggleRequest): Promise<SkillToggleResult>;
+  /**
+   * 设置弹窗「添加技能」：搜索 skills.sh 技能注册表（core 只读代理）。
+   * 失败抛错（上游超时/非 200），文案取 core 的 `{ error }` 原文。
+   */
+  searchSkills(query: string): Promise<SkillSearchPayload>;
+  /**
+   * 设置弹窗「添加技能」：从 GitHub 仓库安装单个技能（core git clone → frontmatter
+   * 匹配 → 拷贝到目标 skills 目录 → `session.reload()`）。进度走 SSE `skill_progress`；
+   * 非法来源（400）/ 仓库无此技能（404）/ 同名目录冲突（409）抛错，文案取 core 原文。
+   */
+  installSkill(req: SkillInstallRequest): Promise<SkillInstallResult>;
 
   /* ------------------------------------------------- C8 · 设置弹窗 · 插件 Tab */
   /**
@@ -799,6 +813,30 @@ export class HttpAgentTransport implements AgentTransport {
       throw new Error(detail ?? `切换技能失败（HTTP ${res.status}）`);
     }
     return { skills: body.skills };
+  }
+
+  /**
+   * S1：不用通用 `this.get` —— 上游 502 的 `{ error }` 原文（带 skills.sh host 与
+   * HTTP 状态）要原样抛给 UI 显示，通用版只给状态码。
+   */
+  async searchSkills(query: string): Promise<SkillSearchPayload> {
+    const res = await fetch(`${this.cfg.baseUrl}/skills/search?q=${encodeURIComponent(query)}`, {
+      headers: this.authHeader(),
+    });
+    this.assertJson(res, "搜索技能失败");
+    const body = (await res.json().catch(() => null)) as
+      | (SkillSearchPayload & { ok?: unknown; error?: unknown })
+      | null;
+    if (!res.ok || body?.ok !== true || !Array.isArray(body.results)) {
+      const detail = typeof body?.error === "string" && body.error ? body.error : null;
+      throw new Error(detail ?? `搜索技能失败（HTTP ${res.status}）`);
+    }
+    return { results: body.results };
+  }
+
+  /** S2：同 toggleSkill 口径 —— 400/404/409/500 的 core `{ error }` 原文原样抛给 UI */
+  installSkill(req: SkillInstallRequest): Promise<SkillInstallResult> {
+    return this.postPackages<SkillInstallResult>("/skills/install", req, "安装技能失败");
   }
 
   /* ------------------------------------------------- C8 · 设置弹窗 · 插件 Tab */

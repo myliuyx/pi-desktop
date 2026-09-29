@@ -7,7 +7,8 @@
  *   · M2 技能树分组（全局/项目）+ 默认选中首项 + 详情字段齐全；
  *   · M3 禁用条目：data-enabled=false + 空心点；
  *   · M4 mock 开关本地翻转（关→开→关，不落盘）；
- *   · M5 「添加技能」钉底 + 点击出 notice（2026-09-28 裁决：本批仅入口）；
+ *   · M5 「添加技能」钉底 + 点击 → 右栏添加表单视图（S4：搜索行/scope 切换/路径
+ *     预览随 scope 变化/skills.sh 提示；点左树条目回详情）；
  *   · M6 插件 / 子代理仍为占位（位置已互换，内容未实现）。
  * - L 段（live，临时 agentDir + 真实 core :5196，dist 同源托管）：
  *   · L1 GET /skills 全量清单（夹具 demo-skill：enabled/scope/origin/path 正确）；
@@ -16,7 +17,10 @@
  *   · L4 session.reload() 生效：GET /resources（已加载子集）里该技能消失；
  *   · L5 UI 重开显示禁用态（重挂载拉新清单）；
  *   · L6 UI 开关开回 → 条目/开关联动恢复 + settings 模式移除 + /resources 恢复；
- *   · L7 toggle 不存在的技能 → 404 + core 原文。
+ *   · L7 toggle 不存在的技能 → 404 + core 原文；
+ *   · L8 GET /skills/search（S1）：缺 q 400 / 搜索 react 出结果且字段白名单齐（出网）；
+ *   · L9 POST /skills/install（S2）非法 source → 400（不克隆）；
+ *   · L10 真实克隆 octocat/Hello-World 但无此技能 → 404（正向安装人工验收）。
  *
  * 运行前置：M 段需 packages/ui dev server（:5180，cdp.mjs 自检并提示启动命令）；
  * L 段需先 `npm run build`（core 同源托管 dist）。CDP 端口 9346/9356（错开 9345/9355）。
@@ -187,7 +191,7 @@ try {
 				: 1;
 		}
 
-		/* ---- M5 添加技能：钉底 + 点击出 notice ---- */
+		/* ---- M5 添加技能：钉底 + 右栏添加表单视图（S4，参考图1） ---- */
 		{
 			const r = await cdp.eval(`(() => {
 				const tree = window.__S.q('[data-testid="settings-skills-tree"]');
@@ -203,17 +207,50 @@ try {
 			})()`);
 			await cdp.eval(`(() => { window.__S.q('[data-testid="settings-skill-add"]').click(); return true; })()`);
 			await sleep(300);
-			const notice = await cdp.eval(`(() => {
-				const items = window.__S.qa('[data-testid="notice-item"]');
-				return { count: items.length, text: (items[items.length - 1]?.textContent || '').trim() };
+			const addView = await cdp.eval(`(() => {
+				const view = window.__S.q('[data-testid="settings-skill-add-view"]');
+				return {
+					viewExists: !!view,
+					detailGone: !window.__S.q('[data-testid="settings-skill-detail"]'),
+					input: !!view?.querySelector('[data-testid="settings-skill-search-input"]'),
+					submit: !!view?.querySelector('[data-testid="settings-skill-search-submit"]'),
+					scope: view?.querySelector('[data-testid="settings-skill-scope"]')?.dataset.scope ?? null,
+					pathPreview: (view?.querySelector('[data-testid="settings-skill-path-preview"]')?.textContent || '').trim(),
+					hasSkillsShHint: (view?.textContent || '').includes('skills.sh'),
+					标题: (view?.querySelector('p')?.textContent || '').trim(),
+				};
 			})()`);
-			ctx.record("M5_添加技能", { button: r, notice });
-			failures += ctx.assert("M5 「添加技能」钉底可见；点击出「交互待定」notice（本批仅入口）", {
+			// 切 project → 路径预览变化
+			await cdp.eval(`(() => {
+				window.__S.qa('[data-testid="settings-skill-scope"] [data-scope-value="project"]')[0].click();
+				return true;
+			})()`);
+			await sleep(200);
+			const pathProject = await cdp.eval(
+				`(() => (window.__S.q('[data-testid="settings-skill-path-preview"]')?.textContent || '').trim())()`,
+			);
+			// 点左树条目 → 回详情视图
+			await cdp.eval(`(() => { window.__S.qa('${ITEM}')[0].click(); return true; })()`);
+			await sleep(250);
+			const back = await cdp.eval(`(() => ({
+				detailBack: !!window.__S.q('[data-testid="settings-skill-detail"]'),
+				addViewGone: !window.__S.q('[data-testid="settings-skill-add-view"]'),
+			}))()`);
+			ctx.record("M5_添加技能视图", { button: r, addView, pathProject, back });
+			failures += ctx.assert("M5 「添加技能」钉底；点击 → 右栏添加表单（搜索/scope/路径预览/skills.sh 提示），切 project 路径变化，点条目回详情", {
 				按钮存在: r.btnExists === true,
 				钉在栏底: r.钉底 === true,
 				文案正确: r.text === "添加技能",
-				notice弹出: notice.count > 0,
-				文案含待定: notice.text.includes("待定"),
+				表单视图出现: addView.viewExists === true,
+				详情已让位: addView.detailGone === true,
+				搜索输入框: addView.input === true,
+				搜索按钮: addView.submit === true,
+				scope默认global: addView.scope === "user",
+				路径预览全局: addView.pathPreview.includes("~/.pi/agent/skills/") === true,
+				skills_sh提示: addView.hasSkillsShHint === true,
+				标题添加技能: addView.标题 === "添加技能",
+				切project路径变化: pathProject.includes(".pi/skills/") === true && !pathProject.includes("~") === true,
+				点条目回详情: back.detailBack === true && back.addViewGone === true,
 			})
 				? 0
 				: 1;
@@ -521,6 +558,47 @@ try {
 		failures += recordAssert("L7 toggle 不存在的技能 → 404 + 错误文案", {
 			状态404: missing.status === 404,
 			文案含不存在: String(missing.json?.error ?? "").includes("不存在"),
+		}) ? 0 : 1;
+	}
+
+	/* ---- L8 搜索代理：缺 q → 400；q=react → 200 + 结果字段齐（需出网，skills.sh 公开 API） ---- */
+	{
+		const noQ = await request("GET", "/skills/search");
+		const search = await request("GET", "/skills/search?q=react");
+		const first = (search.json?.results ?? [])[0];
+		ctx_record("L8_搜索代理", { noQ: { status: noQ.status }, search: { status: search.status, count: search.json?.results?.length, first } });
+		failures += recordAssert("L8 GET /skills/search：缺 q 400；搜索 react 出结果且字段白名单齐", {
+			缺q状态400: noQ.status === 400,
+			搜索状态200: search.status === 200,
+			结果非空: (search.json?.results?.length ?? 0) > 0,
+			字段source: typeof first?.source === "string" && first.source.length > 0,
+			字段skillId: typeof first?.skillId === "string" && first.skillId.length > 0,
+			字段name: typeof first?.name === "string",
+			字段installs: typeof first?.installs === "number",
+		}) ? 0 : 1;
+	}
+
+	/* ---- L9 安装错误路径：非法 source → 400（不克隆、不出网） ---- */
+	{
+		const bad = await request("POST", "/skills/install", { source: "not a repo", skillId: "x", scope: "user" });
+		ctx_record("L9_非法source", { status: bad.status, json: bad.json });
+		failures += recordAssert("L9 POST /skills/install 非法 source → 400 + 文案含仅支持", {
+			状态400: bad.status === 400,
+			文案含仅支持: String(bad.json?.error ?? "").includes("仅支持"),
+		}) ? 0 : 1;
+	}
+
+	/* ---- L10 安装错误路径：真实克隆极小仓库（octocat/Hello-World）但无此技能 → 404 ---- */
+	{
+		const ghost = await request("POST", "/skills/install", {
+			source: "octocat/Hello-World",
+			skillId: "probe-no-such-skill",
+			scope: "user",
+		});
+		ctx_record("L10_仓库无此技能", { status: ghost.status, json: ghost.json });
+		failures += recordAssert("L10 POST /skills/install 仓库无此技能 → 404 + 文案含不在仓库", {
+			状态404: ghost.status === 404,
+			文案含不在仓库: String(ghost.json?.error ?? "").includes("不在仓库"),
 		}) ? 0 : 1;
 	}
 } catch (e) {
