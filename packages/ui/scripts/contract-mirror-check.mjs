@@ -3,19 +3,26 @@
  *
  * 背景（2026-09-24 review）：`packages/core/src/contract.ts` 是**权威契约源**，
  * 而「设置页 Provider/模型」这一组类型在 `packages/ui/src/mock/provider-contract.ts`
- * 有一份**手抄镜像**（UI 侧另有 `mock/types.ts` re-export 事件/展示面契约，不走镜像）。
+ * 有一份**手抄镜像**（UI 侧另有 `mock/types.ts` re-export 事件/展示面契约，不走字段镜像）。
  * 手抄的代价是「改了源、忘了镜像」—— 上一批加 `ProviderModelsRequest/Result` 与
  * `providerLabel` 时就同时要改 4 个地方，全靠人记得。本探针把这条纪律变成可执行的断言。
  *
- * 判据（双向）：
+ * 判据 A · 手抄镜像（`mock/provider-contract.ts`，双向字段级）：
  *   1. 镜像里每个 `export interface` 都必须在 core 契约里**存在**（改了名就得同步）；
  *   2. 同名类型在两边的**字段名集合必须完全一致**（core 缺 = 忘抄；mirror 多 = 抄了不存在的）；
  *   3. 解析必须「无遗留行」—— 每个类型体内、缩进为 1 层的非注释行都必须能被解析成一个字段。
  *      这条是**防止解析器悄悄失灵**（新写法解析不了却报全绿，正是本项目的头号教训）。
  *
+ * 判据 B · re-export 存在性（`mock/types.ts`，仅存在性）：
+ *   「添加技能」这批 skill 契约类型在 UI 侧是 `export type { … } from "../../../core/src/contract.ts"`
+ *   **re-export**、不是手抄，字段天然同源 —— 所以只断言「core 契约里有、UI re-export 列表里也有」，
+ *   **不比字段**（见下方「刻意不做的事」）。收在**名字集合**上：排序调整、
+ *   列表里多出别处的 re-export（同文件的 C4/C5/C7/C8 契约）都**不该**红，只有「这批类型漏了/改名了」才红。
+ *
  * ⚠️ 刻意**不做**的事：不比较字段的**类型签名与可选性**（`name?: string` vs `name: string`）。
  * 文本比较类型是自找假红（空格、联合顺序、注释都会变），而真正的风险是「字段有没有」——
  * 可选性由两侧各自的注释与 `tsc` 兜（core 与 UI 都编译不过时自然会暴露）。
+ * 对 **re-export**（判据 B）则连字段名都不比：它不是手抄，比字段没有意义，只会引入假红。
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -23,12 +30,15 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..", "..");
-/* 两个路径可用命令行参数覆盖（自查探针本身是否真的会红时用得上：拿临时副本跑） */
+/* 三个路径可用命令行参数覆盖（自查探针本身是否真的会红时用得上：拿临时副本跑） */
 const CORE_FILE = path.resolve(
   process.argv[2] ?? path.join(repoRoot, "packages", "core", "src", "contract.ts"),
 );
 const MIRROR_FILE = path.resolve(
   process.argv[3] ?? path.join(repoRoot, "packages", "ui", "src", "mock", "provider-contract.ts"),
+);
+const REEXPORT_FILE = path.resolve(
+  process.argv[4] ?? path.join(repoRoot, "packages", "ui", "src", "mock", "types.ts"),
 );
 
 /* ---------------------------------------------------------------------------
@@ -92,6 +102,72 @@ function extractInterfaces(source) {
 }
 
 /* ---------------------------------------------------------------------------
+ * 解析（判据 B）：提取 `export type { … } from "…/contract.ts"` 的 re-export 名单
+ * ------------------------------------------------------------------------- */
+
+/** `export type {` / `export {` （可含 `type` 修饰） */
+const REEXPORT_HEAD_RE = /^export\s+(?:type\s+)?\{/;
+const REEXPORT_TAIL_RE = /\}\s*(?:as\s+[A-Za-z_$][\w$]*\s*)?from\s*['"][^'"]*contract\.ts['"]\s*;?\s*$/;
+/** 剥注释后再逐项匹配：只容「A」或「A as B」两种形态（其余一律丢弃，不报错） */
+const REEXPORT_ITEM_RE = /^[A-Za-z_$][\w$]*(?:\s+as\s+[A-Za-z_$][\w$]*)?$/;
+
+/**
+ * 返回从 **core 契约** re-export 的原始名集合（不记行号、不报 leftover）。
+ *
+ * 为什么照搬 `extractInterfaces` 那一套「闭合 + 遗留行」纪律：判据 A 的头号教训是
+ * 「解析器悄悄失灵 → 报全绿」。这里最危险的失灵形态是**文件结构变了**（比如 `mock/types.ts`
+ * 改成分文件 re-export）而名单解析成空集 ⇒ 空集 ⊆ 任何集合 ⇒ 恒绿。
+ * 所以「不在这份名单里」判红，**并且**名单非空是显式前置条件，不靠调用方自觉。
+ *
+ * `as` 别名按**本地名**计入：UI 侧真正依赖的是「这个本地名有没有被接进来」。
+ * 尾部只认 `from ".../contract.ts"`：本文件另外几处 `import type` / 本地界面不是 re-export，不收。
+ * 名单**只对名字集合**判据，不比顺序、不比字段（见文件头「刻意不做的事」）。
+ */
+function extractCoreReexports(source) {
+  const lines = source.split(/\r?\n/);
+  const found = new Set();
+  let parsing = false;
+  let buffer = "";
+
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!parsing) {
+      if (!REEXPORT_HEAD_RE.test(t)) continue;
+      /* `export type {` 与 `{` 同行 ⇒ 尾部可能也在同一行（`export type { A } from "…"`） */
+      parsing = true;
+      buffer = t.slice(t.indexOf("{") + 1);
+    } else {
+      /* 用 \n 连接（而非空格）：名单里夹的行注释才不会把后续条目一起吃掉 */
+      buffer += `\n${t}`;
+    }
+    /* 闭合：行尾是 `} from "…/contract.ts"`（含 `} … from "…"` 同行写法）⇒ 名单读完，可以结算 */
+    if (!REEXPORT_TAIL_RE.test(t)) continue;
+    parsing = false;
+    /* 结算：先剥块注释与行注释，再按逗号切分；非法项（`import type` 误入等）直接丢弃 */
+    const cleaned = buffer.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+    for (const piece of cleaned.split(",")) {
+      const item = piece.trim();
+      if (!item) continue;
+      if (!REEXPORT_ITEM_RE.test(item)) continue;
+      const asMatch = /\bas\s+([A-Za-z_$][\w$]*)\s*$/.exec(item);
+      found.add(asMatch ? asMatch[1] : item);
+    }
+    buffer = "";
+  }
+  return found;
+}
+
+/* re-export 镜像（mock/types.ts）：只断言「core 契约里存在同名导出」，
+   不比较字段 —— 它是 re-export 而非手抄，字段天然同源，比字段没有意义。 */
+const SKILL_CONTRACT_TYPES = [
+  "SkillSearchEntry",
+  "SkillSearchPayload",
+  "SkillInstallRequest",
+  "SkillInstallResult",
+  "SkillProgressEvent",
+];
+
+/* ---------------------------------------------------------------------------
  * 主流程
  * ------------------------------------------------------------------------- */
 
@@ -101,7 +177,7 @@ const fail = (msg) => {
   console.log(`  ✗ ${msg}`);
 };
 
-for (const f of [CORE_FILE, MIRROR_FILE]) {
+for (const f of [CORE_FILE, MIRROR_FILE, REEXPORT_FILE]) {
   if (!fs.existsSync(f)) {
     console.error(`未找到契约文件：${f}`);
     process.exit(1);
@@ -110,9 +186,13 @@ for (const f of [CORE_FILE, MIRROR_FILE]) {
 
 const core = extractInterfaces(fs.readFileSync(CORE_FILE, "utf8"));
 const mirror = extractInterfaces(fs.readFileSync(MIRROR_FILE, "utf8"));
+const reexported = extractCoreReexports(fs.readFileSync(REEXPORT_FILE, "utf8"));
 
 console.log(`权威源：${path.relative(repoRoot, CORE_FILE)}（解析出 ${core.size} 个 interface）`);
-console.log(`镜像文件：${path.relative(repoRoot, MIRROR_FILE)}（解析出 ${mirror.size} 个 interface）\n`);
+console.log(`镜像文件：${path.relative(repoRoot, MIRROR_FILE)}（解析出 ${mirror.size} 个 interface）`);
+console.log(
+  `re-export 名单：${path.relative(repoRoot, REEXPORT_FILE)}（从契约源 re-export ${reexported.size} 个类型）\n`,
+);
 
 // 解析器失灵守卫：镜像文件解析不出任何类型 ⇒ 后面的全绿毫无意义
 if (mirror.size === 0) {
@@ -153,9 +233,41 @@ for (const [name, m] of mirror) {
   }
 }
 
-if (failed > 0) {
-  console.error(`\n契约镜像不一致 ${failed} 项 —— 请把 ${path.relative(repoRoot, MIRROR_FILE)}`);
-  console.error(`与 ${path.relative(repoRoot, CORE_FILE)} 对齐（core 是权威源）。`);
+/* ---------------------------------------------------------------------------
+ * 判据 B · skill 契约类型的 re-export 存在性
+ * ------------------------------------------------------------------------- */
+
+// 解析器失灵守卫：名单解析不出任何东西 ⇒ 判据 B 恒绿，毫无意义
+if (reexported.size === 0) {
+  console.error("✗ re-export 名单里没解析出任何类型 —— 解析器失效或 mock/types.ts 结构变了，拒绝给出结论");
   process.exit(1);
 }
-console.log(`\n契约镜像齐平：${mirror.size} 个类型全部一致`);
+
+console.log(`skill 契约类型 re-export 断言（${SKILL_CONTRACT_TYPES.length} 个）：`);
+for (const name of SKILL_CONTRACT_TYPES) {
+  // B0 · 约定清单不能在 core 契约里缺失（两个方向都靠这一条守住）
+  if (!core.has(name)) {
+    fail(
+      `Skill ${name}：core 契约里没有这个 interface（${path.relative(repoRoot, CORE_FILE)}）—— ` +
+        `若确实删了，同步改本脚本的 SKILL_CONTRACT_TYPES；若只是改名，同步改 core 与 ${path.relative(repoRoot, REEXPORT_FILE)}`,
+    );
+    continue;
+  }
+  // B1 · core 里有 ⇒ UI 侧必须 re-export（漏了就是漂移）
+  if (!reexported.has(name)) {
+    fail(`Skill ${name}：core 契约里有，但 ${path.relative(repoRoot, REEXPORT_FILE)} 未 re-export（UI 忘了？）`);
+    continue;
+  }
+  console.log(`  ✓ Skill ${name}：core 有、UI 已 re-export`);
+}
+
+if (failed > 0) {
+  console.error(`\n契约镜像不一致 ${failed} 项 —— 请把 ${path.relative(repoRoot, MIRROR_FILE)}`);
+  console.error(`与 ${path.relative(repoRoot, CORE_FILE)} 对齐（core 是权威源）；`);
+  console.error(`skill 类型则改 ${path.relative(repoRoot, REEXPORT_FILE)} 的 re-export 名单。`);
+  process.exit(1);
+}
+console.log(
+  `\n契约镜像齐平：${mirror.size} 个 Provider/模型类型字段两侧一致 + ` +
+    `${SKILL_CONTRACT_TYPES.length} 个 skill 契约类型已在 UI 侧 re-export`,
+);
