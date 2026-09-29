@@ -107,7 +107,20 @@ function extractInterfaces(source) {
 
 /** `export type {` / `export {` （可含 `type` 修饰） */
 const REEXPORT_HEAD_RE = /^export\s+(?:type\s+)?\{/;
-const REEXPORT_TAIL_RE = /\}\s*(?:as\s+[A-Za-z_$][\w$]*\s*)?from\s*['"][^'"]*contract\.ts['"]\s*;?\s*$/;
+/**
+ * 闭合行：`} from "…/contract.ts"`。尾部**分号**与**行注释**都可带（`; // 技能契约` / `; //…`），
+ * 行注释以 `[^\n]*` 收口，只在行内生效 ⇒ 绝不会跨行吃掉后续条目。
+ */
+const REEXPORT_TAIL_RE =
+  /\}\s*(?:as\s+[A-Za-z_$][\w$]*\s*)?from\s*['"][^'"]*contract\.ts['"]\s*;?\s*(?:\/\/[^\n]*)?$/;
+/**
+ * 切掉闭合尾巴（`} from "…"` 整段，含分号与行尾注释），只留名单本体；非闭合行原样返回。
+ * 必须切：末项**不带尾逗号**时（`C } from "…"`），否则尾巴会粘在末项后面，让末项匹配不上条目式。
+ */
+const cutTearoff = (line) => {
+  const m = REEXPORT_TAIL_RE.exec(line);
+  return m ? line.slice(0, m.index) : line;
+};
 /** 剥注释后再逐项匹配：只容「A」或「A as B」两种形态（其余一律丢弃，不报错） */
 const REEXPORT_ITEM_RE = /^[A-Za-z_$][\w$]*(?:\s+as\s+[A-Za-z_$][\w$]*)?$/;
 
@@ -122,6 +135,22 @@ const REEXPORT_ITEM_RE = /^[A-Za-z_$][\w$]*(?:\s+as\s+[A-Za-z_$][\w$]*)?$/;
  * `as` 别名按**本地名**计入：UI 侧真正依赖的是「这个本地名有没有被接进来」。
  * 尾部只认 `from ".../contract.ts"`：本文件另外几处 `import type` / 本地界面不是 re-export，不收。
  * 名单**只对名字集合**判据，不比顺序、不比字段（见文件头「刻意不做的事」）。
+ *
+ * ### 当前支持的写法
+ * - 多行名单 / 单行名单（`export type { A, B } from "…"`）
+ * - 末项**带或不带**尾逗号（两种都必须解析出同样多的条目）
+ * - `export {` 与 `export type {` 两种头
+ * - 条目行尾行注释（**不含逗号**的那种先剥掉再切分）、条目间块注释
+ * - 闭合行：`} from "…/contract.ts"`、`…;`、`…; // 行注释`、无分号带行注释
+ * - 单引号 / 双引号路径；一个文件里拆成多个 `export` 块
+ *
+ * ### 当前**不支持**的写法（遇到时脚本会红并「拒绝给出结论」，而不是静默判绿）
+ * - `}` 与 `from` 之间夹**块注释**（`}` 后跟 `/* … *` 斜杠，再接 `from "…"`）—— 尾部正则不跳注释
+ * - 路径**不带 `.ts` 扩展名**（`from "…/contract"`）—— 尾部正则只认 `contract.ts`
+ * - 分号/`from` **换行**（`}` 单独一行、`from "…"` 另起一行）—— 闭合行必须一行写完
+ *   ⇒ 此时名单不结算、空集守卫 exit 1（**响亮失败**，提示结构变了，而非「UI 忘了 re-export」）
+ * - `export type` 与 `{` 之间换行 —— 头部正则要求 `{` 与 `export` 同行
+ * 维护者要支持新形态时，改 `REEXPORT_HEAD_RE` / `REEXPORT_TAIL_RE` / `cutTearoff` 三处即可。
  */
 function extractCoreReexports(source) {
   const lines = source.split(/\r?\n/);
@@ -131,17 +160,22 @@ function extractCoreReexports(source) {
 
   for (const raw of lines) {
     const t = raw.trim();
+    /* 闭合判定与切尾巴都基于**同一行**：闭合行上名单本体 = 行首到 `}` 之前那一段 */
+    const tail = REEXPORT_TAIL_RE.exec(t);
     if (!parsing) {
       if (!REEXPORT_HEAD_RE.test(t)) continue;
       /* `export type {` 与 `{` 同行 ⇒ 尾部可能也在同一行（`export type { A } from "…"`） */
       parsing = true;
-      buffer = t.slice(t.indexOf("{") + 1);
+      /* 用 replace 去掉头而不是 `slice(indexOf("{") + 1)`：后者会连带吃掉 `{` 之后的一个字符
+         （单行写法里那正是末项与 `}` 之间的空白/分隔符），多行写法却走 `buffer += "\n" + t`
+         根本不经过 slice —— 两侧对空白的依赖不一致，末项**不带尾逗号**时就丢条目。 */
+      buffer = cutTearoff(t.replace(/^export\s+(?:type\s+)?\{/, ""));
     } else {
       /* 用 \n 连接（而非空格）：名单里夹的行注释才不会把后续条目一起吃掉 */
-      buffer += `\n${t}`;
+      buffer += `\n${tail ? t.slice(0, tail.index) : t}`;
     }
     /* 闭合：行尾是 `} from "…/contract.ts"`（含 `} … from "…"` 同行写法）⇒ 名单读完，可以结算 */
-    if (!REEXPORT_TAIL_RE.test(t)) continue;
+    if (!tail) continue;
     parsing = false;
     /* 结算：先剥块注释与行注释，再按逗号切分；非法项（`import type` 误入等）直接丢弃 */
     const cleaned = buffer.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
