@@ -44,8 +44,14 @@ function sanitizeDirName(skillId: string): string {
 
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 
-/** 单个技能目录的文件数上限（防"宽而浅"的巨型仓库把 walk/cp 拖死主事件循环，I2） */
+/** 单个技能目录的文件数上限（防「宽而浅」的巨型仓库把 walk/cp 拖死主事件循环，I2） */
 export const MAX_SKILL_FILES = 5_000;
+
+/** 入参长度上限（防超长 skillId 变成超长目录名、macOS APFS 单段 255 字节上限处报 500） */
+export const MAX_SKILL_ID_LENGTH = 128;
+
+/** 搜索入参 q 的长度上限（防超长 q 撑出超长上游 URL；skills.sh 真实查询都是几个词） */
+export const MAX_QUERY_LENGTH = 200;
 
 /** git clone --depth 1（stderr 尾部进错误文案，ENETNOTFOUND/401 才有得排查） */
 function gitClone(repoUrl: string, destDir: string): Promise<void> {
@@ -161,6 +167,7 @@ function findSkillFiles(rootDir: string): string[] {
  * 以为装好了，实际缺文件，排查成本更高。
  */
 export function assertSkillDirSafe(rootDir: string, skillId: string): void {
+	let count = 0;
 	/** lstat 判定（不用 stat：stat 会跟随链接，恰好是我们要避开的） */
 	const walk = (dir: string, depth: number): void => {
 		if (depth > 12) {
@@ -185,6 +192,13 @@ export function assertSkillDirSafe(rootDir: string, skillId: string): void {
 		}
 		for (const entry of entries) {
 			try {
+				// 边扫边计数：宽而浅的巨型仓库在 cp 之前就被拦下（I2）
+				if (++count > MAX_SKILL_FILES) {
+					throw new SkillInstallError(
+						422,
+						`技能「${skillId}」的文件数超过上限 ${MAX_SKILL_FILES}，已拒绝安装。`,
+					);
+				}
 				const full = path.join(dir, entry.name);
 				if (entry.isSymbolicLink()) {
 					throw new SkillInstallError(
@@ -208,12 +222,23 @@ export function assertSkillDirSafe(rootDir: string, skillId: string): void {
 	walk(rootDir, 0);
 }
 
-/** 多个匹配时取「路径最浅 → 字母序」第一个（确定性，避免随机装错） */
+/**
+ * 多候选时的确定性选取。
+ *
+ * - **深度优先取更深**（I5）：`SKILL.md` 位于仓库根时最「浅」，而「最浅优先」会
+ *   优先选中顶层那个与请求无关的技能（同 frontmatter name 撞车时尤其明显）。
+ *   更深的路径才是 skills 规范期望的形态（`skills/<技能名>/SKILL.md`）。
+ * - **码点比较**（I4）：原实现用 `localeCompare`，结果依赖 ICU locale
+ *   （full-icu / small-icu、LANG 环境变量），同一仓库在不同机器上可能选出
+ *   不同技能，与「确定性」的注释承诺矛盾。码点序跨平台一致。
+ */
 function pickBest(candidates: string[]): string {
-	return candidates.sort((a, b) => {
+	// 复制后再 sort：Array.prototype.sort 原地改序，直接排入参会连带改掉调用方
+	// 拿到的 skillFiles（当前调用点虽无副作用，但这里是纯函数语义，别留雷）。
+	return [...candidates].sort((a, b) => {
 		const depthA = a.split(/[\\/]/).length;
 		const depthB = b.split(/[\\/]/).length;
-		return depthA !== depthB ? depthA - depthB : a.localeCompare(b);
+		return depthA !== depthB ? depthB - depthA : a < b ? -1 : a > b ? 1 : 0;
 	})[0];
 }
 
@@ -247,6 +272,12 @@ export async function installSkillFromGitHub(args: {
 	}
 	if (skillId.trim().length === 0) {
 		throw new SkillInstallError(400, "请求体缺少 skillId");
+	}
+	// 上限取**原始入参**长度而非 trim 后的：sanitizeDirName 把非法字符逐个换成 "-"
+	// 且不截断，非法字符不会让目录名变短，超长 skillId 仍会撑爆目录名
+	//（macOS APFS 单段名 255 字节上限处报 ENAMETOOLONG → 对用户是 500 而非 400）。
+	if (skillId.length > MAX_SKILL_ID_LENGTH) {
+		throw new SkillInstallError(400, `skillId 过长（上限 ${MAX_SKILL_ID_LENGTH} 字符）`);
 	}
 
 	const repoUrl = `https://github.com/${source}.git`;

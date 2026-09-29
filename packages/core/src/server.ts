@@ -26,7 +26,7 @@ import { expandFileRefs } from "./prompt-files.ts";
 import { isRecord } from "./guards.ts";
 import { InvalidCwdError, SessionManageError, type CoreRuntime } from "./session.ts";
 import { SkillNotFoundError } from "./skills.ts";
-import { SkillInstallError } from "./skills-install.ts";
+import { MAX_QUERY_LENGTH, SkillInstallError } from "./skills-install.ts";
 import { PackageNotFoundError } from "./packages.ts";
 
 export interface ServerHandle {
@@ -590,6 +590,14 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				?.trim();
 			if (!q) {
 				return json(400, { ok: false, error: "缺少查询参数 q" });
+			}
+			// q 会原样拼进 skills.sh 的代理 URL（见 runtime.searchSkills），无上限时
+			// 超长 q 会撑出超长请求行/URL（I8）。超出即判为非法入参 400，不去打上游。
+			if (q.length > MAX_QUERY_LENGTH) {
+				return json(400, {
+					ok: false,
+					error: `查询参数 q 过长（上限 ${MAX_QUERY_LENGTH} 字符）`,
+				});
 			}
 			try {
 				const payload = await runtime.searchSkills(q);
