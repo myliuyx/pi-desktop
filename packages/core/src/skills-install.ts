@@ -45,7 +45,7 @@ function sanitizeDirName(skillId: string): string {
 
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
 
-/** 单个技能目录的文件数上限（防「宽而浅」的巨型仓库把 walk/cp 拖死主事件循环，I2） */
+/** 单个技能目录的**条目数**上限（文件与目录都算一个条目；防「宽而浅」的巨型仓库把 walk/cp 拖死主事件循环，I2） */
 export const MAX_SKILL_FILES = 5_000;
 
 /** 入参长度上限（防超长 skillId 变成超长目录名、macOS APFS 单段 255 字节上限处报 500） */
@@ -212,6 +212,11 @@ function findSkillFiles(rootDir: string): string[] {
  *
  * 口径：**命中即拒绝安装**（422），不静默跳过 —— 静默跳过会让用户
  * 以为装好了，实际缺文件，排查成本更高。
+ *
+ * **计数口径**：上限数的是**条目**（文件 + 目录各算一个），不是「文件数」——
+ * 遍历时对**每个** readdir 条目做 `++count`，目录也算。实测「5051 个子目录 + 1 个
+ * 真实文件」会触发 422，此时文件数远未超限。若文案说「文件数超过上限」，用户看到
+ * 一个「3000 文件 + 2500 子目录」的正常技能被拒会无法排障。
  */
 export function assertSkillDirSafe(rootDir: string, skillId: string): void {
 	let count = 0;
@@ -239,11 +244,12 @@ export function assertSkillDirSafe(rootDir: string, skillId: string): void {
 		}
 		for (const entry of entries) {
 			try {
-				// 边扫边计数：宽而浅的巨型仓库在 cp 之前就被拦下（I2）
+				// 边扫边计数：宽而浅的巨型仓库在 cp 之前就被拦下（I2）。
+				// 计的是**条目**（文件 + 目录各占 1），故判据是「> MAX」而非文件数。
 				if (++count > MAX_SKILL_FILES) {
 					throw new SkillInstallError(
 						422,
-						`技能「${skillId}」的文件数超过上限 ${MAX_SKILL_FILES}，已拒绝安装。`,
+						`技能「${skillId}」的条目数（文件 + 目录）超过上限 ${MAX_SKILL_FILES}，已拒绝安装。`,
 					);
 				}
 				const full = path.join(dir, entry.name);
@@ -275,9 +281,12 @@ export function assertSkillDirSafe(rootDir: string, skillId: string): void {
  * - **深度优先取更深**（I5）：`SKILL.md` 位于仓库根时最「浅」，而「最浅优先」会
  *   优先选中顶层那个与请求无关的技能（同 frontmatter name 撞车时尤其明显）。
  *   更深的路径才是 skills 规范期望的形态（`skills/<技能名>/SKILL.md`）。
- * - **码点比较**（I4）：原实现用 `localeCompare`，结果依赖 ICU locale
+ * - **按 UTF-16 码元序比较**（I4）：原实现用 `localeCompare`，结果依赖 ICU locale
  *   （full-icu / small-icu、LANG 环境变量），同一仓库在不同机器上可能选出
- *   不同技能，与「确定性」的注释承诺矛盾。码点序跨平台一致。
+ *   不同技能，与「确定性」的注释承诺矛盾。改用 JS 的 `<` / `>`（UTF-16 码元序）后
+ *   跨平台一致且不依赖 ICU locale。注：这不是严格 Unicode 码点序 —— 两者只在星平面
+ *   字符（emoji 一类，以代理对表示）上结论相反，而这里只是同深度候选的 tie-break，
+ *   技能目录名极少含 emoji，不值得为此把实现换成真码点序。
  */
 function pickBest(candidates: string[]): string {
 	// 复制后再 sort：Array.prototype.sort 原地改序，直接排入参会连带改掉调用方

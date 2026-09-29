@@ -227,7 +227,9 @@ export interface CoreRuntime {
 	 * 从 GitHub 仓库安装单个技能（skills-install.ts：clone → frontmatter 匹配 →
 	 * 拷贝到目标 skills 目录）→ `session.reload()` → 返回最新清单。流式中抛错
 	 * （端点前置判据回 409）；非法来源/无此技能/目录冲突/**项目未信任**抛
-	 * `SkillInstallError`（端点回 400/404/409）。进度经 SSE `skill_progress` 下发。
+	 * `SkillInstallError`（端点回 400/404/409/422/504 —— 422 = 技能目录含符号链接 /
+	 * 层级过深 / 条目数超限，504 = 克隆超时，均由 skills-install.ts 抛；明细口径见
+	 * 该文件 `SkillInstallError` 的文档注释）。进度经 SSE `skill_progress` 下发。
 	 */
 	installSkill(req: SkillInstallRequest): Promise<SkillInstallResult>;
 
