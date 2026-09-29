@@ -23,7 +23,6 @@ import {
   TURN_PREVIEW_ANSWER_CHARS,
   TURN_PREVIEW_QUESTION_CHARS,
   TURN_RAIL_CLOSE_GRACE_MS,
-  TURN_RAIL_MIN_GAP,
   TURN_RAIL_TICK_HALF,
   TURN_RAIL_TRIGGER_WIDTH,
   TURN_RAIL_WIDTH,
@@ -463,19 +462,15 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const isEmpty = messages.length === 0;
 
   /*
-   * 刻度纵向位置（等比 minimap，决策 3）：量测随 measureElement 持续变化，且只在打开时
-   * 有意义 —— 不 useMemo（virtualizer 内部测量不进依赖，memo 会拿到陈旧分布），
+   * 刻度纵向位置（均匀槽位居中，task-turn-rail-even-ticks.md 修订决策 3）：位置只由
+   * 提问数与栏高决定，不读 virtualizer 测量。只在打开时有意义 —— 不 useMemo，
    * 每渲染期直算（N = 提问数，代价可忽略）。关闭 / 未量到高度时给空表（刻度栏不渲染）。
    */
   let railTops: number[] = [];
   if (railOpen && railHeight > 0 && railAnchors.length > 0) {
-    const totalSize = virtualizer.getTotalSize();
-    const starts = railAnchors.map(
-      ({ turn }) => virtualizer.measurementsCache[turn.startIndex]?.start ?? 0,
-    );
-    railTops = layoutTickTops(starts, totalSize, railHeight, TURN_RAIL_MIN_GAP).map((top) =>
-      // 居中刻度的视觉半高钳制（探针 T3 实测极端刻度探出栏缘 1px）：中心收进
-      // [半高, 栏高-半高]，两端各让 ≤1px，等比观感不变（纯函数层不动）
+    railTops = layoutTickTops(railAnchors.length, railHeight).map((top) =>
+      // 居中刻度的视觉半高钳制：中心收进 [半高, 栏高-半高]。槽位居中公式下
+      // 恒为 no-op，保留作渲染层保险（纯函数层不动）
       Math.min(Math.max(top, TURN_RAIL_TICK_HALF), railHeight - TURN_RAIL_TICK_HALF),
     );
   }

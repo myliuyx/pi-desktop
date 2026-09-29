@@ -1,6 +1,6 @@
 /**
  * 会话提问导航刻度栏的纯函数层（task-turn-rail.md）—— 把扁平 Message[] 折成
- * 「每次提问一个刻度」的导航锚点，并负责刻度的等比布局与预览文本的组装。
+ * 「每次提问一个刻度」的导航锚点，并负责刻度的均匀槽位布局与预览文本的组装。
  *
  * 纯函数、零副作用（同 turns.ts / adapter/reduce.ts 的纪律）：输入确定、输出确定，
  * 可被 scripts/turn-rail-check.mjs 直跑断言。DOM / React 一概不碰 —— 挂载、悬停、
@@ -48,35 +48,20 @@ export function collectRailTurns(messages: Message[], scope: string): RailTurnAn
 }
 
 /**
- * 刻度纵向位置：内容流位置 → 刻度栏像素位置（等比 minimap，规格书决策 3）。
+ * 刻度纵向位置：均匀槽位居中（task-turn-rail-even-ticks.md，2026-09-29 修订决策 3）。
  *
- * - 等比：`top = start / totalSize × railHeight` —— 位置本身携带「远近」线索；
- * - 最小间距：相邻刻度 < minGap 时自上而下顺次下推，短轮次扎堆不叠成一点；
- * - 溢出回退：minGap 铺开后超出刻度栏高度（极端多轮）→ 退化为均匀分布，
- *   **数量不裁剪**（规格书边界表：允许紧凑，不允许消失）。
+ * 刻度栏按提问数 n 均分成 n 格，每格刻度垂直居中于自己的格子：
+ * `top = railHeight × (i + 0.5) / n` —— 相邻间距恒等于 railHeight / n，顶部与底部
+ * 各留半格（整列上下对称），单刻度落栏正中。位置不编码「内容远近」，刻度纯语义化为
+ * 「第 N 问 of M」：不再读 virtualizer 测量值，原等比方案「远端未测量行位置有偏差」
+ * 的局限随之消失，刻度列在会话内完全静止。
  *
- * totalSize / railHeight 非正数（空内容 / 未挂载）一律返回同长全 0 —— 不炸、无 NaN。
+ * 防御语义：n ≤ 0 → []；n > 0 且 railHeight ≤ 0（未挂载）→ 长度 n 的全 0 —— 不炸、无 NaN。
  */
-export function layoutTickTops(
-  starts: number[],
-  totalSize: number,
-  railHeight: number,
-  minGap: number,
-): number[] {
-  const n = starts.length;
-  if (n === 0) return [];
-  if (!(totalSize > 0) || !(railHeight > 0)) return starts.map(() => 0);
-  const proportional = starts.map((s) =>
-    Math.min(Math.max((s / totalSize) * railHeight, 0), railHeight),
-  );
-  const swept: number[] = [proportional[0]];
-  for (let i = 1; i < n; i++) {
-    swept.push(Math.max(proportional[i], swept[i - 1] + minGap));
-  }
-  if (swept[n - 1] <= railHeight) return swept;
-  if (n === 1) return [Math.min(proportional[0], railHeight)];
-  // 溢出回退：均匀分布（首 0 末 railHeight，中间等分），保证全部刻度可见
-  return starts.map((_, i) => (railHeight * i) / (n - 1));
+export function layoutTickTops(n: number, railHeight: number): number[] {
+  if (!(n > 0)) return [];
+  if (!(railHeight > 0)) return Array<number>(n).fill(0);
+  return Array.from({ length: n }, (_, i) => (railHeight * (i + 0.5)) / n);
 }
 
 /**

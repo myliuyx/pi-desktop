@@ -1,7 +1,8 @@
 /**
  * 提问导航刻度栏纯函数断言（task-turn-rail.md 步骤 6）—— 不需要浏览器。
  * 运行：npm run check:turn-rail
- * 口径出处：lib/turn-rail.ts 注释与 .plan/task-turn-rail.md 决策 3/4/5。
+ * 口径出处：lib/turn-rail.ts 注释、.plan/task-turn-rail.md 决策 4/5 与
+ * .plan/task-turn-rail-even-ticks.md（2026-09-29 修订：决策 3 等比 → 均匀槽位居中）。
  */
 import { buildPreviewTexts, collectRailTurns, layoutTickTops } from "../src/lib/turn-rail.ts";
 
@@ -45,33 +46,35 @@ function check(name, actual, expected) {
   check("案例2 只有 assistant", collectRailTurns([assistant([text("x")])], "s1"), []);
 }
 
-/* 3. layoutTickTops：等比映射（minimap 语义，决策 3） */
+/* 3. layoutTickTops：均匀槽位居中（task-turn-rail-even-ticks.md 修订决策 3） */
 {
-  check("案例3 等比", layoutTickTops([0, 500], 1000, 400, 6), [0, 200]);
+  check("案例3 两刻度槽位居中", layoutTickTops(2, 400), [100, 300]);
+  check("案例3 三刻度等分", layoutTickTops(3, 300), [50, 150, 250]);
 }
 
-/* 4. 最小间距钳制：扎堆刻度自上而下推开 */
+/* 4. 间距恒定：相邻差恒等于 railHeight / n（均匀分布天然不叠，无需 minGap 钳制） */
 {
-  const tops = layoutTickTops([0, 1, 2], 1000, 300, 6);
-  check("案例4 首刻度贴顶", tops[0], 0);
-  check("案例4 间距 ≥ minGap", tops[1] - tops[0] >= 6 && tops[2] - tops[1] >= 6, true);
+  const tops = layoutTickTops(3, 300);
+  check(
+    "案例4 相邻间距全等（railHeight/n）",
+    tops[1] - tops[0] === 100 && tops[2] - tops[1] === 100,
+    true,
+  );
 }
 
-/* 5. 溢出回退：极端多轮 → 均匀分布，数量不裁剪（边界表：允许紧凑，不允许消失） */
+/* 5. 多刻度不裁剪：数量全保留，首尾各留半格（整列上下对称） */
 {
-  const starts = Array.from({ length: 100 }, (_, i) => i * 10);
-  const tops = layoutTickTops(starts, 1000, 300, 6);
+  const tops = layoutTickTops(100, 300);
   check("案例5 数量不裁剪", tops.length, 100);
-  check("案例5 均匀分布（首 0）", tops[0], 0);
-  check("案例5 均匀分布（末贴底）", tops[99], 300);
+  check("案例5 首刻度上留半格", tops[0], 1.5);
+  check("案例5 末刻度下留半格", tops[99], 298.5);
 }
 
-/* 6. 边界：空输入 / 单刻度 / 非正尺寸 → 不炸、无 NaN */
+/* 6. 边界：空输入 / 单刻度居中 / 非正高度 → 不炸、无 NaN */
 {
-  check("案例6 空输入", layoutTickTops([], 1000, 300, 6), []);
-  check("案例6 单刻度", layoutTickTops([250], 1000, 300, 6), [75]);
-  check("案例6 totalSize 0", layoutTickTops([0, 1], 0, 300, 6), [0, 0]);
-  check("案例6 railHeight 0", layoutTickTops([0, 500], 1000, 0, 6), [0, 0]);
+  check("案例6 空输入", layoutTickTops(0, 300), []);
+  check("案例6 单刻度居中", layoutTickTops(1, 300), [150]);
+  check("案例6 railHeight 0", layoutTickTops(2, 0), [0, 0]);
 }
 
 /* 7. buildPreviewTexts：注入文件块折 📎 行 + 截断带省略号 + 缺省安全 */

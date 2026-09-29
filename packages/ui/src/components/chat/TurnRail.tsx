@@ -36,7 +36,7 @@ interface TurnRailProps {
   tops: number[];
   /** 预览内容包（MessageList 按 anchors 预算；与 anchors 等长） */
   previews: RailPreview[];
-  /** 刻度列根节点 ref（MessageList 用它量高度做等比映射） */
+  /** 刻度列根节点 ref（MessageList 用它量高度做均匀槽位映射） */
   railRef: RefObject<HTMLDivElement | null>;
   /** 点击刻度 → 跳转到该次提问（MessageList 实现：测量定位 + 双 rAF 校正 + 落点闪烁） */
   onJump: (anchorIndex: number) => void;
