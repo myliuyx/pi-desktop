@@ -11,6 +11,8 @@
  * - 目标目录：user = `<agentDir>/skills/<dir>/`；project = `<cwd>/.pi/skills/<dir>/`
  *   （与 0.87.1 addAutoDiscoveredResources 的发现路径一致，装完 reload 即被加载）。
  * - 冲突不覆盖：目标目录已存在抛 409（v1 无更新/卸载入口，装错手动删目录）。
+ * - 写路径加固：技能目录含符号链接抛 422（cp 默认 dereference:false 会原样搬运链接，
+ *   装个技能会被升级为「读本机任意文件」）；SKILL.md 位于仓库根抛 400（cp 会连 .git 一起搬）。
  * - 私库/断网 = clone 失败原样报错；临时目录 finally 必清。
  * - 阶段进度经 onProgress 回调发 SSE `skill_progress`（session.ts 接线）。
  */
@@ -21,7 +23,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参 / 404 仓库无此技能 / 409 目录冲突） */
+/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参或仓库组织不合规 / 404 仓库无此技能 / 409 目录冲突 / 422 技能目录不可安全拷贝） */
 export class SkillInstallError extends Error {
 	constructor(
 		public status: number,
@@ -113,6 +115,47 @@ function findSkillFiles(rootDir: string): string[] {
 	return out;
 }
 
+/**
+ * 技能目录内的拷贝前安全闸门（export：供 `check:skills-install` 直接 import 断言）。
+ *
+ * **为什么**：`findSkillFiles` 跳过符号链接只作用于"发现哪些 SKILL.md"，
+ * 对"技能目录里有哪些其他文件"零约束；而 `fs.promises.cp` 默认
+ * `dereference:false`，会**原样搬运链接本身**。实测（2026-09-29）仓库里
+ * `passwd -> /etc/passwd` 会被搬进 `~/.pi/agent/skills/<dir>/`，而 SKILL.md
+ * 是**模型调用的指令**、模型有 read 工具 → 装个技能被升级为"读取任意本机文件
+ * 并经对话外送"。链接落盘不增磁盘占用，故这层防护无法靠"事后清理"兜底。
+ *
+ * 口径：**命中即拒绝安装**（422），不静默跳过 —— 静默跳过会让用户
+ * 以为装好了，实际缺文件，排查成本更高。
+ */
+export function assertSkillDirSafe(rootDir: string, skillId: string): void {
+	/** lstat 判定（不用 stat：stat 会跟随链接，恰好是我们要避开的） */
+	const walk = (dir: string, depth: number): void => {
+		if (depth > 12) return; // 与 findSkillFiles 同深度上限
+		let entries: fs.Dirent[];
+		try {
+			entries = fs.readdirSync(dir, { withFileTypes: true });
+		} catch (e) {
+			// IO 错误不伪装成"目录为空"（I6）：读不出来就没法担保安全
+			throw new SkillInstallError(500, `读取技能目录失败：${(e as Error).message}`);
+		}
+		for (const entry of entries) {
+			const full = path.join(dir, entry.name);
+			if (entry.isSymbolicLink()) {
+				throw new SkillInstallError(
+					422,
+					`技能「${skillId}」的目录内含符号链接（${entry.name}），已拒绝安装：` +
+						`技能内容会被模型当指令读取，符号链接可指向本机任意文件。`,
+				);
+			}
+			if (entry.isDirectory()) {
+				walk(full, depth + 1);
+			}
+		}
+	};
+	walk(rootDir, 0);
+}
+
 /** 多个匹配时取「路径最浅 → 字母序」第一个（确定性，避免随机装错） */
 function pickBest(candidates: string[]): string {
 	return candidates.sort((a, b) => {
@@ -152,11 +195,12 @@ export async function installSkillFromGitHub(args: {
 	const repoUrl = `https://github.com/${source}.git`;
 	const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "pi-skill-install-"));
 	try {
+		const cloneDir = path.join(tempDir, "repo");
 		args.onProgress?.(`正在克隆 ${source}…`);
-		await gitClone(repoUrl, path.join(tempDir, "repo"));
+		await gitClone(repoUrl, cloneDir);
 
 		args.onProgress?.("正在定位技能…");
-		const skillFiles = findSkillFiles(path.join(tempDir, "repo"));
+		const skillFiles = findSkillFiles(cloneDir);
 		// 匹配优先级：frontmatter name === skillId（skills.sh 口径）→ 目录 basename === skillId（直装仓库的常见形态）
 		const byFrontmatter = skillFiles.filter((f) => readFrontmatterName(f) === skillId);
 		const chosenFile =
@@ -167,12 +211,27 @@ export async function installSkillFromGitHub(args: {
 			throw new SkillInstallError(404, `技能「${skillId}」不在仓库 ${source} 中（未找到 SKILL.md 或 name 不匹配）`);
 		}
 		const skillDir = path.dirname(chosenFile);
+		// C3：`SKILL.md` 位于**仓库根**时 skillDir === 克隆根，cp 会把 .git
+		// （含全部历史/objects/config/refs）、README、CI 配置一并搬进用户
+		// skills 目录（实测落地产物 ['.git','.github','README.md','SKILL.md']）。
+		// 口径：报错拒绝，不默默排除 .git 后照装（用户 2026-09-29 裁决）。
+		if (path.resolve(skillDir) === path.resolve(cloneDir)) {
+			throw new SkillInstallError(
+				400,
+				`仓库 ${source} 的技能未按 skills 规范组织：SKILL.md 位于仓库根目录。` +
+					`请改用 skills 规范的仓库（技能置于子目录，如 skills/<技能名>/SKILL.md），` +
+					`或直接指定该仓库的子目录形态。`,
+			);
+		}
 		const skillName = readFrontmatterName(chosenFile) || path.basename(skillDir);
 
 		const targetDir = path.join(targetSkillsDir, sanitizeDirName(skillId));
 		if (fs.existsSync(targetDir)) {
 			throw new SkillInstallError(409, `已存在同名技能目录：${targetDir}（如需重装请先手动删除旧目录）`);
 		}
+
+		// 闸门在 cp **之前**跑（422）；命中的技能目录一个字节都不落盘
+		assertSkillDirSafe(skillDir, skillId);
 
 		args.onProgress?.(`正在安装到 ${targetDir}…`);
 		await fs.promises.mkdir(targetSkillsDir, { recursive: true });
