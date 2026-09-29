@@ -87,7 +87,7 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
  * SKILL.md frontmatter 的 name（frontmatter 损坏/缺失回落空串，由调用方兜底目录名）。
  *
  * **为什么要分两类错误**（I6）：`parseFrontmatter` 解析失败回落目录名是合理降级；
- * 但 `readFileSync` 的 EACCES / EIO / EISDIR 若被同一个 catch 吞成"无 frontmatter"，
+ * 但 `readFileSync` 的 EACCES / EIO / EISDIR 若被同一个 catch 吞成「无 frontmatter」，
  * 最终会表现为 404「技能不在仓库中」—— 把真实 IO 故障伪装成业务失败，排查时
  * 完全看不出是权限问题还是文件损坏。IO 错误必须向上抛。
  */
@@ -96,16 +96,20 @@ function readFrontmatterName(skillMdPath: string): string {
 	try {
 		raw = fs.readFileSync(skillMdPath, "utf8");
 	} catch (e) {
-		// 只放行"文件确实不存在"，其余 IO 错误向上抛
+		// 只放行「文件确实不存在」，其余 IO 错误向上抛
 		if ((e as NodeJS.ErrnoException).code === "ENOENT") return "";
-		throw new SkillInstallError(500, `读取 SKILL.md 失败：${(e as Error).message}`);
+		// 不外送 (e as Error).message —— 它含 /tmp/pi-skill-install-*/repo 内部路径，
+		// 会经 server.ts 的 { error } → transport 原文抛 → UI 直出给用户（与
+		// assertSkillDirSafe 同口径）。errno code 对用户已足够，排障者能看 core 日志。
+		const code = (e as NodeJS.ErrnoException).code ?? "未知错误";
+		throw new SkillInstallError(500, `读取 SKILL.md 失败（${code}）`);
 	}
 	try {
 		const { frontmatter } = parseFrontmatter<Record<string, unknown>>(raw);
 		return typeof frontmatter.name === "string" ? frontmatter.name.trim() : "";
 	} catch {
 		// YAML 损坏 → 回落目录名（合理降级）。parseFrontmatter 内部直接调 yaml 的
-		// parse()（node_modules/@earendil-works/pi-coding-agent/dist/utils/frontmatter.js:26），
+		// parse()（node_modules/@earendil-works/pi-coding-agent/dist/utils/frontmatter.js:23），
 		// 语法错误会抛出来，故这里必须兜住。
 		return "";
 	}
@@ -122,8 +126,10 @@ function findSkillFiles(rootDir: string): string[] {
 		} catch (e) {
 			// 权限 / IO 故障让整棵子树消失 → 后续误报 404「技能不在仓库」，
 			// 掩盖真实原因（I6）。ENOENT 才是可预期的「目录没了」。
+			// 同上：不外送 (e as Error).message（内部临时路径），只带 errno code。
 			if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
-				throw new SkillInstallError(500, `扫描仓库目录失败：${(e as Error).message}`);
+				const code = (e as NodeJS.ErrnoException).code ?? "未知错误";
+				throw new SkillInstallError(500, `扫描仓库目录失败（${code}）`);
 			}
 			return;
 		}
@@ -221,9 +227,12 @@ export interface SkillInstallOutcome {
 /**
  * 从 GitHub 仓库安装单个技能到目标 skills 目录。全程同步落盘动作之间经
  * `onProgress` 发阶段文案；任何失败都会清理克隆临时目录与 `.installing-*` 半成品
- * （落盘走「临时名 + rename」，失败时目标目录保持不存在——半个技能目录无害且
- * reload 只认完整 SKILL.md，但残留会让重试永久 409，还会造成「报错说失败、
- * reload 后技能却生效」的错位，I1）。
+ * （落盘走「同目录下 `.` 开头的 staging + rename」，失败时目标目录保持不存在——
+ * 半个技能目录无害且 reload 只认完整 SKILL.md，但残留会让重试永久 409，
+ * 还会造成「报错说失败、reload 后技能却生效」的错位，I1）。
+ * 注意：SIGKILL/OOM/断电下 catch 不执行，staging 仍会残留——它以 `.` 开头，
+ * Pi 的技能发现（dist/core/skills.js:161-164）只跳过 `.` 开头条目，故残留
+ * 不会被当成幽灵技能。
  */
 export async function installSkillFromGitHub(args: {
 	source: string;
@@ -286,18 +295,27 @@ export async function installSkillFromGitHub(args: {
 		// 闸门在 cp **之前**跑（422）；命中的技能目录一个字节都不落盘
 		assertSkillDirSafe(skillDir, skillId);
 
-		// 落盘走"临时名 + rename"（I1）：cp 中途失败（ENOSPC/EIO/进程被杀）时
-		// 目标目录保持"不存在"，重试不会被残留目录永久 409 挡死。
-		// 现状是 cp 直接写 targetDir，失败后残留目录含完整 SKILL.md 时会出现
-		// 「报错说失败、reload 后技能却生效」的错位。
+		// 落盘走「staging + rename」（I1）。**旧行为**是 cp 直接写 targetDir：
+		// cp 中途失败（ENOSPC/EIO/进程被杀）会留下含完整 SKILL.md 的残目录，
+		// 造成「报错说失败、reload 后技能却生效」的错位，且残留目录让重试永久 409。
 		await fs.promises.mkdir(targetSkillsDir, { recursive: true });
-		const stagingDir = `${targetDir}.installing-${process.pid}-${Date.now()}`;
+		// staging 名以 `.` 开头且落在 targetSkillsDir 内：① Pi 的 loadSkillsFromDir
+		// 只跳过 `.` 开头的条目（skills.js:161-164），故崩溃/SIGKILL 留下的 staging
+		// 不会被发现成幽灵技能；② 同目录 ⇒ rename 不跨卷，无 EXDEV。
+		// 注意不能沿用 `<targetDir>.installing-*` 形态——那不以 `.` 开头。
+		const stagingDir = path.join(
+			targetSkillsDir,
+			`.installing-${process.pid}-${Date.now()}-${sanitizeDirName(skillId)}`,
+		);
 		args.onProgress?.(`正在安装到 ${targetDir}…`);
 		try {
 			await fs.promises.cp(skillDir, stagingDir, { recursive: true });
 			await fs.promises.rename(stagingDir, targetDir);
 		} catch (e) {
-			// 半拷贝残留一律清掉，不给「报错说失败、目录却生效」的错位留机会
+			// 半拷贝残留一律清掉，不给「报错说失败、目录却生效」的错位留机会。
+			// 代价（可接受）：rename 自身失败（ENOTEMPTY/EEXIST，即目标目录在
+			// 409 检查之后被别人建出来）时，这份已拷完整的 staging 也被删掉，
+			// 用户重试一次即可换回技能，不丢用户已有数据。
 			await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
 			throw e;
 		}
