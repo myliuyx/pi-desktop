@@ -99,6 +99,51 @@ const API_ROUTES = new Set([
 	"/fs/search",
 ]);
 
+/**
+ * core 直发 AgentEvent 的放行判据（C1 根治，2026-09-29 用户裁决）。
+ *
+ * **为什么是穷尽式放行而不是枚举白名单**：原实现是 5 个 `e.type === "..."` 的
+ * 正向枚举，新增事件类型要靠人记得手加 —— `skill_progress` 就是这么被静默丢掉的
+ * （session.ts:1062-1068 已经发事件，UI 也在订阅，contract.ts:755-762 也已声明，
+ * 唯独这里没放行 → 进度条永远不出现；探针/tsc/契约检查全绿也发现不了，
+ * 因为漏项不产生任何错误）。改为「**core 直发通道已登记的一律放行、其余丢弃**」
+ * 后，新类型只差在本集合补一行，不会再被静默吞掉。
+ *
+ * **本集合不是 `AgentEvent` 的全集**（别当全集看、也别把会话流那批塞进来）：
+ * 两条通道是互斥的 —— `dispatch`（批量节流，吃 `runtime.onEvent` 的 Pi 原始事件，
+ * 经 toAgentEvent 翻译，见 server.ts:221-231）与 `dispatchAgent`（终态立即下发，
+ * 吃 `runtime.onAgentEvent` 的 core 直发事件，见 server.ts:234-239）若同时放行
+ * 同一 type，就会双推。故此处只登记**不经会话流翻译**的 6 种：
+ * usage、approval_request、approval_settled、cwd_changed、package_progress
+ * （contract.ts:372）、skill_progress（contract.ts:374）。
+ *
+ * 与契约的对应关系（核对 contract.ts:319-374 的 `AgentEvent` 联合，共 16 个成员）：
+ * - 会话流 10 种：message_start / message_update / message_end、
+ *   tool_execution_start / update / end、turn_start、turn_end、agent_start、
+ *   agent_settled —— 走 `dispatch` 通道（adapt.ts:103-139 的翻译清单，与本集合无关）；
+ * - core 直发 6 种：usage、approval_request、approval_settled、cwd_changed、
+ *   package_progress、skill_progress —— 走本通道。
+ * 前者里 `message_update` 另走批量节流（server.ts:224-227），其余即时下发。
+ *
+ * 维护约定：新增 core 直发事件时，在此补一行，并在 UI 侧确认有消费方
+ * （`package_progress` 见 ui/src/adapter/reduce.ts:363；`skill_progress` 见
+ * ui/src/screens/settings/SkillsSettingsTab.tsx:134）。补了没消费方无害（前端忽略即可），
+ * 不补则事件静默消失（正是 C1 的病根）。
+ */
+const CORE_DIRECT_EVENT_TYPES = new Set([
+	"approval_request",
+	"approval_settled",
+	"usage",
+	"cwd_changed",
+	"package_progress",
+	"skill_progress",
+]);
+
+/** core 直发事件的放行判据：只认本文件登记过的 type（见 CORE_DIRECT_EVENT_TYPES 的维护约定） */
+function isDeclaredAgentEvent(e: unknown): boolean {
+	return isRecord(e) && typeof e.type === "string" && CORE_DIRECT_EVENT_TYPES.has(e.type);
+}
+
 /** 从 Host 头取主机名：`1.2.3.4:5190` → `1.2.3.4`；`[::1]:5190` → `::1`；`localhost` → `localhost` */
 function hostnameOf(hostHeader: string): string {
 	const h = hostHeader.trim();
@@ -185,16 +230,9 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		}
 	};
 
-	/** core 直接生成的 AgentEvent（uiContext 授权请求 / 用量快照 / 目录热切换 / 包进度），已是契约形状，终态立即下发 */
+	/** core 直接生成的 AgentEvent（uiContext 授权请求 / 用量快照 / 目录热切换 / 包与技能进度），已是契约形状，终态立即下发；放行判据见 CORE_DIRECT_EVENT_TYPES */
 	const dispatchAgent = (e: unknown) => {
-		if (
-			isRecord(e) &&
-			(e.type === "approval_request" ||
-				e.type === "approval_settled" ||
-				e.type === "usage" ||
-				e.type === "cwd_changed" ||
-				e.type === "package_progress")
-		) {
+		if (isDeclaredAgentEvent(e)) {
 			flushBatch();
 			push(e);
 		}
