@@ -23,7 +23,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参或仓库组织不合规 / 404 仓库无此技能 / 409 目录冲突 / 422 技能目录不可安全拷贝） */
+/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参或仓库组织不合规 / 404 仓库无此技能 / 409 目录冲突 / 422 技能目录不可安全拷贝 / 500 真实 IO 故障，不伪装成 404） */
 export class SkillInstallError extends Error {
 	constructor(
 		public status: number,
@@ -43,6 +43,9 @@ function sanitizeDirName(skillId: string): string {
 }
 
 const CLONE_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** 单个技能目录的文件数上限（防"宽而浅"的巨型仓库把 walk/cp 拖死主事件循环，I2） */
+export const MAX_SKILL_FILES = 5_000;
 
 /** git clone --depth 1（stderr 尾部进错误文案，ENETNOTFOUND/401 才有得排查） */
 function gitClone(repoUrl: string, destDir: string): Promise<void> {
@@ -80,12 +83,30 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
 	});
 }
 
-/** SKILL.md frontmatter 的 name（损坏/缺失回落空串，由调用方兜底目录名） */
+/**
+ * SKILL.md frontmatter 的 name（frontmatter 损坏/缺失回落空串，由调用方兜底目录名）。
+ *
+ * **为什么要分两类错误**（I6）：`parseFrontmatter` 解析失败回落目录名是合理降级；
+ * 但 `readFileSync` 的 EACCES / EIO / EISDIR 若被同一个 catch 吞成"无 frontmatter"，
+ * 最终会表现为 404「技能不在仓库中」—— 把真实 IO 故障伪装成业务失败，排查时
+ * 完全看不出是权限问题还是文件损坏。IO 错误必须向上抛。
+ */
 function readFrontmatterName(skillMdPath: string): string {
+	let raw: string;
 	try {
-		const { frontmatter } = parseFrontmatter<Record<string, unknown>>(fs.readFileSync(skillMdPath, "utf8"));
+		raw = fs.readFileSync(skillMdPath, "utf8");
+	} catch (e) {
+		// 只放行"文件确实不存在"，其余 IO 错误向上抛
+		if ((e as NodeJS.ErrnoException).code === "ENOENT") return "";
+		throw new SkillInstallError(500, `读取 SKILL.md 失败：${(e as Error).message}`);
+	}
+	try {
+		const { frontmatter } = parseFrontmatter<Record<string, unknown>>(raw);
 		return typeof frontmatter.name === "string" ? frontmatter.name.trim() : "";
 	} catch {
+		// YAML 损坏 → 回落目录名（合理降级）。parseFrontmatter 内部直接调 yaml 的
+		// parse()（node_modules/@earendil-works/pi-coding-agent/dist/utils/frontmatter.js:26），
+		// 语法错误会抛出来，故这里必须兜住。
 		return "";
 	}
 }
@@ -98,7 +119,12 @@ function findSkillFiles(rootDir: string): string[] {
 		let entries: fs.Dirent[];
 		try {
 			entries = fs.readdirSync(dir, { withFileTypes: true });
-		} catch {
+		} catch (e) {
+			// 权限 / IO 故障让整棵子树消失 → 后续误报 404「技能不在仓库」，
+			// 掩盖真实原因（I6）。ENOENT 才是可预期的「目录没了」。
+			if ((e as NodeJS.ErrnoException).code !== "ENOENT") {
+				throw new SkillInstallError(500, `扫描仓库目录失败：${(e as Error).message}`);
+			}
 			return;
 		}
 		for (const entry of entries) {
@@ -194,8 +220,10 @@ export interface SkillInstallOutcome {
 
 /**
  * 从 GitHub 仓库安装单个技能到目标 skills 目录。全程同步落盘动作之间经
- * `onProgress` 发阶段文案；任何失败都会清理克隆临时目录（已拷贝的目标不回滚——
- * 半个技能目录无害且 reload 只认完整 SKILL.md，残目录不会出现在清单里）。
+ * `onProgress` 发阶段文案；任何失败都会清理克隆临时目录与 `.installing-*` 半成品
+ * （落盘走「临时名 + rename」，失败时目标目录保持不存在——半个技能目录无害且
+ * reload 只认完整 SKILL.md，但残留会让重试永久 409，还会造成「报错说失败、
+ * reload 后技能却生效」的错位，I1）。
  */
 export async function installSkillFromGitHub(args: {
 	source: string;
@@ -258,9 +286,21 @@ export async function installSkillFromGitHub(args: {
 		// 闸门在 cp **之前**跑（422）；命中的技能目录一个字节都不落盘
 		assertSkillDirSafe(skillDir, skillId);
 
-		args.onProgress?.(`正在安装到 ${targetDir}…`);
+		// 落盘走"临时名 + rename"（I1）：cp 中途失败（ENOSPC/EIO/进程被杀）时
+		// 目标目录保持"不存在"，重试不会被残留目录永久 409 挡死。
+		// 现状是 cp 直接写 targetDir，失败后残留目录含完整 SKILL.md 时会出现
+		// 「报错说失败、reload 后技能却生效」的错位。
 		await fs.promises.mkdir(targetSkillsDir, { recursive: true });
-		await fs.promises.cp(skillDir, targetDir, { recursive: true });
+		const stagingDir = `${targetDir}.installing-${process.pid}-${Date.now()}`;
+		args.onProgress?.(`正在安装到 ${targetDir}…`);
+		try {
+			await fs.promises.cp(skillDir, stagingDir, { recursive: true });
+			await fs.promises.rename(stagingDir, targetDir);
+		} catch (e) {
+			// 半拷贝残留一律清掉，不给「报错说失败、目录却生效」的错位留机会
+			await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => {});
+			throw e;
+		}
 		args.onProgress?.("安装完成");
 
 		return { installedPath: targetDir, skillName };
