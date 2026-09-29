@@ -118,12 +118,12 @@ function findSkillFiles(rootDir: string): string[] {
 /**
  * 技能目录内的拷贝前安全闸门（export：供 `check:skills-install` 直接 import 断言）。
  *
- * **为什么**：`findSkillFiles` 跳过符号链接只作用于"发现哪些 SKILL.md"，
- * 对"技能目录里有哪些其他文件"零约束；而 `fs.promises.cp` 默认
+ * **为什么**：`findSkillFiles` 跳过符号链接只作用于「发现哪些 SKILL.md」，
+ * 对「技能目录里有哪些其他文件」零约束；而 `fs.promises.cp` 默认
  * `dereference:false`，会**原样搬运链接本身**。实测（2026-09-29）仓库里
  * `passwd -> /etc/passwd` 会被搬进 `~/.pi/agent/skills/<dir>/`，而 SKILL.md
- * 是**模型调用的指令**、模型有 read 工具 → 装个技能被升级为"读取任意本机文件
- * 并经对话外送"。链接落盘不增磁盘占用，故这层防护无法靠"事后清理"兜底。
+ * 是**模型调用的指令**、模型有 read 工具 → 装个技能被升级为「读取任意本机文件
+ * 并经对话外送」。链接落盘不增磁盘占用，故这层防护无法靠「事后清理」兜底。
  *
  * 口径：**命中即拒绝安装**（422），不静默跳过 —— 静默跳过会让用户
  * 以为装好了，实际缺文件，排查成本更高。
@@ -131,25 +131,45 @@ function findSkillFiles(rootDir: string): string[] {
 export function assertSkillDirSafe(rootDir: string, skillId: string): void {
 	/** lstat 判定（不用 stat：stat 会跟随链接，恰好是我们要避开的） */
 	const walk = (dir: string, depth: number): void => {
-		if (depth > 12) return; // 与 findSkillFiles 同深度上限
+		if (depth > 12) {
+			// 超限 = 未校验 = 不可放行（与 I6 同口径：读不到就不能担保安全）。
+			// 绝不能沿用 findSkillFiles 的 `return` —— 那是「发现」上限，
+			// 超限只导致找不到技能；而这里是「安全」闸门，超限等于放行符号链接。
+			throw new SkillInstallError(
+				422,
+				`技能「${skillId}」的目录层级过深（上限 12 层），无法完整校验，已拒绝安装。`,
+			);
+		}
 		let entries: fs.Dirent[];
 		try {
 			entries = fs.readdirSync(dir, { withFileTypes: true });
 		} catch (e) {
-			// IO 错误不伪装成"目录为空"（I6）：读不出来就没法担保安全
-			throw new SkillInstallError(500, `读取技能目录失败：${(e as Error).message}`);
+			// IO 错误不伪装成「目录为空」（I6）：读不出来就没法担保安全。
+			// 不外送 (e as Error).message —— 它含 /tmp/pi-skill-install-*/repo 内部路径，
+			// 会经 server.ts 的 { error } → transport 原文抛 → UI 直出给用户。
+			// 对照同文件 409 口径：路径只出现用户自己的 skills 目录，不出现内部临时目录。
+			const code = (e as NodeJS.ErrnoException).code ?? "未知错误";
+			throw new SkillInstallError(500, `读取技能目录失败（${code}）`);
 		}
 		for (const entry of entries) {
-			const full = path.join(dir, entry.name);
-			if (entry.isSymbolicLink()) {
-				throw new SkillInstallError(
-					422,
-					`技能「${skillId}」的目录内含符号链接（${entry.name}），已拒绝安装：` +
-						`技能内容会被模型当指令读取，符号链接可指向本机任意文件。`,
-				);
-			}
-			if (entry.isDirectory()) {
-				walk(full, depth + 1);
+			try {
+				const full = path.join(dir, entry.name);
+				if (entry.isSymbolicLink()) {
+					throw new SkillInstallError(
+						422,
+						`技能「${skillId}」的目录内含符号链接（${entry.name}），已拒绝安装：` +
+							`技能内容会被模型当指令读取，符号链接可指向本机任意文件。`,
+					);
+				}
+				if (entry.isDirectory()) {
+					walk(full, depth + 1);
+				}
+			} catch (e) {
+				// 422 语义由本函数自己抛出，必须透传；只有非本函数的 IO 故障才兜成 500，
+				// 否则会把「含符号链接」的 422 降级成 500，前端语义就错了。
+				if (e instanceof SkillInstallError) throw e;
+				const code = (e as NodeJS.ErrnoException).code ?? "未知错误";
+				throw new SkillInstallError(500, `扫描技能目录失败（${code}）`);
 			}
 		}
 	};
@@ -215,12 +235,17 @@ export async function installSkillFromGitHub(args: {
 		// （含全部历史/objects/config/refs）、README、CI 配置一并搬进用户
 		// skills 目录（实测落地产物 ['.git','.github','README.md','SKILL.md']）。
 		// 口径：报错拒绝，不默默排除 .git 后照装（用户 2026-09-29 裁决）。
-		if (path.resolve(skillDir) === path.resolve(cloneDir)) {
+		// 判据用 realpathSync 双侧 canonical 比较，而非 path.resolve 字符串等值：
+		// 后者在大小写不敏感的平台（Windows）上会把同一目录判成不同（实测 /TMP vs /tmp
+		// → false），导致根目录 SKILL.md 逃过 400、.git 全量落进用户 skills 目录。
+		// realpathSync 会跟随符号链接，但这里两侧同源同法解析，恰好无害。
+		const isRepoRoot = fs.realpathSync(skillDir) === fs.realpathSync(cloneDir);
+		if (isRepoRoot) {
 			throw new SkillInstallError(
 				400,
 				`仓库 ${source} 的技能未按 skills 规范组织：SKILL.md 位于仓库根目录。` +
-					`请改用 skills 规范的仓库（技能置于子目录，如 skills/<技能名>/SKILL.md），` +
-					`或直接指定该仓库的子目录形态。`,
+					`该仓库仅在 SKILL.md 位于子目录时可安装；` +
+					`请改用把技能放在子目录的仓库（如 skills/<技能名>/SKILL.md）。`,
 			);
 		}
 		const skillName = readFrontmatterName(chosenFile) || path.basename(skillDir);
