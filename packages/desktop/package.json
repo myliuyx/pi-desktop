@@ -2,7 +2,7 @@
   "name": "@agent/desktop",
   "productName": "Pi-Desktop",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.4",
   "license": "MIT",
   "description": "Pi-Desktop —— 本地 core 服务 + 浏览器套壳的桌面封装（D1 裁决：Pi-Desktop 占位名）",
   "homepage": "https://github.com/myliuyx/pi-desktop",
@@ -28,20 +28,46 @@
       "dist/**/*"
     ],
     "extraResources": [
-      { "from": "../ui/dist", "to": "ui-dist" },
-      { "from": "../core/dist", "to": "core/dist" },
-      { "from": "../core/package.json", "to": "core/package.json" },
-      { "from": "../core/node_modules", "to": "core/node_modules" }
+      {
+        "from": "../ui/dist",
+        "to": "ui-dist"
+      },
+      {
+        "from": "../core/dist",
+        "to": "core/dist"
+      },
+      {
+        "from": "../core/package.json",
+        "to": "core/package.json"
+      },
+      {
+        "from": "../core/node_modules",
+        "to": "core/node_modules"
+      }
     ],
-    "win": { "target": ["nsis"] },
-    "mac": { "target": ["dmg", "zip"] },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "executableName": "pi-desktop",
       "artifactName": "Pi-Desktop-${version}-${arch}.${ext}",
       "maintainer": "myliuyx <myliuyx@users.noreply.github.com>"
     },
-    "deb": { "packageName": "pi-desktop" },
+    "deb": {
+      "packageName": "pi-desktop"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
