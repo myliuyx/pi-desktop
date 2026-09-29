@@ -184,65 +184,204 @@ async function expectStatus(fn) {
 
 /* ---------- A2：落盘目录名消毒（sanitizeDirName 是模块私有函数） ----------
  * 无法直接调（未导出、且不该为测试加导出），故按**源码正则逐字复刻**断言其语义。
- * 复刻口径（skills-install.ts 的 sanitizeDirName）：
- *   - 第 1 遍把非 [\w.-] 逐字符换成 "-"
+ * 两遍的复刻口径（skills-install.ts 的 sanitizeDirName）：
+ *   - 第 1 遍把非白名单的字符逐个换成 "-"
  *   - 第 2 遍剥掉首尾的 [-.] （run 起来）
  *   - 剥完为空 ⇒ 回落 "skill"
  * 断言两件真正要紧的事：① 拼出的落盘路径**不越出** targetSkillsDir；② 是**单段**名。
  * 配套反事实对拍：把「剥首尾 [-.]」去掉（连剥两次 `^[-.]+`）的反事实实现，
  * 对 ".." 只能剥成空 ⇒ 回落 "skill"。断言源码**剥得出 "."** 而反事实剥不出 ——
  * 这样「源码正则被改掉」与「复刻被改掉」都会红，不存在两者同进同退的恒真。
+ *
+ * **fix round 1/5（评审 Important）：第 1 遍的字符白名单必须由源码驱动。**
+ * 上一版把 `/[^\w.-]/g` 这个白名单**写死**在脚本里，它不是源码的「复刻」而是
+ * 脚本自带的常量 —— 源码第 1 遍真正防目录穿越（放过 `/` 就是 `a/../../b` 多层穿越），
+ * 而 13 条越界/单段断言却对它完全无感：把源码第 1 遍改成 `[^\w.\-/]` 照样全绿。
+ * 现在两遍都**从源码函数体里按序抠出 replace 的正则字面量**（`replaces[0]`/`replaces[1]`）
+ * 现场构造，替换目标按源码/复刻字面量（缺省 "-"）取。源码白名单一放宽，
+ * 落盘名就跟着越界 ⇒ 断言变红。抠不到（形态大改）时**显式标红并跳过语义判据**，
+ * 绝不静默改用硬编码兜底（那正是本轮堵掉的那个假绿口子）。
  */
 {
 	const m = /function sanitizeDirName\(skillId: string\): string \{([\s\S]*?)\n\}/.exec(installSource);
 	const fnBody = m ? m[1] : "";
+	// 按源码出现顺序抠出每一遍 replace 的（正则字面量, 替换目标字面量）。
+	// 抠取器自己是个**扫描器**（逐字符走，跟 JS 的词法一致）：
+	//   - 正则字面量：`/.../` 内部允许出现转义斜杠 `\/`，字面量以「未被转义的 `/`」收尾，
+	//     标志位只收 g / i / m / s / u / y（拿不到 g 就当场标红并短路，绝不静默改用非全局版 ——
+	//     非全局的 replace 只换首个匹配，会让「白名单敏感」这件事测不出来）；
+	//   - 替换目标：字符串字面量（取字面量里的原文作为 replacement，常见转义由 JSON.parse 还原）。
+	// 源码若改用非字面量（变量 / 函数 / 模板串），抠取失败即如实标红并短路语义判据。
+	const readRegexLiteral = (text, from) => {
+		let i = text.indexOf("/", from);
+		while (i >= 0) {
+			let j = i + 1;
+			let inClass = false;
+			let closed = false;
+			while (j < text.length) {
+				const ch = text[j];
+				if (ch === "\\") {
+					j += 2;
+					continue;
+				}
+				if (ch === "[") inClass = true;
+				else if (ch === "]") inClass = false;
+				else if (ch === "/" && !inClass) {
+					closed = true;
+					break;
+				} else if (ch === "\n") break; // 未闭合（不是正则字面量）
+				j++;
+			}
+			if (!closed) return null;
+			const kEnd = j + 1;
+			let k = kEnd;
+			while (k < text.length && /[gimsuy]/.test(text[k])) k++;
+			if (text[k] === ",") {
+				return { end: k + 1, pattern: text.slice(i + 1, j), flags: text.slice(j + 1, k) };
+			}
+			i = text.indexOf("/", j + 1);
+		}
+		return null;
+	};
+	const readStringLiteral = (text, from) => {
+		const m = /^"((?:[^"\\]|\\.)*)"/.exec(text.slice(from));
+		if (!m) return null;
+		return { end: from + m[0].length, raw: m[1] };
+	};
+	const replaceCalls = [];
+	for (let idx = fnBody.indexOf("replace("); idx >= 0; idx = fnBody.indexOf("replace(", idx + 1)) {
+		// `replace(` 与第一个参数之间可能已有空格
+		const afterCall = idx + "replace(".length + (fnBody.slice(idx + "replace(".length).match(/^\s*/) ?? [""])[0].length;
+		const re0 = readRegexLiteral(fnBody, afterCall);
+		if (!re0) continue;
+		// 正则与替换目标之间（源码写的是 `, `）的空白
+		const argStart = re0.end + (fnBody.slice(re0.end).match(/^\s*/) ?? [""])[0].length;
+		const str0 = readStringLiteral(fnBody, argStart);
+		if (!str0) continue;
+		let replacement = str0.raw;
+		try {
+			replacement = JSON.parse(`"${str0.raw}"`);
+		} catch {
+			/* 罕见转义：保留字面量原文（等价即可） */
+		}
+		replaceCalls.push({ pattern: re0.pattern, flags: re0.flags, replacement });
+	}
+	const firstCall = replaceCalls[0] ?? null; // 第 1 遍：字符白名单
+	const secondCall = replaceCalls[1] ?? null; // 第 2 遍：剥首尾
+	// 两遍都必须是 g（全局）—— 非全局只换首个匹配，白名单/剥首尾语义完全不同，不能当等价
+	const compiled = !!(firstCall && secondCall && firstCall.flags.includes("g") && secondCall.flags.includes("g"));
+	const firstRe = compiled ? new RegExp(firstCall.pattern, "g") : null;
+	const secondRe = compiled ? new RegExp(secondCall.pattern, "g") : null;
+	// 复刻：第 1 遍的字符白名单 / 替换目标、第 2 遍的剥离正则 / 替换目标，全部来自源码
 	const sanitize = (s) => {
-		const cleaned = s.replace(/[^\w.-]/g, "-").replace(/^[-.]+|[-.]+$/g, "");
+		if (!compiled) return null;
+		const cleaned = s.replace(firstRe, firstCall.replacement).replace(secondRe, secondCall.replacement);
 		return cleaned.length > 0 ? cleaned : "skill";
 	};
-	// 反事实对拍：只做字符替换、**不剥首尾 [-.]** 的「天真实现」。
+	// 反事实对拍：只做**源码第 1 遍**的字符替换、**不剥首尾**的「天真实现」。
 	// 它的后果正是目录穿越：skillId ".." 会拼出 targetSkillsDir 的父目录，
 	// "." 会拼出 targetSkillsDir 本身。源码的剥首尾正则就是堵这个的唯一一道。
+	check("A2 两遍 replace 都能从源码抠出（正则字面量+全局标志+替换目标，同源不硬编码）", compiled, { 抠出: replaceCalls, 原因: compiled ? "两遍均为 g" : "未抠到两遍 / 缺 g / 替换目标非字面量" });
+	// 判据要求：第 1 遍是一个**逐字符**的否定类（`[^…]`）且替换目标就是 "-"；
+	// 量词/锚点/回溯一旦出现（即不再逐字符）即红。`[^…]` 里的 `^` 属于类语法，不算锚点。
+	const firstIsPerCharClass = (p) => {
+		const mm = /^\[\^([^\]]*)\]/.exec(p ?? "");
+		if (!mm) return false;
+		// 类体内允许的只有：转义序列（\w、\-、\/…）与字面字符。出现量词/括号/竖线
+		// （忽略紧跟 \ 的转义反斜杠）即不再是「逐字符」白名单。
+		return !/(^|[^\\])[?*+{}()|]/.test(mm[1]);
+	};
+	check(
+		"A2 源码里 sanitizeDirName 的第 1 遍是「逐字符换 '-' 的字符白名单」（目录穿越的真正防线，不在判据里就不算数）",
+		!!firstCall &&
+			firstIsPerCharClass(firstCall.pattern) &&
+			firstCall.pattern.includes("\\w") &&
+			firstCall.replacement === "-" &&
+			!/\\w/.test(secondCall?.pattern ?? ""),
+		{ 第1遍: firstCall ? `/${firstCall.pattern}/${firstCall.flags} → "${firstCall.replacement}"` : "未找到", 第2遍: secondCall ? `/${secondCall.pattern}/${secondCall.flags} → "${secondCall.replacement}"` : "未找到" },
+	);
 	check("A2 源码里 sanitizeDirName 的第 2 遍是「首尾交替 run」口径", /replace\(\/\^\[-\.\]\+\|\[-\.\]\+\$\/g, ""\)/.test(fnBody), fnBody || "未匹配到函数体");
 	const noStrip = (s) => {
-		const cleaned = s.replace(/[^\w.-]/g, "-");
+		if (!compiled) return null;
+		const cleaned = s.replace(firstRe, firstCall.replacement);
 		return cleaned.length > 0 ? cleaned : "skill";
-	};
-	const dstEscape = path.join(tmpRoot, "a2-dst");
+	};	const dstEscape = path.join(tmpRoot, "a2-dst");
 	fs.mkdirSync(dstEscape, { recursive: true });
-	check("A2 剥首尾是唯一拦住「..」穿越的一道（不剥 ⇒ 落盘名指回 targetSkillsDir 的父目录）", sanitize("..") === "skill" && path.resolve(dstEscape, noStrip("..")) === path.resolve(tmpRoot), { 源码口径: sanitize(".."), 天真口径: noStrip(".."), 天真口径拼出的路径: path.resolve(dstEscape, noStrip("..")) });
-	check("A2 剥首尾也拦住「.」（不剥 ⇒ 落盘名指回 targetSkillsDir 本身）", sanitize(".") === "skill" && path.resolve(dstEscape, noStrip(".")) === path.resolve(dstEscape), { 源码口径: sanitize("."), 天真口径: noStrip(".") });
+	// 以下 13 条语义判据全部跑在「由源码驱动的复刻」上：源码第 1 遍白名单一旦放宽
+	// （放过 / 或丢掉 .），sanitize 的产出就会越界/多段 ⇒ 这里当场变红。
+	check("A2 剥首尾是唯一拦住「..」穿越的一道（不剥 ⇒ 落盘名指回 targetSkillsDir 的父目录）", compiled && sanitize("..") === "skill" && path.resolve(dstEscape, noStrip("..")) === path.resolve(tmpRoot), { 源码口径: compiled ? sanitize("..") : "未抠到正则", 天真口径: compiled ? noStrip("..") : "未抠到正则", 天真口径拼出的路径: path.resolve(dstEscape, compiled ? noStrip("..") : "?") });
+	check("A2 剥首尾也拦住「.」（不剥 ⇒ 落盘名指回 targetSkillsDir 本身）", compiled && sanitize(".") === "skill" && path.resolve(dstEscape, noStrip(".")) === path.resolve(dstEscape), { 源码口径: compiled ? sanitize(".") : "未抠到正则", 天真口径: compiled ? noStrip(".") : "未抠到正则" });
 
 	const dst = path.join(tmpRoot, "a2-dst");
 	fs.mkdirSync(dst, { recursive: true });
 	const resolvedDst = path.resolve(dst);
 	const label = (s) => (s.length > 24 ? `${JSON.stringify(s.slice(0, 10))}…(${s.length} 字符)` : JSON.stringify(s));
 	for (const bad of [".", "..", "...", "a/../../b", "   ", "x".repeat(400), "a\\..\\..\\b", "／／"]) {
+		if (!compiled) {
+			check(`A2 skillId=${label(bad)} 落盘名不越出目标目录`, false, "未能从源码抠出 sanitizeDirName 的 replace 正则，语义判据无法成立（如实标红，不硬编码兜底）");
+			continue;
+		}
 		const dirName = sanitize(bad);
 		const full = path.resolve(dst, dirName);
 		const inside = full.startsWith(resolvedDst + path.sep);
 		check(`A2 skillId=${label(bad)} 落盘名不越出目标目录`, inside && dirName.length > 0, { dirName, full });
 	}
 	for (const bad of ["a/b", "a\\b", "C:evil", "..", "."]) {
+		if (!compiled) {
+			check(`A2 skillId=${JSON.stringify(bad)} 落盘名是单段名（无分隔符/盘符）`, false, "未能从源码抠出 sanitizeDirName 的 replace 正则，语义判据无法成立（如实标红，不硬编码兜底）");
+			continue;
+		}
 		const dirName = sanitize(bad);
 		check(`A2 skillId=${JSON.stringify(bad)} 落盘名是单段名（无分隔符/盘符）`, dirName === path.basename(dirName) && !/[\\/]/.test(dirName) && !dirName.includes(":"), dirName);
 	}
 	// 剥空回落：全是非法字符 / 全是首尾标点 ⇒ 必须回落到固定名，而不是空串
-	check("A2 全非法字符 ⇒ 回落固定名 skill", sanitize("///") === "skill", sanitize("///"));
-	check("A2 全标点 ⇒ 回落固定名 skill", sanitize("-.-") === "skill", sanitize("-.-"));
-	// 复刻保真：把源码函数体里**最后一个** replace 的正则原文抠出来直接跑一遍。
-	// 源码的剥离规则一改，这个对拍就红（而不是「复刻与源码同进同退」的假绿）。
-	const replaces = [...fnBody.matchAll(/replace\(\/([^/]*)\/g, "([^"]*)"\)/g)];
-	const lastReplace = replaces[replaces.length - 1];
-	const viaSourceRegex = lastReplace
+	check("A2 全非法字符 ⇒ 回落固定名 skill", compiled && sanitize("///") === "skill", compiled ? sanitize("///") : "未抠到正则");
+	check("A2 全标点 ⇒ 回落固定名 skill", compiled && sanitize("-.-") === "skill", compiled ? sanitize("-.-") : "未抠到正则");
+	// **反向对照（白名单敏感度）**：源码当前把 `/` 换成 `-`。若这一点失守（白名单放过
+	// 分隔符），下面 13 条越界/单段判据会同时变红 —— 用一条显式对照把「它们会红」写成
+	// 断言里的**前提**，避免整套语义判据退化成「不成立的恒真」。
+	const whitelistsSlash = (s) => s.replace(/[^\w.-]/g, "-");
+	check(
+		"A2 源码第 1 遍白名单确实把 `/` 换成 `-`（13 条越界/单段判据的敏感度前提）",
+		compiled && whitelistsSlash("a/b") === "a-b" && sanitize("a/b") === "a-b" && path.resolve(dst, sanitize("a/b")) === path.join(resolvedDst, "a-b"),
+		{ 源码第1遍换成: sanitize("a/b"), 白名单若放过斜杠则: path.resolve(dst, "a/b") },
+	);
+	// 复刻保真（两遍都在同一函数上）：把两遍的顺序调换、只留其中一遍、替换目标写错，
+	// 都会让对拍变红 —— 而**判据结果本身**取决于首遍白名单（上一版的盲区）。
+	const viaSwapped = compiled
 		? (s) => {
-				const c = s.replace(/[^\w.-]/g, "-").replace(new RegExp(lastReplace[1], "g"), lastReplace[2]);
+				const c = s.replace(secondRe, secondCall.replacement).replace(firstRe, firstCall.replacement);
 				return c.length > 0 ? c : "skill";
 			}
-		: null;
+		: () => null;
+	const viaStripOnly = compiled
+		? (s) => {
+				const c = s.replace(secondRe, secondCall.replacement);
+				return c.length > 0 ? c : "skill";
+			}
+		: () => null;
+	// 第三个反事实：首遍改成**非全局**（只换首个非法字符）。「两遍同源」不能退化成
+	// 「两遍等价」—— 如果一个不区分 g/非 g 的抠取器能把任意写法抠成同一个复刻，
+	// 那这套判据就测不出「全局性被改掉」这种破坏。
+	const viaNonGlobal = compiled
+		? (s) => {
+				const c = s.replace(new RegExp(firstCall.pattern), firstCall.replacement).replace(secondRe, secondCall.replacement);
+				return c.length > 0 ? c : "skill";
+			}
+		: () => null;
 	const probe = [".", "..", "...", "a/../../b", "   ", "-.-", "a-b", "C:evil", "／／", "x".repeat(400)];
-	check("A2 复刻与源码正则同源（逐条剥离规则一致）", !!viaSourceRegex && probe.every((s) => viaSourceRegex(s) === sanitize(s)), { 抠出的正则: lastReplace ? `/${lastReplace[1]}/g` : "未找到" });
-	check("A2 复刻与源码正则同源（剥空回落一致）", !!viaSourceRegex && viaSourceRegex("///") === sanitize("///") && viaSourceRegex("-.-") === sanitize("-.-"), viaSourceRegex ? { 源码: viaSourceRegex("-.-"), 复刻: sanitize("-.-") } : "未找到");
+	const swappable = probe.filter((s) => viaSwapped(s) !== sanitize(s));
+	const stripOnlyDiffers = probe.filter((s) => viaStripOnly(s) !== sanitize(s));
+	const nonGlobalDiffers = probe.filter((s) => viaNonGlobal(s) !== sanitize(s));
+	check(
+		"A2 复刻与源码两遍同源：顺序不可换、遍数不可减、首遍必须全局（任一改法 ⇒ 与复刻结果不同）",
+		!!viaSwapped && swappable.length > 0 && stripOnlyDiffers.length > 0 && nonGlobalDiffers.length > 0,
+		{ 抠出的两遍: replaceCalls, 两遍互换后不一致的输入: swappable.length, 去掉首遍后不一致的输入: stripOnlyDiffers.length, 首遍非全局后不一致的输入: nonGlobalDiffers.length },
+	);	check(
+		"A2 复刻与源码两遍同源（剥空回落靠两遍串联得出，任一遍单独都算不出）",
+		compiled && sanitize("///") === "skill" && sanitize("   ") === "skill" && viaStripOnly("///") !== sanitize("///") && viaStripOnly("   ") !== sanitize("   "),
+		{ 两遍串联: sanitize("///"), 只剥首尾: viaStripOnly("///"), 两遍串联空格: sanitize("   "), 只剥首尾空格: viaStripOnly("   ") },
+	);
 }
 
 /* ---------- A3：技能目录含符号链接 → 422（C2 回归防线） ---------- */
@@ -679,6 +818,19 @@ try {
 		// 判据用 realpathSync 双侧 canonical 比较（而非 path.resolve 字符串等值）：
 		// 后者在大小写不敏感平台（Windows）会把 /TMP 与 /tmp 判成不同目录
 		check("A5c 根判定用 realpathSync 双侧比较（不是 path.resolve 字符串等值）", !!guard && !/path\.resolve\(skillDir\) === .*path\.resolve\(cloneDir\)/.test(installSource), "仍是字符串等值判据");
+		// **fix round 1/5**：上面三条只钉「判定语句在不在、怎么比、排在哪」，钉不住
+		// **条件形式** —— `if (isRepoRoot)` 改成 `if (!isRepoRoot)` / `if (isRepoRoot === false)`
+		// 时守卫行还在、顺序也不变，却从「是根就拒」变成「是根就放过」= C3 原地复活。
+		// 抠出紧跟在 `const isRepoRoot = …;` 之后那个 `if (` 的**条件原文**，要求它就是裸的
+		// `isRepoRoot`（同时要求全文件里 `isRepoRoot` 只出现这两次：声明 + 守卫，
+		// 这条文本断言是本任务能做的一切；行为层仍需抽纯函数（见下方 skip 条目，已裁定不抽）。
+		const condMatch = /const isRepoRoot = [^;]+;\s*if \(\s*([\s\S]{0,40}?)\s*\)\s*\{\s*throw new SkillInstallError\(\s*400/.exec(installSource);
+		const cond = condMatch ? condMatch[1] : null;
+		check(
+			"A5c 守卫条件形式是裸的 `isRepoRoot`（不是 `!isRepoRoot` / `=== false` —— 条件失效 = C3 原地复活）",
+			cond === "isRepoRoot" && [...installSource.matchAll(/\bisRepoRoot\b/g)].length === 2,
+			{ 抠出的条件: cond ?? "未匹配到 400 守卫的 if", isRepoRoot出现次数: [...installSource.matchAll(/\bisRepoRoot\b/g)].length },
+		);
 		const rootGuardIdx = installSource.indexOf("const isRepoRoot = fs.realpathSync(skillDir)");
 		const errorIdx = installSource.indexOf("SKILL.md 位于仓库根目录");
 		const cpIdx = installSource.indexOf("await fs.promises.cp(skillDir, stagingDir");
@@ -688,6 +840,8 @@ try {
 			reason:
 				"「仓库根 SKILL.md ⇒ 400」只能在静态层断言：该判定在 gitClone 之后、且没抽成可导出的纯函数（skillDir/cloneDir 是 clone 后的局部变量），" +
 				"而 clone 需出网（SOURCE_PATTERN 只收 owner/repo）。实测把 isRepoRoot 短路成 false 后本检查**仍全绿**。" +
+				"fix round 1/5 后，「短路成 false」这类改法已被上面那条**条件形式**断言接住（`!isRepoRoot` / `=== false` 会红）；" +
+				"仍覆盖不到的是「仍是裸 isRepoRoot 却被数据喂成假值」等更深一层的语义（要真 clone 才能触发）。" +
 				"补救需先在源码里拆出纯函数（如 isRepoRootSkillDir(skillDir, cloneDir)）再在本脚本里离线断言 —— 属源码改动，本任务权限外。",
 		});
 	}
