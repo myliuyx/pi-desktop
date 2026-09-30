@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
 import { Button } from "@/components/primitives";
 import { Switch } from "@/components/screens/Switch";
 import { ScopeToggle } from "./ScopeToggle";
+import { resolveSkillSearchEntryState } from "./skill-search-state";
 import {
 	SETTINGS_DIALOG_FORM_PADDING,
 	SETTINGS_DIALOG_LEFT_WIDTH,
@@ -38,6 +39,15 @@ import { MOCK_SKILLS_PAYLOAD } from "@/mock/skills-settings";
  * skills.sh（`GET /skills/search`），安装走 `POST /skills/install`（git clone →
  * frontmatter 匹配 → 拷贝，进度经 SSE `skill_progress`）。mock 形态表单照常
  * 渲染，搜索/安装给「仅 live 可用」提示。
+ *
+ * S5（2026-09-30）·搜索结果行三态（口径见 `./skill-search-state.ts`）：非
+ * `owner/repo` 来源 → 禁用徽标「不支持安装」（原来渲染可点按钮、点了必 400）；
+ * 当前安装范围下已有同名技能 → 徽标「已安装」（再装必 409）。安装成功后
+ * payload 已刷新，徽标随之实时出现，无需重搜。
+ *
+ * S6（2026-09-30）·来源精确匹配（用户裁决 B）：core 安装时落 `.pi-source.json`、
+ * `/skills` 透出 `source` 后，同名行按来源区分——同来源「已安装」；不同来源或
+ * 无记录的存量安装 →「同名冲突」徽标（tooltip 含占用来源与出路）。
  */
 export function SkillsSettingsTab() {
 	/** mock 形态直接以演示清单起步；live 打开后被 core 的全量清单覆盖 */
@@ -86,6 +96,11 @@ export function SkillsSettingsTab() {
 	}, []);
 
 	const skills = payload?.skills ?? [];
+	/** 当前安装范围下已装技能（name+source，S6 来源精确匹配的比对基准；随 scope 切换重算） */
+	const installedInScope = useMemo(
+		() => skills.filter((s) => s.scope === addScope).map(({ name, source }) => ({ name, source })),
+		[skills, addScope],
+	);
 
 	/** 选中项兜底：清单到达 / 整体替换后保持在范围内，否则落第一项（含禁用项） */
 	useEffect(() => {
@@ -368,7 +383,7 @@ export function SkillsSettingsTab() {
 						</p>
 					) : null}
 
-					{/* 搜索结果列表（name + 来源仓库 + 安装量；逐行「添加」） */}
+					{/* 搜索结果列表（name + 来源仓库 + 安装量；行状态三态：可添加/已安装/不支持安装，S5） */}
 					{searchResults !== null ? (
 						searchResults.length === 0 ? (
 							<p className="text-sm text-text-tertiary" data-testid="settings-skill-search-empty">
@@ -379,12 +394,18 @@ export function SkillsSettingsTab() {
 								{searchResults.map((entry) => {
 									const key = `${entry.source}/${entry.skillId}`;
 									const busy = installingKey === key;
+									const state = resolveSkillSearchEntryState(entry.source, entry.skillId, installedInScope);
+									const hit = installedInScope.find((s) => s.name === entry.skillId);
+									const conflictTip = hit?.source
+										? `同名技能已由 ${hit.source} 安装，再装本来源会冲突（409）；如需换来源请先删除旧目录`
+										: `当前范围已有同名技能（旧版安装，未记录来源），任何来源再装都会冲突（409）；删除旧目录重装一次后可精确识别来源`;
 									return (
 										<li
 											key={key}
 											data-testid="settings-skill-search-result"
 											data-name={entry.skillId}
 											data-source={entry.source}
+											data-state={state}
 											className="flex min-w-0 items-center gap-3 rounded-md border border-border-subtle px-3 py-2"
 										>
 											<div className="min-w-0 flex-1">
@@ -396,15 +417,41 @@ export function SkillsSettingsTab() {
 											<span className="shrink-0 text-xs text-text-tertiary" title="skills.sh 累计安装量">
 												{entry.installs.toLocaleString()}
 											</span>
-											<Button
-												variant="ghost"
-												size="sm"
-												disabled={installingKey !== null}
-												onClick={() => handleInstallSkill(entry)}
-												data-testid="settings-skill-search-install"
-											>
-												{busy ? "安装中…" : "添加"}
-											</Button>
+											{state === "unsupported" ? (
+												<span
+													className="shrink-0 rounded-full border border-border-default px-2 py-0.5 text-xs text-text-tertiary"
+													title="该来源不是 GitHub owner/repo 仓库，暂不支持安装"
+													data-testid="settings-skill-search-unsupported"
+												>
+													不支持安装
+												</span>
+											) : state === "installed" ? (
+												<span
+													className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent"
+													title="已安装（当前范围、同一来源）"
+													data-testid="settings-skill-search-installed"
+												>
+													已安装
+												</span>
+											) : state === "conflict" ? (
+												<span
+													className="shrink-0 rounded-full border border-border-default px-2 py-0.5 text-xs text-text-tertiary"
+													title={conflictTip}
+													data-testid="settings-skill-search-conflict"
+												>
+													同名冲突
+												</span>
+											) : (
+												<Button
+													variant="ghost"
+													size="sm"
+													disabled={installingKey !== null}
+													onClick={() => handleInstallSkill(entry)}
+													data-testid="settings-skill-search-install"
+												>
+													{busy ? "安装中…" : "添加"}
+												</Button>
+											)}
 										</li>
 									);
 								})}

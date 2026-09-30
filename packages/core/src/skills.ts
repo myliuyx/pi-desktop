@@ -38,6 +38,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { SkillListItem, SkillToggleRequest, SkillsPayload } from "./contract.ts";
 import type { TrustHint } from "./resources.ts";
+import { readSkillSourceRecord } from "./skills-install.ts";
 
 /** toggle 定位不到技能时抛出（server.ts 据此回 404，与意外错误 500 区分） */
 export class SkillNotFoundError extends Error {}
@@ -100,6 +101,10 @@ export async function collectSkillsPayload(args: {
 			scope: meta.scope === "project" ? "project" : "user",
 			origin: isPackage ? "package" : "top-level",
 			...(isPackage ? { packageSource: meta.source } : {}),
+			// S6：top-level 技能透出安装来源（技能目录内的 .pi-source.json，安装时写入；
+			// 无记录/损坏 = legacy 安装，字段缺省不造数据）。package 技能不带——它的归属
+			// 由 packageSource 表达，语义不同。
+			...(!isPackage ? { source: readSkillSourceRecord(path.dirname(entry.path))?.source } : {}),
 			enabled: entry.enabled,
 		});
 	}

@@ -12,7 +12,9 @@
  *   （与 0.87.1 addAutoDiscoveredResources 的发现路径一致，装完 reload 即被加载）。
  * - 冲突不覆盖：目标目录已存在抛 409（v1 无更新/卸载入口，装错手动删目录）。
  * - 写路径加固：技能目录含符号链接抛 422（cp 默认 dereference:false 会原样搬运链接，
- *   装个技能会被升级为「读本机任意文件」）；SKILL.md 位于仓库根抛 400（cp 会连 .git 一起搬）。
+ *   装个技能会被升级为「读本机任意文件」）；SKILL.md 位于仓库根**照装**（2026-09-29
+ *   裁决推翻 66aca9c 的拒绝口径：单技能自成一仓是正常形态，拿仓库组织审判技能属越权），
+ *   cp 时以 filter 排除 .git，一个字节不落盘。
  * - 私库/断网 = clone 失败；git stderr 细节只进 core 本地日志，HTTP 侧只回分类后的
  *   稳定文案（不逐字回显仓库 URL 认证原文，I3）。临时目录 finally 必清。
  * - 阶段进度经 onProgress 回调发 SSE `skill_progress`（session.ts 接线）。
@@ -24,7 +26,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参或仓库组织不合规 / 404 仓库无此技能或克隆不到 / 409 目录冲突**或项目未信任** / 422 技能目录不可安全拷贝 / 500 真实 IO 或环境故障，不伪装成 404 / 504 克隆超时）。`session.ts` 的 installSkill 也在装前抛本类（未信任项目），故 409 不只表示「目录已存在」。 */
+/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参 / 404 仓库无此技能或克隆不到 / 409 目录冲突**或项目未信任** / 422 技能目录不可安全拷贝 / 500 真实 IO 或环境故障，不伪装成 404 / 504 克隆超时）。`session.ts` 的 installSkill 也在装前抛本类（未信任项目），故 409 不只表示「目录已存在」。 */
 export class SkillInstallError extends Error {
 	constructor(
 		public status: number,
@@ -36,6 +38,60 @@ export class SkillInstallError extends Error {
 
 /** source 严格 `owner/repo`（其余形态——npm 包/任意 URL/本地路径——本批一律拒绝） */
 const SOURCE_PATTERN = /^[\w.-]+\/[\w.-]+$/;
+
+/** 技能目录内的安装来源记录文件名（S6）。`.` 前缀不被 Pi 当技能条目（skills.js 只认 SKILL.md），由 core 安装时写入、随技能目录生灭。 */
+export const SKILL_SOURCE_FILENAME = ".pi-source.json";
+
+/** `.pi-source.json` 的形状（仅 `source` 参与业务判定；其余字段排障用） */
+export interface SkillSourceRecord {
+	source: string;
+	skillId: string;
+	installedAt: string;
+}
+
+/**
+ * 读技能目录的安装来源记录（export：供 `check:skills-install` 直接 import 断言，S6）。
+ *
+ * **容错口径：任何异常一律 `undefined`，绝不 throw**——读路径坏了不能把 /skills
+ * 打挂，也不能把 409 分支变成新的 500 面。「无记录」与「记录损坏」同义 = legacy
+ * 安装（S6 之前的存量、或手动放置），由调用方按 legacy 口径处理（UI 显「同名冲突」）。
+ */
+export function readSkillSourceRecord(skillDir: string): SkillSourceRecord | undefined {
+	let raw: string;
+	try {
+		raw = fs.readFileSync(path.join(skillDir, SKILL_SOURCE_FILENAME), "utf8");
+	} catch {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(raw) as Partial<SkillSourceRecord>;
+		if (typeof parsed.source !== "string" || parsed.source.length === 0) return undefined;
+		return {
+			source: parsed.source,
+			skillId: typeof parsed.skillId === "string" ? parsed.skillId : "",
+			installedAt: typeof parsed.installedAt === "string" ? parsed.installedAt : "",
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * 写安装来源记录。**必须在 staging 目录内、rename 之前调用**（S6）：
+ * 与 I1 原子落盘同口径——记录写失败 = 整个安装失败（调用方 catch 会 rm staging），
+ * 绝不出现「技能装上了但没记录」的半态。写入发生在 cp 之后，仓库即使自带同名文件
+ * 也被覆盖为 core 生成的内容（source 取自已过 SOURCE_PATTERN 的请求参，仓库内容
+ * 不可伪造）；符号链接形态在 cp 之前就被 assertSkillDirSafe 拦下（422）。
+ * export：供 `check:skills-install` 直接 import 断言。
+ */
+export function writeSkillSourceRecord(targetDir: string, source: string, skillId: string): void {
+	const record: SkillSourceRecord = { source, skillId, installedAt: new Date().toISOString() };
+	fs.writeFileSync(
+		path.join(targetDir, SKILL_SOURCE_FILENAME),
+		`${JSON.stringify(record, null, 2)}\n`,
+		"utf8",
+	);
+}
 
 /** 落盘目录名消毒：frontmatter name 里可能带空格/全角/斜杠等（目录名只留 \w . -） */
 function sanitizeDirName(skillId: string): string {
@@ -143,8 +199,10 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
  * 但 `readFileSync` 的 EACCES / EIO / EISDIR 若被同一个 catch 吞成「无 frontmatter」，
  * 最终会表现为 404「技能不在仓库中」—— 把真实 IO 故障伪装成业务失败，排查时
  * 完全看不出是权限问题还是文件损坏。IO 错误必须向上抛。
+ *
+ * export：供 `check:skills-install` 直接 import 断言（同 `assertSkillDirSafe` 先例）。
  */
-function readFrontmatterName(skillMdPath: string): string {
+export function readFrontmatterName(skillMdPath: string): string {
 	let raw: string;
 	try {
 		raw = fs.readFileSync(skillMdPath, "utf8");
@@ -355,28 +413,18 @@ export async function installSkillFromGitHub(args: {
 			throw new SkillInstallError(404, `技能「${skillId}」不在仓库 ${source} 中（未找到 SKILL.md 或 name 不匹配）`);
 		}
 		const skillDir = path.dirname(chosenFile);
-		// C3：`SKILL.md` 位于**仓库根**时 skillDir === 克隆根，cp 会把 .git
-		// （含全部历史/objects/config/refs）、README、CI 配置一并搬进用户
-		// skills 目录（实测落地产物 ['.git','.github','README.md','SKILL.md']）。
-		// 口径：报错拒绝，不默默排除 .git 后照装（用户 2026-09-29 裁决）。
-		// 判据用 realpathSync 双侧 canonical 比较，而非 path.resolve 字符串等值：
-		// 后者在大小写不敏感的平台（Windows）上会把同一目录判成不同（实测 /TMP vs /tmp
-		// → false），导致根目录 SKILL.md 逃过 400、.git 全量落进用户 skills 目录。
-		// realpathSync 会跟随符号链接，但这里两侧同源同法解析，恰好无害。
-		const isRepoRoot = fs.realpathSync(skillDir) === fs.realpathSync(cloneDir);
-		if (isRepoRoot) {
-			throw new SkillInstallError(
-				400,
-				`仓库 ${source} 的技能未按 skills 规范组织：SKILL.md 位于仓库根目录。` +
-					`该仓库仅在 SKILL.md 位于子目录时可安装；` +
-					`请改用把技能放在子目录的仓库（如 skills/<技能名>/SKILL.md）。`,
-			);
-		}
 		const skillName = readFrontmatterName(chosenFile) || path.basename(skillDir);
 
 		const targetDir = path.join(targetSkillsDir, sanitizeDirName(skillId));
 		if (fs.existsSync(targetDir)) {
-			throw new SkillInstallError(409, `已存在同名技能目录：${targetDir}（如需重装请先手动删除旧目录）`);
+			// 富化（S6）：读得到记录时报「已装来源」，撞名排障不再猜是哪个仓库占的。
+			// 读不到（旧版安装/手动放置）保持原文案；锚点前缀是探针与 A5 判据的锚点，不动。
+			const installed = readSkillSourceRecord(targetDir);
+			throw new SkillInstallError(
+				409,
+				`已存在同名技能目录：${targetDir}（如需重装请先手动删除旧目录）` +
+					(installed ? `；已装来源：${installed.source}` : ""),
+			);
 		}
 
 		// 闸门在 cp **之前**跑（422）；命中的技能目录一个字节都不落盘
@@ -396,7 +444,18 @@ export async function installSkillFromGitHub(args: {
 		args.onProgress?.(`正在安装到 ${targetDir}…`);
 		try {
 			await fs.promises.mkdir(targetSkillsDir, { recursive: true });
-			await fs.promises.cp(skillDir, stagingDir, { recursive: true });
+			// 排除 .git（返回 false = 该条目及其整棵子树不进入 staging）：根目录 SKILL.md
+			// 的仓库 skillDir === 克隆根，不带 filter 会把 .git 全量搬进用户 skills 目录。
+			// 按 basename 判等：path.relative 在 win32 返回反斜杠，按相对路径比较会静默
+			// 失效，basename 两平台一致；嵌套 submodule 的 .git 同样命中，.gitignore 等
+			// basename 非 ".git" 的文件不受影响。
+			await fs.promises.cp(skillDir, stagingDir, {
+				recursive: true,
+				filter: (src) => path.basename(src) !== ".git",
+			});
+			// 来源记录在 staging 内、rename 前写入（S6）：原子性与 I1 同口径——记录失败 =
+			// 整个安装失败（下方 catch rm staging），不出现「技能装上了但没记录」的半态。
+			writeSkillSourceRecord(stagingDir, source, skillId);
 			await fs.promises.rename(stagingDir, targetDir);
 		} catch (e) {
 			// 半拷贝残留一律清掉，不给「报错说失败、目录却生效」的错位留机会。

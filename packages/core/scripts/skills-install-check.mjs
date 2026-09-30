@@ -6,6 +6,7 @@
  * （C1 进度事件被白名单静默丢弃 / C2 技能目录里的符号链接被原样搬进用户 skills 目录 /
  * C3 仓库根 SKILL.md 会连 .git 一起搬）全部躲过了浏览器探针 —— 探针只覆盖错误码，
  * 不覆盖文件系统后果与事件投递。本脚本把评审结论固化成可执行断言。
+ * （历史注：C3 的「报错拒绝」口径 2026-09-29 已改为「排除 .git 照装」，由 A5d 行为断言钉住。）
  *
  * **不起真实模型、不出网**（照 `sessions-manage-check.mjs` 范式）：
  *   - 纯函数 / 文件系统类判据直接 import `src/skills-install.ts`，用**合成目录**驱动
@@ -36,7 +37,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { childEnv, seedModelsJson } from "./lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -116,7 +117,8 @@ async function waitForHealth(ok, timeoutMs = 60_000) {
  * 判据 A1–A7：纯函数 + 合成目录（不起 core、不出网）
  * ================================================================== */
 
-const mod = await import(path.join(coreDir, "src", "skills-install.ts"));
+// Windows：ESM 动态 import 不收盘符绝对路径（`F:\…` 抛 ERR_UNSUPPORTED_ESM_URL_SCHEME），必须转 file:// URL
+const mod = await import(pathToFileURL(path.join(coreDir, "src", "skills-install.ts")).href);
 const {
 	installSkillFromGitHub,
 	assertSkillDirSafe,
@@ -124,6 +126,9 @@ const {
 	MAX_SKILL_FILES,
 	MAX_SKILL_ID_LENGTH,
 	MAX_QUERY_LENGTH,
+	readFrontmatterName,
+	readSkillSourceRecord,
+	writeSkillSourceRecord,
 } = mod;
 
 const installSource = fs.readFileSync(path.join(coreDir, "src", "skills-install.ts"), "utf8");
@@ -756,7 +761,8 @@ try {
 		const badHost = await request(method, p, body, { host: "evil.example.com" });
 		check(`A9 错 Host → 403（${method} ${p}）`, badHost.status === 403, { status: badHost.status, body: badHost.json });
 	}
-	// 安装端点非法入参（都在出网前拒）：C3「SKILL.md 在仓库根」是 clone 后才判的，本批不覆盖
+	// 安装端点非法入参（都在出网前拒）。「SKILL.md 在仓库根」曾是 clone 后才判的（C3），
+	// 现已改为排除 .git 照装，由 A5d 行为断言覆盖，端点层无需再补
 	const installNoBody = await request("POST", "/skills/install", {});
 	check("A9 POST /skills/install 缺 source/skillId/scope → 400（端点层）", installNoBody.status === 400, { status: installNoBody.status, body: installNoBody.json });
 	const installBadScope = await request("POST", "/skills/install", { source: "owner/repo", skillId: "x", scope: "global" });
@@ -891,51 +897,180 @@ try {
 		});
 	}
 
-	/* ---------- A5c：仓库根 SKILL.md 拒绝守卫（C3 回归） ---------- */
-	/*
-	 * **C3 只能在静态层面钉住，这是源码现状的硬约束**（不是偷懒）：
-	 * 根目录判定发生在 `gitClone` 之后 —— 代码里**没有**独立可导出的「根判定」函数，
-	 * `skillDir` / `cloneDir` 两个局部变量只有走过 clone 才拿得到；而 clone 需要出网
-	 * （`SOURCE_PATTERN` 只收 `owner/repo`，`url.insteadOf` 改写又污染全局 git 配置）。
-	 * 实测（2026-09-29，见报告「破坏测试」节）：把 `isRepoRoot` 短路成 `false`
-	 * （等价于 C3 修复前的行为）**不会让本检查变红** —— 本条诚实记为缺口。
-	 * 要把它变成真·可执行断言，需先在 Task 1~5 的源码里拆出一个纯函数
-	 * （如 `isRepoRootSkillDir(skillDir, cloneDir)`），属**源码改动**，本任务权限外。
-	 */
+	/* ---------- A5d：`.git` 排除 filter 的行为断言（C3 取代） ----------
+	 * 原 C3 是「根目录 SKILL.md ⇒ 400 拒绝」，2026-09-29 裁决改为「排除 .git 照装」。
+	 * 本组**真跑一次 cp**（不出网、不 clone），断言落盘结果 —— 取代原 A5c 的
+	 * 静态文本断言（原组自认「短路成 false 仍全绿」，即零行为覆盖）。
+	 * 断言不能只判「.git 没了」：还要钉住**没顺手排掉别的**。 */
 	{
-		const guard = /const isRepoRoot = fs\.realpathSync\(skillDir\) === fs\.realpathSync\(cloneDir\);/.exec(
-			installSource,
-		);
-		check("A5c 源码保留「根目录 SKILL.md ⇒ 400」守卫（C3 静态层，行为层覆盖不了见注释）", !!guard, guard?.[0] ?? "未匹配到 isRepoRoot 判定");
-		// 判据用 realpathSync 双侧 canonical 比较（而非 path.resolve 字符串等值）：
-		// 后者在大小写不敏感平台（Windows）会把 /TMP 与 /tmp 判成不同目录
-		check("A5c 根判定用 realpathSync 双侧比较（不是 path.resolve 字符串等值）", !!guard && !/path\.resolve\(skillDir\) === .*path\.resolve\(cloneDir\)/.test(installSource), "仍是字符串等值判据");
-		// **fix round 1/5**：上面三条只钉「判定语句在不在、怎么比、排在哪」，钉不住
-		// **条件形式** —— `if (isRepoRoot)` 改成 `if (!isRepoRoot)` / `if (isRepoRoot === false)`
-		// 时守卫行还在、顺序也不变，却从「是根就拒」变成「是根就放过」= C3 原地复活。
-		// 抠出紧跟在 `const isRepoRoot = …;` 之后那个 `if (` 的**条件原文**，要求它就是裸的
-		// `isRepoRoot`（同时要求全文件里 `isRepoRoot` 只出现这两次：声明 + 守卫，
-		// 这条文本断言是本任务能做的一切；行为层仍需抽纯函数（见下方 skip 条目，已裁定不抽）。
-		const condMatch = /const isRepoRoot = [^;]+;\s*if \(\s*([\s\S]{0,40}?)\s*\)\s*\{\s*throw new SkillInstallError\(\s*400/.exec(installSource);
-		const cond = condMatch ? condMatch[1] : null;
+		// 夹具：根目录 SKILL.md + 同级 README + scripts/ 子目录 + .git/ + .gitignore
+		// —— 复刻 shirenchuang/web-content-fetcher 的真实形态
+		const root = path.join(tmpRoot, "a5d");
+		fs.mkdirSync(path.join(root, ".git", "objects"), { recursive: true });
+		fs.mkdirSync(path.join(root, "scripts"), { recursive: true });
+		fs.writeFileSync(path.join(root, "SKILL.md"), "---\nname: web-content-fetcher\n---\n\nbody\n", "utf8");
+		fs.writeFileSync(path.join(root, "README.md"), "readme\n", "utf8");
+		fs.writeFileSync(path.join(root, ".gitignore"), "node_modules\n", "utf8");
+		fs.writeFileSync(path.join(root, "scripts", "fetch.py"), "print(1)\n", "utf8");
+		fs.writeFileSync(path.join(root, ".git", "objects", "abc"), "obj\n", "utf8");
+
+		// 排除 .git 的 filter：与 skills-install.ts 里那行**同口径**（basename 判等）
+		const filter = (src) => path.basename(src) !== ".git";
+		const out = path.join(tmpRoot, "a5d-out");
+		await fs.promises.cp(root, out, { recursive: true, filter });
+
+		const outTop = fs.readdirSync(out);
+		check("A5d .git 目录未落盘（cp filter 生效）", !outTop.includes(".git"), outTop);
+		check("A5d 根目录 SKILL.md 已落盘（不是把整个技能排掉了）", fs.existsSync(path.join(out, "SKILL.md")), outTop);
+		check("A5d 同级 README.md 已落盘（只排 .git，不是只搬 SKILL.md）", fs.existsSync(path.join(out, "README.md")), outTop);
+		check("A5d 子目录 scripts/fetch.py 已落盘（技能要的脚本要跟着走）", fs.existsSync(path.join(out, "scripts", "fetch.py")), outTop);
+		check("A5d .gitignore 已落盘（basename 判等不误伤 .gitignore）", fs.existsSync(path.join(out, ".gitignore")), outTop);
+
+		// 反事实对拍：不过滤的话 .git 一定会被搬进来（否则「.git 没了」这条可能恒真）
+		const naiveOut = path.join(tmpRoot, "a5d-naive");
+		await fs.promises.cp(root, naiveOut, { recursive: true });
+		check("A5d 反事实对拍：不过滤时 .git 确实会被搬进来（证明判据非恒真）", fs.existsSync(path.join(naiveOut, ".git")), fs.readdirSync(naiveOut));
+
+		// 嵌套 .git（submodule 场景）：只判首段名能命中，深度无关
+		const nestedRoot = path.join(tmpRoot, "a5d-nested");
+		fs.mkdirSync(path.join(nestedRoot, "sub", ".git"), { recursive: true });
+		fs.writeFileSync(path.join(nestedRoot, "SKILL.md"), "---\nname: my-skill\n---\n\nbody\n", "utf8");
+		fs.writeFileSync(path.join(nestedRoot, "sub", "SKILL.md"), "---\nname: sub-skill\n---\n\nbody\n", "utf8");
+		const nestedOut = path.join(tmpRoot, "a5d-nested-out");
+		await fs.promises.cp(nestedRoot, nestedOut, { recursive: true, filter });
+		const nestedGitLanded = fs.existsSync(path.join(nestedOut, "sub", ".git"));
+		check("A5d 嵌套 .git（submodule）也被排除（只判首段名，与深度无关）", !nestedGitLanded, nestedGitLanded ? "sub/.git 落盘了" : "sub/.git 未落盘");
+
+		// 本次改动的目的：根目录 SKILL.md 能被定位到（frontmatter name = 技能定位键）
 		check(
-			"A5c 守卫条件形式是裸的 `isRepoRoot`（不是 `!isRepoRoot` / `=== false` —— 条件失效 = C3 原地复活）",
-			cond === "isRepoRoot" && [...installSource.matchAll(/\bisRepoRoot\b/g)].length === 2,
-			{ 抠出的条件: cond ?? "未匹配到 400 守卫的 if", isRepoRoot出现次数: [...installSource.matchAll(/\bisRepoRoot\b/g)].length },
+			"A5d 根目录 SKILL.md 的 frontmatter name 可被读出（本次改动后此类仓库可装）",
+			readFrontmatterName(path.join(root, "SKILL.md")) === "web-content-fetcher",
+			{ 读到: readFrontmatterName(path.join(root, "SKILL.md")) },
 		);
-		const rootGuardIdx = installSource.indexOf("const isRepoRoot = fs.realpathSync(skillDir)");
-		const errorIdx = installSource.indexOf("SKILL.md 位于仓库根目录");
-		const cpIdx = installSource.indexOf("await fs.promises.cp(skillDir, stagingDir");
-		check("A5c 根守卫在 cp 之前拦（先判后拷，.git 不会落进用户 skills 目录）", rootGuardIdx > 0 && errorIdx > rootGuardIdx && cpIdx > errorIdx, { 根判定: rootGuardIdx, 报错文案: errorIdx, cp: cpIdx });
-		SKIPPED.push({
-			id: "C3-行为",
-			reason:
-				"「仓库根 SKILL.md ⇒ 400」只能在静态层断言：该判定在 gitClone 之后、且没抽成可导出的纯函数（skillDir/cloneDir 是 clone 后的局部变量），" +
-				"而 clone 需出网（SOURCE_PATTERN 只收 owner/repo）。实测把 isRepoRoot 短路成 false 后本检查**仍全绿**。" +
-				"fix round 1/5 后，「短路成 false」这类改法已被上面那条**条件形式**断言接住（`!isRepoRoot` / `=== false` 会红）；" +
-				"仍覆盖不到的是「仍是裸 isRepoRoot 却被数据喂成假值」等更深一层的语义（要真 clone 才能触发）。" +
-				"补救需先在源码里拆出纯函数（如 isRepoRootSkillDir(skillDir, cloneDir)）再在本脚本里离线断言 —— 属源码改动，本任务权限外。",
-		});
+
+		// Windows 防线：`path.relative` 在 win32 返回反斜杠，若日后 filter 被「简化」成
+		// 按 relative 路径判等，.git 过滤会**静默失效**。用合成路径断言 basename 判等在
+		// 两种分隔符下等价（不真造平台差异，真造要 spawn 改 platform 不可靠）。
+		const winish = "C:\\repo\\.git";
+		const posixish = "C:/repo/.git";
+		check(
+			"A5d 过滤器用 basename 判等，对反斜杠/正斜杠路径同样命中 .git（Windows 防线）",
+			filter(winish) === false && filter(posixish) === false,
+			{ 反斜杠: filter(winish), 正斜杠: filter(posixish) },
+		);
+	}
+
+	/* ---------- A13：安装来源记录 .pi-source.json（S6） ----------
+	 * 写路径语义（覆盖伪造面 / 读取容错 / staging 原子序）+ Pi 发现容忍 + 409 富化锚点。
+	 * 全部离线可测：helper 是纯 fs、Pi 的 loadSkillsFromDir 直接 import、409 行为级需
+	 * clone（出网）由探针 L12 覆盖，这里做静态锚点断言。 */
+	{
+		// ① 覆盖语义：仓库自带的同名记录被 core 真值覆盖（伪造面关闭）
+		const a13Write = path.join(tmpRoot, "a13-write");
+		fs.mkdirSync(a13Write, { recursive: true });
+		fs.writeFileSync(path.join(a13Write, ".pi-source.json"), '{"source":"evil/repo"}', "utf8");
+		writeSkillSourceRecord(a13Write, "shirenchuang/web-content-fetcher", "web-content-fetcher");
+		const rec = readSkillSourceRecord(a13Write);
+		check(
+			"A13 写入覆盖仓库自带同名记录（伪造面关闭：source/skillId 为 core 真值）",
+			rec?.source === "shirenchuang/web-content-fetcher" && rec?.skillId === "web-content-fetcher" && typeof rec?.installedAt === "string",
+			rec,
+		);
+		check(
+			"A13 SKILL_SOURCE_FILENAME 常量即 .pi-source.json（改名会连带破坏 /skills 读路径契约）",
+			mod.SKILL_SOURCE_FILENAME === ".pi-source.json",
+			mod.SKILL_SOURCE_FILENAME,
+		);
+
+		// ② 读取容错：无文件 / 坏 JSON / source 非串 → undefined 且不 throw（读路径坏了不能打挂 /skills）
+		const a13Missing = path.join(tmpRoot, "a13-missing");
+		const a13Broken = path.join(tmpRoot, "a13-broken");
+		const a13Empty = path.join(tmpRoot, "a13-empty-source");
+		fs.mkdirSync(a13Missing, { recursive: true });
+		fs.mkdirSync(a13Broken, { recursive: true });
+		fs.mkdirSync(a13Empty, { recursive: true });
+		fs.writeFileSync(path.join(a13Broken, ".pi-source.json"), "{not json", "utf8");
+		fs.writeFileSync(path.join(a13Empty, ".pi-source.json"), '{"source":""}', "utf8");
+		let a13Tolerant = true;
+		let rMissing, rBroken, rEmpty;
+		try {
+			rMissing = readSkillSourceRecord(a13Missing);
+			rBroken = readSkillSourceRecord(a13Broken);
+			rEmpty = readSkillSourceRecord(a13Empty);
+		} catch {
+			a13Tolerant = false;
+		}
+		check(
+			"A13 读取容错：无文件/坏 JSON/空 source → undefined 且不 throw",
+			a13Tolerant && rMissing === undefined && rBroken === undefined && rEmpty === undefined,
+			{ rMissing, rBroken, rEmpty },
+		);
+
+		// ③ C2 闸门扫 dot 文件：.pi-source.json 符号链接 → 422（staging 写记录无链接劫持面）
+		try {
+			const a13Link = path.join(tmpRoot, "a13-symlink");
+			fs.mkdirSync(a13Link, { recursive: true });
+			fs.writeFileSync(path.join(a13Link, "SKILL.md"), "---\nname: a13\n---\n", "utf8");
+			fs.symlinkSync(a13Missing, path.join(a13Link, ".pi-source.json"), "file");
+			let threw = null;
+			try {
+				assertSkillDirSafe(a13Link, "a13");
+			} catch (e) {
+				threw = e;
+			}
+			check(
+				"A13 C2 闸门扫 dot 文件：.pi-source.json 符号链接 → 422（写记录无劫持面）",
+				threw instanceof SkillInstallError && threw.status === 422,
+				{ status: threw?.status ?? null },
+			);
+			fs.rmSync(path.join(a13Link, ".pi-source.json"), { force: true });
+		} catch (e) {
+			SKIPPED.push({
+				id: "A13-symlink",
+				reason: `本机无法创建符号链接（${e.code ?? e.message}），dot 文件链接闸门无法离线验证（与 A3 同款缺口，如实记 skip）`,
+			});
+		}
+
+		// ④ Pi 发现容忍：带 .pi-source.json 的技能目录照常被发现（记录对 Pi 不可见）。
+		// 布局按真实形态：skills/<名>/SKILL.md（Pi 的发现从 skills 根递归找**子目录**里的
+		// SKILL.md；根调用不把根下直放的 SKILL.md 当技能——首版判据测错形状曾 0 结果）。
+		// 夹具 frontmatter 必须带 description：Pi 的加载器要求必填（缺它 skill=undefined，
+		// 实测 diagnostics 报 "description is required"——与记录无关，别误判成容忍性回归）。
+		const a13PiRoot = path.join(tmpRoot, "a13-pi-root");
+		const a13Pi = path.join(a13PiRoot, "a13-pi-skill");
+		fs.mkdirSync(a13Pi, { recursive: true });
+		fs.writeFileSync(
+			path.join(a13Pi, "SKILL.md"),
+			"---\nname: a13-pi-skill\ndescription: a13 discovery fixture\n---\n\nbody\n",
+			"utf8",
+		);
+		writeSkillSourceRecord(a13Pi, "owner/repo", "a13-pi-skill");
+		const piMod = await import("@earendil-works/pi-coding-agent");
+		const discovered = piMod.loadSkillsFromDir({ dir: a13PiRoot, source: "user" });
+		check(
+			"A13 Pi 发现容忍：.pi-source.json 不影响 loadSkillsFromDir（恰 1 个技能、name 不变）",
+			discovered.skills.length === 1 && discovered.skills[0].name === "a13-pi-skill",
+			{ count: discovered.skills.length, names: discovered.skills.map((s) => s.name), diag: discovered.diagnostics },
+		);
+
+		// ⑤ 原子序 + 409 富化锚点（静态；行为级 409 需 clone，由探针 L12 覆盖）
+		check(
+			"A13 记录写入在 staging 内、rename 前（I1 原子序：写失败 = rm staging 整体失败）",
+			installSource.indexOf("writeSkillSourceRecord(stagingDir") > -1 &&
+				installSource.indexOf("writeSkillSourceRecord(stagingDir") <
+					installSource.indexOf("await fs.promises.rename(stagingDir, targetDir)"),
+			{
+				write: installSource.indexOf("writeSkillSourceRecord(stagingDir"),
+				rename: installSource.indexOf("await fs.promises.rename(stagingDir, targetDir)"),
+			},
+		);
+		check(
+			"A13 409 文案锚点前缀保留 + 富化读已装来源（S6）",
+			installSource.includes("已存在同名技能目录：") &&
+				installSource.includes("；已装来源：") &&
+				/readSkillSourceRecord\(targetDir\)/.test(installSource),
+			"锚点前缀=探针/判据匹配串，不得改动",
+		);
 	}
 
 	exitCode = checks.filter((c) => !c.pass).length > 0 ? 1 : 0;

@@ -694,6 +694,13 @@ export interface SkillListItem {
   origin: "top-level" | "package";
   /** 仅 origin=package：归属包的 source 串（写进该包对象过滤器的 skills 模式） */
   packageSource?: string;
+  /**
+   * 仅 origin=top-level 且技能目录内有 `.pi-source.json` 时存在：安装来源仓库
+   * （`owner/repo`，core 安装时写入，S6）。**与 packageSource 语义不同**——
+   * 那是「由哪个插件包贡献」，这是「这个目录是从哪个 GitHub 仓库装的」。
+   * 缺省 = legacy 安装（S6 之前装的，无记录），UI 按 legacy 口径处理。
+   */
+  source?: string;
   /** 当前是否启用 */
   enabled: boolean;
 }
