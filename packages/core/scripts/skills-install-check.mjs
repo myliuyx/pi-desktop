@@ -127,6 +127,8 @@ const {
 	MAX_SKILL_ID_LENGTH,
 	MAX_QUERY_LENGTH,
 	readFrontmatterName,
+	readSkillSourceRecord,
+	writeSkillSourceRecord,
 } = mod;
 
 const installSource = fs.readFileSync(path.join(coreDir, "src", "skills-install.ts"), "utf8");
@@ -955,6 +957,119 @@ try {
 			"A5d 过滤器用 basename 判等，对反斜杠/正斜杠路径同样命中 .git（Windows 防线）",
 			filter(winish) === false && filter(posixish) === false,
 			{ 反斜杠: filter(winish), 正斜杠: filter(posixish) },
+		);
+	}
+
+	/* ---------- A13：安装来源记录 .pi-source.json（S6） ----------
+	 * 写路径语义（覆盖伪造面 / 读取容错 / staging 原子序）+ Pi 发现容忍 + 409 富化锚点。
+	 * 全部离线可测：helper 是纯 fs、Pi 的 loadSkillsFromDir 直接 import、409 行为级需
+	 * clone（出网）由探针 L12 覆盖，这里做静态锚点断言。 */
+	{
+		// ① 覆盖语义：仓库自带的同名记录被 core 真值覆盖（伪造面关闭）
+		const a13Write = path.join(tmpRoot, "a13-write");
+		fs.mkdirSync(a13Write, { recursive: true });
+		fs.writeFileSync(path.join(a13Write, ".pi-source.json"), '{"source":"evil/repo"}', "utf8");
+		writeSkillSourceRecord(a13Write, "shirenchuang/web-content-fetcher", "web-content-fetcher");
+		const rec = readSkillSourceRecord(a13Write);
+		check(
+			"A13 写入覆盖仓库自带同名记录（伪造面关闭：source/skillId 为 core 真值）",
+			rec?.source === "shirenchuang/web-content-fetcher" && rec?.skillId === "web-content-fetcher" && typeof rec?.installedAt === "string",
+			rec,
+		);
+		check(
+			"A13 SKILL_SOURCE_FILENAME 常量即 .pi-source.json（改名会连带破坏 /skills 读路径契约）",
+			mod.SKILL_SOURCE_FILENAME === ".pi-source.json",
+			mod.SKILL_SOURCE_FILENAME,
+		);
+
+		// ② 读取容错：无文件 / 坏 JSON / source 非串 → undefined 且不 throw（读路径坏了不能打挂 /skills）
+		const a13Missing = path.join(tmpRoot, "a13-missing");
+		const a13Broken = path.join(tmpRoot, "a13-broken");
+		const a13Empty = path.join(tmpRoot, "a13-empty-source");
+		fs.mkdirSync(a13Missing, { recursive: true });
+		fs.mkdirSync(a13Broken, { recursive: true });
+		fs.mkdirSync(a13Empty, { recursive: true });
+		fs.writeFileSync(path.join(a13Broken, ".pi-source.json"), "{not json", "utf8");
+		fs.writeFileSync(path.join(a13Empty, ".pi-source.json"), '{"source":""}', "utf8");
+		let a13Tolerant = true;
+		let rMissing, rBroken, rEmpty;
+		try {
+			rMissing = readSkillSourceRecord(a13Missing);
+			rBroken = readSkillSourceRecord(a13Broken);
+			rEmpty = readSkillSourceRecord(a13Empty);
+		} catch {
+			a13Tolerant = false;
+		}
+		check(
+			"A13 读取容错：无文件/坏 JSON/空 source → undefined 且不 throw",
+			a13Tolerant && rMissing === undefined && rBroken === undefined && rEmpty === undefined,
+			{ rMissing, rBroken, rEmpty },
+		);
+
+		// ③ C2 闸门扫 dot 文件：.pi-source.json 符号链接 → 422（staging 写记录无链接劫持面）
+		try {
+			const a13Link = path.join(tmpRoot, "a13-symlink");
+			fs.mkdirSync(a13Link, { recursive: true });
+			fs.writeFileSync(path.join(a13Link, "SKILL.md"), "---\nname: a13\n---\n", "utf8");
+			fs.symlinkSync(a13Missing, path.join(a13Link, ".pi-source.json"), "file");
+			let threw = null;
+			try {
+				assertSkillDirSafe(a13Link, "a13");
+			} catch (e) {
+				threw = e;
+			}
+			check(
+				"A13 C2 闸门扫 dot 文件：.pi-source.json 符号链接 → 422（写记录无劫持面）",
+				threw instanceof SkillInstallError && threw.status === 422,
+				{ status: threw?.status ?? null },
+			);
+			fs.rmSync(path.join(a13Link, ".pi-source.json"), { force: true });
+		} catch (e) {
+			SKIPPED.push({
+				id: "A13-symlink",
+				reason: `本机无法创建符号链接（${e.code ?? e.message}），dot 文件链接闸门无法离线验证（与 A3 同款缺口，如实记 skip）`,
+			});
+		}
+
+		// ④ Pi 发现容忍：带 .pi-source.json 的技能目录照常被发现（记录对 Pi 不可见）。
+		// 布局按真实形态：skills/<名>/SKILL.md（Pi 的发现从 skills 根递归找**子目录**里的
+		// SKILL.md；根调用不把根下直放的 SKILL.md 当技能——首版判据测错形状曾 0 结果）。
+		// 夹具 frontmatter 必须带 description：Pi 的加载器要求必填（缺它 skill=undefined，
+		// 实测 diagnostics 报 "description is required"——与记录无关，别误判成容忍性回归）。
+		const a13PiRoot = path.join(tmpRoot, "a13-pi-root");
+		const a13Pi = path.join(a13PiRoot, "a13-pi-skill");
+		fs.mkdirSync(a13Pi, { recursive: true });
+		fs.writeFileSync(
+			path.join(a13Pi, "SKILL.md"),
+			"---\nname: a13-pi-skill\ndescription: a13 discovery fixture\n---\n\nbody\n",
+			"utf8",
+		);
+		writeSkillSourceRecord(a13Pi, "owner/repo", "a13-pi-skill");
+		const piMod = await import("@earendil-works/pi-coding-agent");
+		const discovered = piMod.loadSkillsFromDir({ dir: a13PiRoot, source: "user" });
+		check(
+			"A13 Pi 发现容忍：.pi-source.json 不影响 loadSkillsFromDir（恰 1 个技能、name 不变）",
+			discovered.skills.length === 1 && discovered.skills[0].name === "a13-pi-skill",
+			{ count: discovered.skills.length, names: discovered.skills.map((s) => s.name), diag: discovered.diagnostics },
+		);
+
+		// ⑤ 原子序 + 409 富化锚点（静态；行为级 409 需 clone，由探针 L12 覆盖）
+		check(
+			"A13 记录写入在 staging 内、rename 前（I1 原子序：写失败 = rm staging 整体失败）",
+			installSource.indexOf("writeSkillSourceRecord(stagingDir") > -1 &&
+				installSource.indexOf("writeSkillSourceRecord(stagingDir") <
+					installSource.indexOf("await fs.promises.rename(stagingDir, targetDir)"),
+			{
+				write: installSource.indexOf("writeSkillSourceRecord(stagingDir"),
+				rename: installSource.indexOf("await fs.promises.rename(stagingDir, targetDir)"),
+			},
+		);
+		check(
+			"A13 409 文案锚点前缀保留 + 富化读已装来源（S6）",
+			installSource.includes("已存在同名技能目录：") &&
+				installSource.includes("；已装来源：") &&
+				/readSkillSourceRecord\(targetDir\)/.test(installSource),
+			"锚点前缀=探针/判据匹配串，不得改动",
 		);
 	}
 

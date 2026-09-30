@@ -39,6 +39,60 @@ export class SkillInstallError extends Error {
 /** source 严格 `owner/repo`（其余形态——npm 包/任意 URL/本地路径——本批一律拒绝） */
 const SOURCE_PATTERN = /^[\w.-]+\/[\w.-]+$/;
 
+/** 技能目录内的安装来源记录文件名（S6）。`.` 前缀不被 Pi 当技能条目（skills.js 只认 SKILL.md），由 core 安装时写入、随技能目录生灭。 */
+export const SKILL_SOURCE_FILENAME = ".pi-source.json";
+
+/** `.pi-source.json` 的形状（仅 `source` 参与业务判定；其余字段排障用） */
+export interface SkillSourceRecord {
+	source: string;
+	skillId: string;
+	installedAt: string;
+}
+
+/**
+ * 读技能目录的安装来源记录（export：供 `check:skills-install` 直接 import 断言，S6）。
+ *
+ * **容错口径：任何异常一律 `undefined`，绝不 throw**——读路径坏了不能把 /skills
+ * 打挂，也不能把 409 分支变成新的 500 面。「无记录」与「记录损坏」同义 = legacy
+ * 安装（S6 之前的存量、或手动放置），由调用方按 legacy 口径处理（UI 显「同名冲突」）。
+ */
+export function readSkillSourceRecord(skillDir: string): SkillSourceRecord | undefined {
+	let raw: string;
+	try {
+		raw = fs.readFileSync(path.join(skillDir, SKILL_SOURCE_FILENAME), "utf8");
+	} catch {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(raw) as Partial<SkillSourceRecord>;
+		if (typeof parsed.source !== "string" || parsed.source.length === 0) return undefined;
+		return {
+			source: parsed.source,
+			skillId: typeof parsed.skillId === "string" ? parsed.skillId : "",
+			installedAt: typeof parsed.installedAt === "string" ? parsed.installedAt : "",
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * 写安装来源记录。**必须在 staging 目录内、rename 之前调用**（S6）：
+ * 与 I1 原子落盘同口径——记录写失败 = 整个安装失败（调用方 catch 会 rm staging），
+ * 绝不出现「技能装上了但没记录」的半态。写入发生在 cp 之后，仓库即使自带同名文件
+ * 也被覆盖为 core 生成的内容（source 取自已过 SOURCE_PATTERN 的请求参，仓库内容
+ * 不可伪造）；符号链接形态在 cp 之前就被 assertSkillDirSafe 拦下（422）。
+ * export：供 `check:skills-install` 直接 import 断言。
+ */
+export function writeSkillSourceRecord(targetDir: string, source: string, skillId: string): void {
+	const record: SkillSourceRecord = { source, skillId, installedAt: new Date().toISOString() };
+	fs.writeFileSync(
+		path.join(targetDir, SKILL_SOURCE_FILENAME),
+		`${JSON.stringify(record, null, 2)}\n`,
+		"utf8",
+	);
+}
+
 /** 落盘目录名消毒：frontmatter name 里可能带空格/全角/斜杠等（目录名只留 \w . -） */
 function sanitizeDirName(skillId: string): string {
 	const cleaned = skillId.replace(/[^\w.-]/g, "-").replace(/^[-.]+|[-.]+$/g, "");
@@ -363,7 +417,14 @@ export async function installSkillFromGitHub(args: {
 
 		const targetDir = path.join(targetSkillsDir, sanitizeDirName(skillId));
 		if (fs.existsSync(targetDir)) {
-			throw new SkillInstallError(409, `已存在同名技能目录：${targetDir}（如需重装请先手动删除旧目录）`);
+			// 富化（S6）：读得到记录时报「已装来源」，撞名排障不再猜是哪个仓库占的。
+			// 读不到（旧版安装/手动放置）保持原文案；锚点前缀是探针与 A5 判据的锚点，不动。
+			const installed = readSkillSourceRecord(targetDir);
+			throw new SkillInstallError(
+				409,
+				`已存在同名技能目录：${targetDir}（如需重装请先手动删除旧目录）` +
+					(installed ? `；已装来源：${installed.source}` : ""),
+			);
 		}
 
 		// 闸门在 cp **之前**跑（422）；命中的技能目录一个字节都不落盘
@@ -392,6 +453,9 @@ export async function installSkillFromGitHub(args: {
 				recursive: true,
 				filter: (src) => path.basename(src) !== ".git",
 			});
+			// 来源记录在 staging 内、rename 前写入（S6）：原子性与 I1 同口径——记录失败 =
+			// 整个安装失败（下方 catch rm staging），不出现「技能装上了但没记录」的半态。
+			writeSkillSourceRecord(stagingDir, source, skillId);
 			await fs.promises.rename(stagingDir, targetDir);
 		} catch (e) {
 			// 半拷贝残留一律清掉，不给「报错说失败、目录却生效」的错位留机会。
