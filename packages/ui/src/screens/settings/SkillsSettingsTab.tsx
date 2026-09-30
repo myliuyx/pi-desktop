@@ -44,6 +44,10 @@ import { MOCK_SKILLS_PAYLOAD } from "@/mock/skills-settings";
  * `owner/repo` 来源 → 禁用徽标「不支持安装」（原来渲染可点按钮、点了必 400）；
  * 当前安装范围下已有同名技能 → 徽标「已安装」（再装必 409）。安装成功后
  * payload 已刷新，徽标随之实时出现，无需重搜。
+ *
+ * S6（2026-09-30）·来源精确匹配（用户裁决 B）：core 安装时落 `.pi-source.json`、
+ * `/skills` 透出 `source` 后，同名行按来源区分——同来源「已安装」；不同来源或
+ * 无记录的存量安装 →「同名冲突」徽标（tooltip 含占用来源与出路）。
  */
 export function SkillsSettingsTab() {
 	/** mock 形态直接以演示清单起步；live 打开后被 core 的全量清单覆盖 */
@@ -92,9 +96,9 @@ export function SkillsSettingsTab() {
 	}, []);
 
 	const skills = payload?.skills ?? [];
-	/** 当前安装范围下已装技能名集合（S5 搜索结果「已安装」徽标的比对基准；随 scope 切换重算） */
-	const installedNamesInScope = useMemo(
-		() => new Set(skills.filter((s) => s.scope === addScope).map((s) => s.name)),
+	/** 当前安装范围下已装技能（name+source，S6 来源精确匹配的比对基准；随 scope 切换重算） */
+	const installedInScope = useMemo(
+		() => skills.filter((s) => s.scope === addScope).map(({ name, source }) => ({ name, source })),
 		[skills, addScope],
 	);
 
@@ -390,7 +394,11 @@ export function SkillsSettingsTab() {
 								{searchResults.map((entry) => {
 									const key = `${entry.source}/${entry.skillId}`;
 									const busy = installingKey === key;
-									const state = resolveSkillSearchEntryState(entry.source, entry.skillId, installedNamesInScope);
+									const state = resolveSkillSearchEntryState(entry.source, entry.skillId, installedInScope);
+									const hit = installedInScope.find((s) => s.name === entry.skillId);
+									const conflictTip = hit?.source
+										? `同名技能已由 ${hit.source} 安装，再装本来源会冲突（409）；如需换来源请先删除旧目录`
+										: `当前范围已有同名技能（旧版安装，未记录来源），任何来源再装都会冲突（409）；删除旧目录重装一次后可精确识别来源`;
 									return (
 										<li
 											key={key}
@@ -420,10 +428,18 @@ export function SkillsSettingsTab() {
 											) : state === "installed" ? (
 												<span
 													className="shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-xs text-accent"
-													title={`当前范围（${addScope === "user" ? "全局" : "项目"}）已装有同名技能，重复安装会冲突（409）`}
+													title="已安装（当前范围、同一来源）"
 													data-testid="settings-skill-search-installed"
 												>
 													已安装
+												</span>
+											) : state === "conflict" ? (
+												<span
+													className="shrink-0 rounded-full border border-border-default px-2 py-0.5 text-xs text-text-tertiary"
+													title={conflictTip}
+													data-testid="settings-skill-search-conflict"
+												>
+													同名冲突
 												</span>
 											) : (
 												<Button
