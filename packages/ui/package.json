@@ -14,6 +14,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "check:format": "node --experimental-strip-types scripts/format-check.mjs",
+    "check:providers-source": "node --experimental-strip-types scripts/providers-source-check.mjs",
     "check:turns": "node --experimental-strip-types scripts/turns-check.mjs",
     "check:cn": "node --experimental-strip-types scripts/cn-check.mjs",
     "check:sidebar-layout": "node scripts/sidebar-layout-check.mjs",
