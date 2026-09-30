@@ -17,6 +17,7 @@ import type {
 } from "@/mock/model-config";
 import type {
 	CatalogEntry,
+	ProviderCompat,
 	ProviderEntry,
 	ProviderModelEntry,
 	ProvidersPayload,
@@ -58,7 +59,43 @@ function nonEmpty(v: string | undefined): string | undefined {
 	return typeof v === "string" && v.trim() ? v : undefined;
 }
 
+/**
+ * compat **严格解析**（CR-029）：core 契约要求 compat 是**对象**（上游 ProviderCompatSchema），
+ * 不是字符串。表单里 `advanced.compatibility` 是自由文本，可能写老写法 `openai` 或任意串 ——
+ * 原样放进 compat 会让 core 的 `ModelConfig.load` 判整份文件非法（保存被 4xx 拒、所有 Provider
+ * 消失）。这里只接受「能 JSON.parse 成非 null / 非数组**对象**」的输入：
+ * - 空串 ⇒ undefined（未填，省略该键）；
+ * - 合法对象 ⇒ 透传；
+ * - 其余（`openai` 裸串 / 数字 / 非法 JSON）⇒ undefined ⇒ **不进 payload**（调用方据此判表单错误）。
+ */
+function parseCompat(raw: string | undefined): ProviderCompat | undefined {
+	if (typeof raw !== "string" || !raw.trim()) return undefined;
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(raw);
+	} catch {
+		return undefined;
+	}
+	if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+		return parsed as ProviderCompat;
+	}
+	return undefined;
+}
+
+/**
+ * 表单校验用：compat 自由文本是否为「空（未填）」或「合法对象」。非法 ⇒ ModelForm 标表单错误
+ * （配合 {@link parseCompat} 的「不进 payload」形成双保险）。导出供 provider-validation 复用。
+ */
+export function isCompatTextValid(raw: string | undefined): boolean {
+	if (typeof raw !== "string" || !raw.trim()) return true;
+	return parseCompat(raw) !== undefined;
+}
+
 function modelToEntry(m: ModelConfig): ProviderModelEntry {
+	// compat 二级透传，但只放**合法对象**（CR-029）：自由文本经严格 JSON.parse，空串⇒省略，
+	// 非法（老写法 `openai`、裸串、坏 JSON 等）⇒ undefined ⇒ 不进 payload（模型错误在 ModelForm
+	// 标出）。绝不把字符串塞进 compat——那会让整份 models.json 被 core 判非法。
+	const compat = parseCompat(m.advanced.compatibility);
 	return {
 		id: m.id,
 		// name 可选：留空时省略，让 Pi 回落到 id（写 "" 会让整份文件非法）
@@ -77,7 +114,7 @@ function modelToEntry(m: ModelConfig): ProviderModelEntry {
 		...(m.maxTokens > 0 ? { maxTokens: m.maxTokens } : {}),
 		cost: { ...m.cost },
 		...(m.advanced.headers.length ? { headers: headersToRecord(m.advanced.headers) } : {}),
-		...(m.advanced.compatibility ? { compat: m.advanced.compatibility } : {}),
+		...(compat ? { compat } : {}),
 		...(m.advanced.endpointOverride ? { endpointOverride: m.advanced.endpointOverride } : {}),
 	};
 }
@@ -99,7 +136,8 @@ function entryToModel(e: ProviderModelEntry): ModelConfig {
 		},
 		advanced: {
 			endpointOverride: e.endpointOverride ?? "",
-			compatibility: e.compat ?? "",
+			// compat 对象 ⇒ 序列化回自由文本（空 ⇒ ""），与 modelToEntry 的严格 parse 闭环
+			compatibility: e.compat ? JSON.stringify(e.compat) : "",
 			headers: recordToHeaders(e.headers),
 		},
 	};

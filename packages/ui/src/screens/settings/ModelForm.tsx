@@ -5,7 +5,14 @@ import { Button } from "@/components/primitives";
 import { Icon } from "@/components/common/icons";
 import type { ModelConfig } from "@/mock/model-config";
 import type { ModelTestResult } from "@/mock/provider-contract";
+import { isCompatTextValid } from "@/mock/provider-convert";
 import { Field, INPUT_CLASS, HeadersEditor, Collapsible } from "./form-fields";
+
+/** 兼容性（compat）字段文案：compat 是**对象**（CR-029），不是字符串；引导用户填 JSON 对象 */
+const COMPAT_HINT = '留空用 Provider 默认；需覆盖时填 JSON 对象，如 { "supportsReasoningEffort": true }';
+const COMPAT_PLACEHOLDER = '{ "supportsReasoningEffort": true }';
+const COMPAT_ERROR =
+	'兼容性须为 JSON 对象（如 { "supportsReasoningEffort": true }），不能是字符串；保存时会忽略当前值';
 
 /**
  * 单个模型配置表单。
@@ -329,11 +336,16 @@ export function ModelForm({ model, providerName, onChange, onRemove, onTest }: M
                 onChange={(headers) => patch({ advanced: { ...model.advanced, headers } })}
               />
             </div>
-            <Field label="兼容性">
+            <Field
+              label="兼容性"
+              hint={COMPAT_HINT}
+              invalid={!isCompatTextValid(model.advanced.compatibility)}
+              error={COMPAT_ERROR}
+            >
               <input
                 className={INPUT_CLASS}
                 value={model.advanced.compatibility}
-                placeholder="例如 openai"
+                placeholder={COMPAT_PLACEHOLDER}
                 data-testid="model-compatibility"
                 onChange={(e) =>
                   patch({ advanced: { ...model.advanced, compatibility: e.target.value } })

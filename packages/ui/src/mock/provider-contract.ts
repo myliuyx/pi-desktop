@@ -38,10 +38,28 @@ export interface ProviderModelEntry {
 	maxTokens?: number;
 	cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
 	headers?: Record<string, string>;
-	compat?: string;
+	/**
+	 * 兼容性标记（对齐 models.json 原生 `compat`，可选）。
+	 *
+	 * ⚠️ 必须是**对象**，不是字符串（CR-029）：core 契约 `contract.ts` 同款，与上游
+	 * `ProviderCompatSchema`（`@earendil-works/pi-coding-agent`，源码 `pi/packages/coding-agent/
+	 * src/core/model-config.ts`，HEAD 35180b9）三个全可选对象联合对齐。写字符串会让整份
+	 * models.json 被 `ModelConfig.load` 判非法、所有 Provider 消失——core 保存前会预检并 4xx 拒绝。
+	 *
+	 * 字段多且随上游浮动，此处与 core 一致按「二级透传」建模为开放对象：只约束其为普通对象，
+	 * 具体字段合法性由 core 的 `ModelConfig.load` 预检兜底。
+	 */
+	compat?: ProviderCompat;
 	/** 高级：API 端点覆盖（UI 表单高级字段，原样透传） */
 	endpointOverride?: string;
 }
+
+/**
+ * 模型级 `compat` 对象（二级透传形状，见 {@link ProviderModelEntry.compat}）。
+ * 合法成员 = 上游 `ProviderCompatSchema` 三个全可选对象联合之一；此处不穷举字段，
+ * 字段合法性由 core `ModelConfig.load` 预检兜底。
+ */
+export type ProviderCompat = Record<string, unknown>;
 
 /** 一个 Provider（GET /providers 与 PUT /providers 共用形状） */
 export interface ProviderEntry {
