@@ -44,8 +44,14 @@ const uiDistDir = app.isPackaged
 	? path.join(process.resourcesPath, "ui-dist")
 	: path.join(__dirname, "..", "..", "ui", "dist");
 const runDir = path.join(app.getPath("userData"), "run");
-/** agent 目录（CR-072/CR-074）：桌面壳在 userData 下的固定位置，**不由宿主 CORE_AGENT_DIR 决定** */
-const agentDir = path.join(app.getPath("userData"), "agent");
+/**
+ * agent 目录（CR-072/CR-074）：Pi 约定位置 `~/.pi/agent`，与 CLI / 自托管 core 共用同一份
+ * models.json / settings.json / 会话；**由桌面壳自己算出，不由宿主 CORE_AGENT_DIR 决定**。
+ * 注意这里用 Electron 的 `app.getPath("home")` 而非 core 侧的 `os.homedir()` —— 两者在
+ * 打包形态下取值一致，但若删掉下方对 `CORE_AGENT_DIR` 的注入，core 会回落到自己的默认值，
+ * 届时两边算法可能分叉，改动此处务必连带确认该前提。
+ */
+const agentDir = path.join(app.getPath("home"), ".pi", "agent");
 /** 预加载脚本产物路径（tsc 与 main.js 同目录产出；sandbox 下暴露窗口控制 API） */
 const preloadEntry = path.join(__dirname, "preload.js");
 
@@ -176,7 +182,8 @@ function bootCore(
 	cwd: string | null,
 ): { child: ChildProcess; markReady: () => void } {
 	fs.mkdirSync(runDir, { recursive: true });
-	// CR-072：agentDir 显式钉死为 userData 下的固定位置（不随宿主 CORE_AGENT_DIR 漂移）
+	// CR-072/CR-074：agentDir 显式钉死为 Pi 约定位置 ~/.pi/agent（不随宿主 CORE_AGENT_DIR 漂移，
+	// boot-env 白名单照旧丢弃宿主 CORE_*，安全性质与原先 userData 落点时期一致）
 	fs.mkdirSync(agentDir, { recursive: true });
 	// 上一次运行遗留的 core.json 是死端口，必须清掉——否则 waitForCore 会抢在
 	// 新 core 覆盖之前读到旧文件，health 探活打在死端口上（B3 首跑实踩）
@@ -198,7 +205,7 @@ function bootCore(
 	/*
 	 * CR-072：env 白名单化（buildBootCoreEnv）——桌面壳对 core 的 env 完全收敛。宿主残留的
 	 * CORE_HOST=0.0.0.0 / CORE_TOKEN / CORE_AGENT_DIR 等一律不透传；桌面 core 只绑回环
-	 * （CORE_HOST=127.0.0.1）、token 由 core 随机生成、agentDir 钉死为 userData 下的固定位置。
+	 * （CORE_HOST=127.0.0.1）、token 由 core 随机生成、agentDir 由桌面壳自己算出（CR-074）。
 	 * F1/F4 在此白名单内注入本轮取值：端口 = 记忆复用或 0（随机），cwd = 上次工作目录。
 	 */
 	const { env: coreEnv, warnings } = buildBootCoreEnv({
