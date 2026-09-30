@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { listSessionsCached, indexFilePath, resetIndexCacheForTests, flushIndexSaveForTests } from "../src/session-list-cache.ts";
+import { listSessionsCached, indexFilePath, resetIndexCacheForTests, flushIndexSaveForTests, INDEX_VERSION } from "../src/session-list-cache.ts";
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "index-check-"));
 const checks = [];
@@ -69,6 +69,22 @@ fs.writeFileSync(indexFilePath(sessionDir), "{ this is not json");
 resetIndexCacheForTests();
 const r5 = await listSessionsCached(ref);
 check("E1 坏索引不抛错、冷重建成功", r5.entries.length === 1 && r5.stats.hits === 0, r5.stats);
+
+/* ---------- E2. 索引版本不符：静默丢弃 + 全冷重建 ---------- */
+// 先正常拉一次并落盘一份健康索引
+resetIndexCacheForTests();
+await listSessionsCached(ref);
+flushIndexSaveForTests(sessionDir);
+const idxPath = indexFilePath(sessionDir);
+const idxDisk = JSON.parse(fs.readFileSync(idxPath, "utf8"));
+check("E2a 前置：索引已落盘且版本 = 当前 INDEX_VERSION", fs.existsSync(idxPath) && idxDisk.version === INDEX_VERSION, idxDisk.version);
+// 手工改成一个不兼容版本（模拟旧版索引），写回
+idxDisk.version = INDEX_VERSION + 1;
+fs.writeFileSync(idxPath, JSON.stringify(idxDisk));
+resetIndexCacheForTests();
+const rE2 = await listSessionsCached(ref);
+check("E2 版本不符不抛错、全冷重建（hits=0）", rE2.stats.hits === 0 && rE2.stats.misses === rE2.stats.files, rE2.stats);
+check("E2 冷重建后 entries 内容仍正确", rE2.entries.length === 1 && rE2.entries[0].info.id === "s1" && rE2.entries[0].info.messageCount === 3, ids(rE2));
 
 /* ---------- F. all 两档 ---------- */
 const otherDir = path.join(sessionsRoot, "--proj-beta--");

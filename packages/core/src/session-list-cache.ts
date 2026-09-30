@@ -334,7 +334,13 @@ export function readFirstUserText(filePath: string): string | null {
  * 索引层
  * ------------------------------------------------------------------------- */
 
-export const INDEX_VERSION = 1;
+/**
+ * 索引格式版本。变更语义时必须 bump —— 指纹 `(size, mtimeMs)` 未变的存量条目
+ * 不会被重扫，旧语义会一直生效到文件恰好被改动。v2：`modified` 改为 Pi
+ * `getMessageActivityTime` 同口径（`message.timestamp` 数字 + 仅 user/assistant）。
+ * `loadIndex` 遇到版本不符会静默丢弃整份索引并冷重建，使新语义立即对全体会话生效。
+ */
+export const INDEX_VERSION = 2;
 export const INDEX_FILENAME = "session-index.json";
 /** 写盘 debounce（spec §3.7）：连续对话每轮都触发 refreshSessions，不能每次都写 5MB */
 const SAVE_DEBOUNCE_MS = 2000;
