@@ -19,6 +19,8 @@ export type {
   ApprovalBlock,
   PlanStep,
   PlanBlock,
+  /* 2026-10-01 图片真缩略图批次：历史回放走元数据 + 按需取图（core 契约） */
+  ImageBlock,
   Block,
   BlockType,
   Message,

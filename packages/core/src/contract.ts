@@ -131,7 +131,8 @@ export interface PlanBlock {
  *
  * ⚠️ 为什么没有 `data` 字段：base64 内联进 `/sessions/load` 响应会让最坏情况
  * 85MB/条消息（8 张 × 8MB × 1.33）打在这个**目前零限制**的接口上
- * （docs/reviews/2026-09-29-global-review/packets/RP-02.md:63 实测 5MB 全量缓冲）。
+ * （docs/reviews/2026-09-29-global-review/packets/RP-02.md 汇总表第 12 行「读 body（无上限）」
+ *   + RP02-02 finding 的 :143 实测 5MB 被完整缓冲）。
  * 定位到字节是 core 端职责，不该由载荷体积承担。
  */
 export interface ImageBlock {
