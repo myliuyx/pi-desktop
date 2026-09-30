@@ -25,6 +25,27 @@ export const MAX_IMAGES_PER_MESSAGE = 8;
  */
 const MIME_WHITELIST = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"]);
 
+/**
+ * 生成待发图片的唯一 id。
+ *
+ * ⚠️ 不能直接用 `crypto.randomUUID()`：它只在**潜在可信来源**下存在
+ * （https/wss，或 http + localhost/127.0.0.1/[::1]）。用内网 IP 走 http 访问
+ * 本服务（run-web.sh 会打印内网地址，且排在第一个）时 isSecureContext=false、
+ * `crypto.randomUUID` 直接是 undefined —— 粘贴在 FileReader.onload 里抛
+ * `crypto.randomUUID is not a function`，图片被静默丢弃、无任何提示。
+ * `getRandomValues` 在任何上下文都可用，故以此作回退。
+ */
+function newImageId(): string {
+  if (typeof crypto?.randomUUID === "function") return crypto.randomUUID();
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  // RFC 4122 v4 位形
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 /** 剥 `;` 参数段 + `image/jpg` 归一为 `image/jpeg`（非标准别名，剪贴板偶发） */
 function normalizeMime(mimeType: string): string {
   const base = mimeType.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -56,10 +77,20 @@ export function attachFromBlob(blob: Blob): Promise<AttachResult> {
         resolve({ ok: false, reason: "图片读取失败" });
         return;
       }
-      resolve({
-        ok: true,
-        image: { id: crypto.randomUUID(), mimeType: mime, dataUrl },
-      });
+      /*
+       * onload 里再包一层 try/catch：这是 FileReader 的异步回调，抛出的异常
+       * **不会**被调用方的 await 捕获，会变成一个无主的 rejected promise ——
+       * 结果是图片静默消失、连「图片读取失败」提示都看不到。
+       */
+      try {
+        resolve({
+          ok: true,
+          image: { id: newImageId(), mimeType: mime, dataUrl },
+        });
+      } catch (err) {
+        console.error("[image-attach] 生成图片 id 失败", err);
+        resolve({ ok: false, reason: "图片读取失败" });
+      }
     };
     reader.readAsDataURL(blob);
   });
