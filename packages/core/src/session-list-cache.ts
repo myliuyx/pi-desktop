@@ -36,6 +36,16 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 /** 块读大小（1MB）：足够吞掉绝大多数行，避免频繁 read 系统调用 */
 const READ_BLOCK = 1 << 20;
 
+/**
+ * `readFirstUserText` 专用的块读大小（64KB）。
+ *
+ * 该函数只需首条 user 消息的文本，而首条 user 几乎总在文件最前面。
+ * 用 1MB 块每次都要 alloc+解码 1MB（13 条无名会话实测 ~54ms，把清单热态顶到 61–80ms），
+ * 改 64KB 后常规只读 64KB；首条 user 很靠后时仍按原渐进循环继续读下一块到 EOF，
+ * 语义完全不变。
+ */
+const FIRST_USER_BLOCK = 1 << 16;
+
 /** 轻量扫描结果（清单所需字段 + 标题兜底判据） */
 export interface LightScan {
   id: string;
@@ -163,7 +173,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
  */
 export function readFirstUserText(filePath: string): string | null {
   const fd = fs.openSync(filePath, "r");
-  const buf = Buffer.allocUnsafe(READ_BLOCK);
+  const buf = Buffer.allocUnsafe(FIRST_USER_BLOCK);
   const decoder = new StringDecoder("utf8");
   let carry = "";
 
