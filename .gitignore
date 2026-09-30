@@ -43,3 +43,7 @@ pi/
 
 # npm 发布包组装产物（packages/web 的 ui/ 由 assemble 从 packages/ui/dist 拷入，可随时重建）
 packages/web/ui/
+
+# 编辑器/工具自动生成的 ignore 文件（内容与本文件高度重复，且会被工具改写，不入库）
+# 注意：不能写成 .zcodeignore/ —— 它是文件不是目录，带尾斜杠的规则匹配不到，会失效
+.zcodeignore
