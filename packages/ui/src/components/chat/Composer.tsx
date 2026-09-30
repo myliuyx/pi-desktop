@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -146,8 +147,24 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
    * state 挂 Composer 顶层（与 MessageList 同款纪律：预览弹层只有一份），
    * 弹层在根 <div> 末尾**条件渲染** —— 无预览对象时文档里没有 role=dialog，
    * 不污染 probe-dir-menu / m4-acceptance 的「第一个 [role=dialog]」锚点。
+   *
+   * ★ `previewRef` 记下打开大图的缩略图按钮，关闭时还焦点（G7）。恒传 `open` +
+   * 条件渲染 ⇒ `Dialog` 看到的一直是 true，`previouslyFocused.focus?.()` 永不执行，
+   * 焦点会掉到 `<body>`（手动归还与 WorkingDirectoryMenu 的 DirectoryPickerDialog 同款）。
    */
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(null);
+  const previewRef = useRef<HTMLElement | null>(null);
+  const openPreview = useCallback((src: string, alt: string, trigger: HTMLElement | null) => {
+    previewRef.current = trigger;
+    setPreview({ src, alt });
+  }, []);
+  const closePreview = useCallback(() => {
+    const trigger = previewRef.current;
+    previewRef.current = null;
+    setPreview(null);
+    // 卸载后再还：弹层还挂着时焦点若被 Dialog 的 rAF 抢回面板，焦点又会丢回 body
+    requestAnimationFrame(() => trigger?.focus?.());
+  }, []);
 
   const streaming = useChatStore((state) => state.streaming);
   // 「停止生成」全程可点（task-waiting-row-turn-start.md F4）：streaming 是消息级
@@ -357,7 +374,7 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
             >
               <button
                 type="button"
-                onClick={() => setPreview({ src: img.dataUrl, alt: `待发送图片 ${i + 1}` })}
+                onClick={(e) => openPreview(img.dataUrl, `待发送图片 ${i + 1}`, e.currentTarget)}
                 title="点击查看大图"
                 aria-label={`查看待发送图片 ${i + 1}`}
                 className="block h-16 w-16 cursor-zoom-in overflow-hidden rounded-lg border border-border-subtle"
@@ -373,7 +390,10 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
                 data-testid={`composer-image-remove-${i}`}
                 aria-label={`移除图片 ${i + 1}`}
                 title="移除"
-                /* ⚠️ 必须阻断冒泡：否则点「移除」会同时触发大图预览 */
+                /* 防御性：截断继续向上冒泡到 composer 根的点击。
+                   ⚠️ 旧注释说「不阻断就会同时触发大图预览」是错的 —— 移除按钮与预览按钮
+                   是**兄弟**节点（同一缩略图格内的两个 button），DOM 事件在兄弟之间
+                   不传播，它对预览本就无效。保留只为不再冒泡到 composer 根。 */
                 onClick={(e) => {
                   e.stopPropagation();
                   removeComposerImage(img.id);
@@ -525,11 +545,14 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
         />
       ) : null}
 
-      {/* 图片大图预览（待发图）：条件渲染，理由见 preview state 注释 */}
+      {/* 图片大图预览（待发图）：条件渲染，理由见 preview state 注释。
+          key={src} 让换图时卸载重挂、组件内加载态自然归零（见 ImagePreviewDialog 文件头）；
+          onClose 手动把焦点还给打开它的缩略图按钮（G7）。 */}
       {preview ? (
         <ImagePreviewDialog
+          key={preview.src}
           open
-          onClose={() => setPreview(null)}
+          onClose={closePreview}
           src={preview.src}
           alt={preview.alt}
         />

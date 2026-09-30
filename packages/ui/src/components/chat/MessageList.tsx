@@ -423,9 +423,30 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
    * 由 `imageUrl` 拼进 `?token=` —— `<img>` 带不了 Authorization 头，
    * 不带 token 一律 401（core `/sessions/image` 只对该端点单点豁免 query token）。
    * mock 态 token 为空串 ⇒ `imageUrl` 不拼该段，行为与不带参数时逐字节一致。
+   *
+   * ★ `previewRef` 记下**打开大图时聚焦的那个缩略图按钮**，closePreview 里还回去
+   * （G7 焦点归还）。必须自己存：`Dialog` 的归还逻辑挂在 `open` 由 true→false 的
+   * effect 重跑上，而我们恒传 `open` + 条件渲染（`Dialog` 关闭态仍是 role=dialog，
+   * 常驻会污染 probe 的「第一个 [role=dialog]」锚点）⇒ 关闭走的是**卸载**，
+   * `previouslyFocused.focus?.()` 一次都不执行，焦点会掉到 `<body>`。
+   * 手动归还与 `WorkingDirectoryMenu.tsx` 的 DirectoryPickerDialog 同款。
    */
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(null);
-  const openPreview = useCallback((src: string, alt: string) => setPreview({ src, alt }), []);
+  const previewRef = useRef<HTMLElement | null>(null);
+  const openPreview = useCallback(
+    (src: string, alt: string, trigger?: HTMLElement | null) => {
+      previewRef.current = trigger ?? null;
+      setPreview({ src, alt });
+    },
+    [],
+  );
+  const closePreview = useCallback(() => {
+    const trigger = previewRef.current;
+    previewRef.current = null;
+    setPreview(null);
+    // 卸载后再还：弹层还挂着时焦点若被 Dialog 的 rAF 抢回面板，焦点又会丢回 body
+    requestAnimationFrame(() => trigger?.focus?.());
+  }, []);
 
   /*
    * 刻度纵向位置（紧凑居中簇，task-turn-rail-compact-cluster.md 第二次修订）：位置只由
@@ -594,11 +615,14 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
       ) : null}
 
       {/* 图片大图预览：条件渲染（无预览对象则文档里没有 role=dialog，
-          不污染 probe-dir-menu / m4-acceptance 的「第一个 [role=dialog]」锚点） */}
+          不污染 probe-dir-menu / m4-acceptance 的「第一个 [role=dialog]」锚点）。
+          key={src} 让换图时卸载重挂、组件内加载态自然归零（见 ImagePreviewDialog 文件头）；
+          onClose 手动把焦点还给打开它的缩略图按钮。 */}
       {preview ? (
         <ImagePreviewDialog
+          key={preview.src}
           open
-          onClose={() => setPreview(null)}
+          onClose={closePreview}
           src={preview.src}
           alt={preview.alt}
         />
@@ -730,7 +754,7 @@ function MessageItem({
   /** 图片预览请求冒泡到 MessageList 层（弹层只有一份，见 MessageList 的 preview state 注释）。
       必传：MessageItem 只有 MessageList 一个调用点，那里恒有 openPreview —— 可选化就得
       造一个「点了没反应」的哑按钮（本仓明令避免的陷阱）。 */
-  onPreviewImage: (src: string, alt: string) => void;
+  onPreviewImage: (src: string, alt: string, trigger?: HTMLElement | null) => void;
 }) {
   const isUser = message.role === "user";
   /*
@@ -849,8 +873,9 @@ function BlockView({
   block: Block;
   /** 与该 tool_call 同 toolCallId 配对的终端块（同消息内存在才传，见 MessageItem 的合并注释） */
   pairedTerminal?: TerminalBlock;
-  /** 冒泡到 MessageList 层去开预览（见该文件 preview state 注释：弹层只有一份） */
-  onPreviewImage: (src: string, alt: string) => void;
+  /** 冒泡到 MessageList 层去开预览（见该文件 preview state 注释：弹层只有一份）。
+      第三参是触发按钮，MessageList 据此在关闭时归还焦点（G7）。 */
+  onPreviewImage: (src: string, alt: string, trigger?: HTMLElement | null) => void;
 }) {
   switch (block.type) {
     case "image": {
@@ -862,7 +887,13 @@ function BlockView({
       const url = imageUrl(block, getLiveConfig().token);
       if (!url) return null;
       const alt = imageThumbnailAlt(block.partIndex);
-      return <MessageAttachment src={url} alt={alt} onPreview={() => onPreviewImage(url, alt)} />;
+      return (
+        <MessageAttachment
+          src={url}
+          alt={alt}
+          onPreview={(trigger) => onPreviewImage(url, alt, trigger)}
+        />
+      );
     }
     case "text":
       return (
@@ -919,12 +950,24 @@ function ToolCallInline({ block }: { block: Extract<Block, { type: "tool_call" }
  * 保证视觉一致；点击开大图预览。
  *
  * ⚠️ 尺寸是几何契约的一部分（既有探针按 h-16 采样），不要改。
+ *
+ * `onPreview` 回调带上**按钮自身**（= 事件 currentTarget）：MessageList 存下来，
+ * 关闭预览时把焦点还回去（G7）。用回调传 ref 而不是 `document.activeElement` 快照 ——
+ * 鼠标点击会把焦点放到按钮上没问题，但由键盘/程序触发时 activeElement 可能还在别处。
  */
-function MessageAttachment({ src, alt, onPreview }: { src: string; alt: string; onPreview: () => void }) {
+function MessageAttachment({
+  src,
+  alt,
+  onPreview,
+}: {
+  src: string;
+  alt: string;
+  onPreview: (trigger: HTMLButtonElement) => void;
+}) {
   return (
     <button
       type="button"
-      onClick={onPreview}
+      onClick={(e) => onPreview(e.currentTarget)}
       title="点击查看大图"
       aria-label={`查看${alt}`}
       data-testid="message-image-thumb"
