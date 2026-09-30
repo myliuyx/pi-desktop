@@ -29,6 +29,7 @@
  */
 
 import fs from "node:fs";
+import { StringDecoder } from "node:string_decoder";
 
 /** 块读大小（1MB）：足够吞掉绝大多数行，避免频繁 read 系统调用 */
 const READ_BLOCK = 1 << 20;
@@ -82,61 +83,72 @@ function parseJson(line: string): Record<string, unknown> | null {
 export function scanSessionFileLight(filePath: string): LightScan | null {
   const fd = fs.openSync(filePath, "r");
   const buf = Buffer.allocUnsafe(READ_BLOCK);
+  const decoder = new StringDecoder("utf8");
   let carry = "";
-  let header: Record<string, unknown> | null = null;
-  let name: string | null = null;
-  let messageCount = 0;
-  let hasFirstUser = false;
-  let lastActivity = 0;
+  const state = {
+    header: null as Record<string, unknown> | null,
+    name: null as string | null,
+    messageCount: 0,
+    hasFirstUser: false,
+    lastActivity: 0,
+  };
+
+  const processLine = (line: string): void => {
+    if (!line) return;
+    if (line.startsWith('{"type":"session",')) {
+      if (!state.header) state.header = parseJson(line);
+    } else if (line.startsWith('{"type":"message",')) {
+      state.messageCount++;
+      // role=user 判定：先看字符串再 parse 确认（诱饵字符串在工具输出里真实存在）
+      if (!state.hasFirstUser && line.includes('"role":"user"')) {
+        const e = parseJson(line);
+        if (e && (e.message as { role?: unknown } | undefined)?.role === "user") state.hasFirstUser = true;
+      }
+      const m = /"timestamp":"([^"]+)"/.exec(line.slice(0, 300));
+      if (m) {
+        const t = Date.parse(m[1]);
+        if (Number.isFinite(t) && t > state.lastActivity) state.lastActivity = t;
+      }
+    } else if (line.startsWith('{"type":"session_info",')) {
+      const e = parseJson(line);
+      if (e) {
+        const raw = e.name;
+        state.name = typeof raw === "string" && raw.trim() ? raw.trim() : null;
+      }
+    }
+  };
+
   try {
     for (;;) {
       const read = fs.readSync(fd, buf, 0, buf.length, null);
       if (read === 0) break;
-      const chunk = carry + buf.subarray(0, read).toString("utf8");
+      // StringDecoder 会缓冲跨块边界的不完整多字节序列，下一次 write 自动补全
+      const chunk = carry + decoder.write(buf.subarray(0, read));
       const lines = chunk.split("\n");
       // 最后一段可能是被块切断的半行，留到下一轮拼接
       carry = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line) continue;
-        if (line.startsWith('{"type":"session",')) {
-          if (!header) header = parseJson(line);
-        } else if (line.startsWith('{"type":"message",')) {
-          messageCount++;
-          // role=user 判定：先看字符串再 parse 确认（诱饵字符串在工具输出里真实存在）
-          if (!hasFirstUser && line.includes('"role":"user"')) {
-            const e = parseJson(line);
-            if (e && (e.message as { role?: unknown } | undefined)?.role === "user") hasFirstUser = true;
-          }
-          const m = /"timestamp":"([^"]+)"/.exec(line.slice(0, 300));
-          if (m) {
-            const t = Date.parse(m[1]);
-            if (Number.isFinite(t) && t > lastActivity) lastActivity = t;
-          }
-        } else if (line.startsWith('{"type":"session_info",')) {
-          const e = parseJson(line);
-          if (e) {
-            const raw = e.name;
-            name = typeof raw === "string" && raw.trim() ? raw.trim() : null;
-          }
-        }
-      }
+      for (const line of lines) processLine(line);
     }
+    // 文件末尾未以 \n 终结的最后一行（连同 StringDecoder 缓冲的残余字节）
+    const tail = carry + decoder.end();
+    if (tail) processLine(tail);
   } finally {
     fs.closeSync(fd);
   }
 
+  const header = state.header;
   if (!header || typeof header.id !== "string") return null;
   const st = fs.statSync(filePath);
   const headerTime = typeof header.timestamp === "string" ? Date.parse(header.timestamp) : NaN;
-  const modified = lastActivity > 0 ? lastActivity : Number.isFinite(headerTime) ? headerTime : st.mtimeMs;
+  const modified = state.lastActivity > 0 ? state.lastActivity : Number.isFinite(headerTime) ? headerTime : st.mtimeMs;
   return {
     id: header.id,
     cwd: typeof header.cwd === "string" ? header.cwd : "",
-    name,
-    messageCount,
+    name: state.name,
+    messageCount: state.messageCount,
     created: typeof header.timestamp === "string" ? header.timestamp : new Date(st.mtimeMs).toISOString(),
     modified,
-    hasFirstUser,
+    hasFirstUser: state.hasFirstUser,
   };
 }
 
@@ -150,24 +162,34 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
 export function readFirstUserText(filePath: string): string | null {
   const fd = fs.openSync(filePath, "r");
   const buf = Buffer.allocUnsafe(READ_BLOCK);
+  const decoder = new StringDecoder("utf8");
   let carry = "";
+
+  const textOfLine = (line: string): string | null => {
+    if (!line.startsWith('{"type":"message",')) return null;
+    if (!line.includes('"role":"user"')) return null;
+    const e = parseJson(line);
+    const message = e?.message as { role?: unknown; content?: unknown } | undefined;
+    if (message?.role !== "user") return null;
+    const text = extractText(message.content).trim();
+    return text || null;
+  };
+
   try {
     for (;;) {
       const read = fs.readSync(fd, buf, 0, buf.length, null);
-      if (read === 0) return null;
-      const chunk = carry + buf.subarray(0, read).toString("utf8");
+      if (read === 0) break;
+      const chunk = carry + decoder.write(buf.subarray(0, read));
       const lines = chunk.split("\n");
       carry = lines.pop() ?? "";
       for (const line of lines) {
-        if (!line.startsWith('{"type":"message",')) continue;
-        if (!line.includes('"role":"user"')) continue;
-        const e = parseJson(line);
-        const message = e?.message as { role?: unknown; content?: unknown } | undefined;
-        if (message?.role !== "user") continue;
-        const text = extractText(message.content).trim();
+        const text = textOfLine(line);
         if (text) return text;
       }
     }
+    // 文件末尾未以 \n 终结的最后一行（连同 StringDecoder 缓冲的残余字节）
+    const tail = carry + decoder.end();
+    return tail ? textOfLine(tail) : null;
   } finally {
     fs.closeSync(fd);
   }

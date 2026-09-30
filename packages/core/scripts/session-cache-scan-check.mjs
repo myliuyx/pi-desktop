@@ -82,6 +82,60 @@ scanSessionFileLight(fF);
 const dt = performance.now() - t0;
 check("G1 1.2MB 文件扫描 < 50ms", dt < 50, `${dt.toFixed(1)}ms`);
 
+/* ---------- A6/A7. 诱饵免疫（Finding 2）：非 user 消息的嵌套 payload 含字面 "role":"user" ---------- */
+const decoy = { type: "message", id: "m1", parentId: "x", timestamp: "2026-09-30T09:00:01.000Z", message: { role: "toolResult", toolCallId: "t1", content: [{ type: "text", text: "普通输出" }], details: { role: "user" } } };
+check("A6 诱饵行确实含字面 \"role\":\"user\"（保证测试有效性）", JSON.stringify(decoy).includes('"role":"user"'), JSON.stringify(decoy).slice(0, 200));
+const fDecoy = fixture("decoy.jsonl", [header("id-decoy", "/proj/decoy", "2026-09-30T09:00:00.000Z"), decoy]);
+const rDecoy = scanSessionFileLight(fDecoy);
+check("A7 非 user 消息的嵌套 role=user 不误判 hasFirstUser", rDecoy?.hasFirstUser === false, rDecoy);
+
+/* ---------- H. EOF 无尾换行（Finding 1） ---------- */
+const fH = path.join(tmpRoot, "h.jsonl");
+fs.writeFileSync(
+  fH,
+  [JSON.stringify(header("id-H", "/proj/h", "2026-09-30T09:00:00.000Z")), JSON.stringify(msg("user", "hi", "2026-09-30T09:00:05.000Z"))].join("\n"),
+); // 故意不加尾换行
+const rH = scanSessionFileLight(fH);
+check("H1 末行无换行仍计入 messageCount", rH?.messageCount === 1, rH);
+check("H2 末行无换行仍取到 modified", rH?.modified === Date.parse("2026-09-30T09:00:05.000Z"), rH?.modified);
+const fH2 = path.join(tmpRoot, "h2.jsonl");
+fs.writeFileSync(fH2, JSON.stringify(header("id-H2", "/proj/h2", "2026-09-30T09:00:00.000Z"))); // 仅一行 header，无换行
+const rH2 = scanSessionFileLight(fH2);
+check("H3 仅一行无换行 header 仍被识别", rH2?.id === "id-H2" && rH2?.created === "2026-09-30T09:00:00.000Z", rH2);
+check("H4 readFirstUserText 末行无换行仍取到文本", readFirstUserText(fH) === "hi", readFirstUserText(fH));
+
+/* ---------- I. 跨块边界的多字节字符（Finding 3） ---------- */
+const BLOCK = 1 << 20;
+const straddle = (startPrefix, filler, char, endSuffix, filePrefixBytes = 0) => {
+  const budget = BLOCK - 1 - filePrefixBytes - Buffer.byteLength(startPrefix);
+  const padding = filler.repeat(budget);
+  return { line: startPrefix + padding + char + endSuffix, expected: padding + char };
+};
+// I1: readFirstUserText —— 3 字节汉字「中」首字节落在块边界前 1 字节
+const u = straddle(
+  '{"type":"message","id":"m1","parentId":"x","timestamp":"2026-09-30T09:00:01.000Z","message":{"role":"user","content":[{"type":"text","text":"',
+  "A",
+  "中",
+  '"}]}}',
+);
+const fI = path.join(tmpRoot, "i.jsonl");
+fs.writeFileSync(fI, u.line + "\n");
+const gotI = readFirstUserText(fI);
+check("I1 跨 1MB 边界的 3 字节汉字未被解码损坏", gotI === u.expected, gotI ? `len=${gotI.length} tail=${[...gotI.slice(-4)]}` : gotI);
+// I2: scanSessionFileLight —— session_info.name 里的汉字跨边界
+const headerJ = JSON.stringify(header("id-J", "/proj/j", "2026-09-30T09:00:00.000Z"));
+const j = straddle(
+  '{"type":"session_info","id":"i1","parentId":"x","timestamp":"2026-09-30T10:00:00.000Z","name":"',
+  "B",
+  "中",
+  '"}',
+  Buffer.byteLength(headerJ) + 1,
+);
+const fJ = path.join(tmpRoot, "j.jsonl");
+fs.writeFileSync(fJ, headerJ + "\n" + j.line + "\n");
+const rJ = scanSessionFileLight(fJ);
+check("I2 跨 1MB 边界的 session_info.name 未被损坏", rJ?.name === j.expected, rJ?.name ? `len=${rJ.name.length} tail=${[...rJ.name.slice(-4)]}` : rJ?.name);
+
 fs.rmSync(tmpRoot, { recursive: true, force: true });
 const failed = checks.filter((c) => !c.pass);
 console.log(`\n  ${checks.length - failed.length}/${checks.length} 通过`);
