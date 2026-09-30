@@ -66,23 +66,42 @@ function toEpochMs(value: unknown): number {
 }
 
 /** 消息内容数组 → 我们的 Block[]（text / thinking / toolCall 三型，与实时 reducer 同形；
- *  image part 映射 `[图片]` 占位文本块，见下方 D3-A 注释） */
-function contentToBlocks(content: unknown): Block[] {
+ *  image part 映射 ImageBlock 元数据，见下方 2026-10-01 注释） */
+/** image part 的定位坐标（`ImageBlock` 只需定位，字节由取图端点负责） */
+interface ImageLocator {
+  sessionId: string;
+  entryId: string;
+}
+
+function contentToBlocks(content: unknown, locator?: ImageLocator): Block[] {
   if (!Array.isArray(content)) {
     // 容错：旧版本/手改过的会话可能把 content 存成裸字符串
     return typeof content === "string" && content ? [{ type: "text", content }] : [];
   }
   const blocks: Block[] = [];
-  for (const part of content) {
+  for (const [partIndex, part] of content.entries()) {
     if (!isRecord(part)) continue;
     if (part.type === "text" && typeof part.text === "string") {
       blocks.push({ type: "text", content: part.text });
     } else if (part.type === "image" && typeof part.data === "string") {
-      // 粘贴图片批次 D3-A（2026-09-30 用户裁决，task-composer-paste-image.md §5.6）：
-      // 历史回放里的图片 part 映射为占位文本块 —— 不把 base64 塞进载荷（成本/体积），
-      // 但刷新后气泡保留「有图」的痕迹（此前被静默丢弃，@ 引用图片同样中招）。
-      // 全链路真缩略图 = C0 契约加 ImageBlock，规格书列为另立批次的备选 B。
-      blocks.push({ type: "text", content: "[图片]" });
+      // 2026-10-01 图片真缩略图批次：产出 ImageBlock 元数据（**不含** base64），
+      // UI 拿定位三元组向 `GET /sessions/image` 换原图。
+      // 替换掉 D3-A 的 `[图片]` 占位（当时是「不塞 base64 进载荷」的成本权衡，
+      // 现由按需取图端点承担该成本）。
+      // 无 locator（usageFromActiveBranch 路径）⇒ 跳过：那个 messages 会被丢弃。
+      if (locator) {
+        const mimeType = typeof part.mimeType === "string" ? part.mimeType : "image/png";
+        const data = part.data as string;
+        blocks.push({
+          type: "image",
+          id: `${locator.entryId}-${partIndex}`,
+          mimeType,
+          bytes: Math.floor((data.length * 3) / 4),
+          sessionId: locator.sessionId,
+          entryId: locator.entryId,
+          partIndex,
+        });
+      }
     } else if (part.type === "thinking" && typeof part.thinking === "string") {
       // 与实时通道一致：历史里的思考默认折叠（reducer 亦如此）
       blocks.push({ type: "thinking", content: part.thinking, collapsed: true });
@@ -180,6 +199,14 @@ export function toSessionSummary(info: SessionInfo): SessionSummary {
 export interface EntriesToMessagesOptions {
   /** 上下文窗口大小（`TokenUsage.contextWindow` 的唯一来源；来自当前模型，取不到则 0） */
   contextWindow?: number;
+  /**
+   * 会话 id —— `ImageBlock` 定位三元组之一。
+   *
+   * **缺省时 contentToBlocks 跳过 image part**：唯一不传它的调用方是
+   * `usageFromActiveBranch`（只取 tokenUsage、丢弃 messages），产出
+   * `sessionId: ""` 的坏块只会让 UI 拼出无效 URL。
+   */
+  sessionId?: string;
 }
 
 /**
@@ -218,7 +245,13 @@ export function entriesToMessages(
       const role = message?.role;
 
       if (role === "user" || role === "assistant") {
-        const blocks = contentToBlocks(message.content);
+        // 只有带 sessionId 的调用（readSession）才产出 ImageBlock；
+        // usageFromActiveBranch 走不到 images（它的 messages 会被丢弃），
+        // 不传 locator 即让 contentToBlocks 内部跳过 image part。
+        const blocks = contentToBlocks(
+          message.content,
+          options.sessionId ? { sessionId: options.sessionId, entryId: entry.id } : undefined,
+        );
         // F2：逐条计量挂回消息（历史会话重载后 footer 仍在；与实时通道同经 adapt.usageOf 投影）
         const usage = role === "assistant" ? usageOf(message.usage) : undefined;
         // 模型标签回填（2026-09-27 用户裁决）：落盘 entry 与实时事件同源，assistant 消息
@@ -466,7 +499,10 @@ export function readSession(
   options: { contextWindow?: number; path?: string } = {},
 ): LoadedSession {
   const entries = manager.getBranch();
-  const { messages, tokenUsage, stats } = entriesToMessages(entries, { contextWindow: options.contextWindow });
+  const { messages, tokenUsage, stats } = entriesToMessages(entries, {
+    contextWindow: options.contextWindow,
+    sessionId: manager.getSessionId(),
+  });
   const header = manager.getHeader();
   // updatedAt：取主干上最后一次活动时间（`SessionInfo.modified` 在只按 id 打开时拿不到，
   // 而这是同一个语义 —— Pi 的 modified 就是「最后一条 entry 的时间」）。
