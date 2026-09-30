@@ -1,7 +1,7 @@
 {
   "name": "@agent/ui",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "MIT",
   "type": "module",
   "packageManager": "npm@10.9.7",

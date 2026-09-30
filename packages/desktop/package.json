@@ -2,7 +2,7 @@
   "name": "@agent/desktop",
   "productName": "Pi-Desktop",
   "private": true,
-  "version": "0.1.4",
+  "version": "0.1.5",
   "license": "MIT",
   "description": "Pi-Desktop —— 本地 core 服务 + 浏览器套壳的桌面封装（D1 裁决：Pi-Desktop 占位名）",
   "homepage": "https://github.com/myliuyx/pi-desktop",
