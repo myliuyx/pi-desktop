@@ -524,14 +524,34 @@ export interface ProviderModelEntry {
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
   /** 模型级 Headers（对齐 models.json 原生 `headers`） */
   headers?: Record<string, string>;
-  /** 兼容性标记（对齐 models.json 原生 `compat`，可选） */
-  compat?: string;
+  /**
+   * 兼容性标记（对齐 models.json 原生 `compat`，可选）。
+   *
+   * ⚠️ 必须是**对象**，不是字符串（CR-029）：上游 Pi 的 `ProviderCompatSchema`
+   * （`@earendil-works/pi-coding-agent` `dist/core/model-config.js`，源码锚点
+   * `pi/packages/coding-agent/src/core/model-config.ts` `ProviderCompatSchema = Type.Union([...])`，
+   * OpenAI/Responses/Anthropic 三个成员**全可选字段**的 Type.Object；pi HEAD 35180b9）对
+   * 模型级 `compat` 的类型是对象联合。写字符串会让 `ModelConfig.load` 判整份文件非法
+   * （`providers.size === 0` ⇒ 所有 Provider 集体消失）。
+   *
+   * 该联合成员字段多且随上游版本浮动，故此处按「**二级透传**」建模为开放对象：只约束其为
+   * 可 JSON 序列化的普通对象，**具体字段与取值的合法性由保存前的 `ModelConfig.load` 预检兜底**
+   * （core `providers.ts` save 路径，非法即 4xx 拒绝落盘），不在此处穷举上游 schema。
+   */
+  compat?: ProviderCompat;
   /**
    * 高级：API 端点覆盖（UI 表单「高级设置」字段，非 models.json 标准字段，原样透传）。
    * 写回时作为 model 节点的扩展键保留，读回再回填表单。
    */
   endpointOverride?: string;
 }
+
+/**
+ * 模型级 `compat` 对象（二级透传形状，见 {@link ProviderModelEntry.compat}）。
+ * 合法成员 = 上游 `ProviderCompatSchema` 三个全可选对象联合之一；此处不穷举字段，
+ * 由 `ModelConfig.load` 在保存前统一校验（core `providers.ts`）。
+ */
+export type ProviderCompat = Record<string, unknown>;
 
 /** 一个 Provider（模型服务）的配置（`GET /providers` 与 `PUT /providers` 共用形状） */
 export interface ProviderEntry {

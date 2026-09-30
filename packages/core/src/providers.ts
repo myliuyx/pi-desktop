@@ -28,8 +28,11 @@
 
 import { execSync } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
-import type { ModelRuntime } from "@earendil-works/pi-coding-agent";import type {
+import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { isRecord } from "./guards.ts";
+import type {
 	CatalogEntry,
 	CatalogPayload,
 	ModelTestRequest,
@@ -188,6 +191,95 @@ function writeJsonAtomic(filePath: string, data: unknown): void {
 }
 
 /* ---------------------------------------------------------------------------
+ * 保存前预检（CR-029）：compat 必须是对象，非法即拒（4xx），磁盘/sidecar 分毫不动
+ * ------------------------------------------------------------------------- */
+
+/**
+ * 保存前预检失败的**可预期**错误（server 据此回 4xx，与意外错误 500 / "读失败" 200+error 区分）。
+ * 携带 status 便于 server 层 `json(e.status, ...)` 统一映射。
+ */
+export class ProvidersValidationError extends Error {
+	constructor(
+		public status: 400 | 500,
+		message: string,
+	) {
+		super(message);
+		this.name = "ProvidersValidationError";
+	}
+}
+
+/**
+ * 上游 `ModelConfig`（models.json schema 的**唯一权威**）最小接口。
+ * 包的 `exports` map 未暴露 `dist/core/model-config.js` 子路径，直接 import 会被
+ * `ERR_PACKAGE_PATH_NOT_EXPORTED` 拦；这里从**已导出**的 "." 入口解析出物理 dist 目录，
+ * 再以 `file://` URL 导航到同级的 `core/model-config.js`（file:// 导入不受 exports 约束，
+ * 且随包位置自动漂移，桌面/web 打包形态同样成立）。
+ */
+type ModelConfigLoader = { load(p: string | undefined): Promise<{ getError(): string | undefined }> };
+let modelConfigModule: { ModelConfig: ModelConfigLoader } | null | undefined;
+async function getModelConfig(): Promise<ModelConfigLoader | null> {
+	if (modelConfigModule === undefined) {
+		try {
+			const pkgIndex = import.meta.resolve("@earendil-works/pi-coding-agent");
+			const modelConfigUrl = new URL("./core/model-config.js", pkgIndex);
+			modelConfigModule = (await import(modelConfigUrl.href)) as { ModelConfig: ModelConfigLoader };
+		} catch {
+			modelConfigModule = null; // 极端环境解析不到：降级为下列结构预检兜底
+		}
+	}
+	return modelConfigModule?.ModelConfig ?? null;
+}
+
+/**
+ * 结构预检（不依赖上游）：compat 必须是**普通对象**。写字符串/数字/数组会让
+ * `ModelConfig.load` 判**整份文件**非法、所有 Provider 集体消失（CR-029）。逐 model 点名
+ * 报错，比上游 schema 串更直观；即便上游 ModelConfig 解析不到也能拦住最常见的字符串形态。
+ */
+function assertCompatObjects(map: Record<string, NativeProviderRecord>): void {
+	for (const [pid, rec] of Object.entries(map)) {
+		if (!isRecord(rec) || !Array.isArray(rec.models)) continue;
+		for (const m of rec.models) {
+			if (!isRecord(m)) continue;
+			if (m.compat && (typeof m.compat !== "object" || Array.isArray(m.compat))) {
+				throw new ProvidersValidationError(
+					400,
+					`compat 必须是对象（不能是字符串 / 数字 / 数组）：Provider「${pid}」的模型「${asString(m.id)}」` +
+						`compat=${JSON.stringify(m.compat)}。请改为 JSON 对象（如 {"supportsReasoningEffort":true}）或省略该项。`,
+				);
+			}
+		}
+	}
+}
+
+/**
+ * 保存前用上游 `ModelConfig.load` 预检「即将写盘的 providers」——它是唯一的 schema 权威，
+ * 通过与否与 Pi 运行时完全一致。非法（compat 字符串、字段类型不符等）⇒ 抛
+ * `ProvidersValidationError`（→ 4xx）。enabled（models.json，Pi 实际加载）与 disabled
+ * （sidecar，启用时才被 Pi 见到）**都校验**，避免把「一时不炸、启用后即炸」的非法 compat 埋进 sidecar。
+ * 写临时文件供上游按磁盘路径校验，用完即删，绝不触碰目标文件。
+ */
+async function assertProvidersWritable(
+	enabled: Record<string, NativeProviderRecord>,
+	disabled: Record<string, NativeProviderRecord>,
+): Promise<void> {
+	assertCompatObjects(enabled);
+	assertCompatObjects(disabled);
+	const ModelConfig = await getModelConfig();
+	if (!ModelConfig) return; // 上游解析不到：已有结构预检兜底
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-models-precheck-"));
+	try {
+		for (const map of [enabled, disabled]) {
+			const tmp = path.join(dir, "models.json");
+			fs.writeFileSync(tmp, JSON.stringify({ providers: map }, null, 2), "utf8");
+			const err = (await ModelConfig.load(tmp)).getError();
+			if (err) throw new ProvidersValidationError(400, `models.json 校验失败，已拒绝保存：\n${err}`);
+		}
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+}
+
+/* ---------------------------------------------------------------------------
  * settings.json 当前生效模型读写（仅 defaultProvider / defaultModel 既有字段）
  * ------------------------------------------------------------------------- */
 
@@ -269,7 +361,12 @@ function nativeModelToEntry(rec: NativeModelRecord): ProviderModelEntry {
 			cacheWrite: asNumber(cost.cacheWrite),
 		},
 		...(Object.keys(asRecord(rec.headers)).length ? { headers: asRecord(rec.headers) } : {}),
-		...(asString(rec.compat) ? { compat: asString(rec.compat) } : {}),
+		/*
+		 * compat 必须是对象（CR-029）：二级透传整份对象引用，`supportsReasoningEffort` 等字段
+		 * 一个不丢。只读入普通对象——字符串/数组等非法值在此丢弃（它们本就会让
+		 * `ModelConfig.load` 判**整份文件**非法，读进来只会把 bug 继续往保存层传）。
+		 */
+		...(isRecord(rec.compat) && !Array.isArray(rec.compat) ? { compat: rec.compat } : {}),
 		...(asString(rec.endpointOverride) ? { endpointOverride: asString(rec.endpointOverride) } : {}),
 	};
 }
@@ -304,6 +401,7 @@ function modelToNative(m: ProviderModelEntry): NativeModelRecord {
 	if (m.contextWindow !== undefined) rec.contextWindow = m.contextWindow;
 	if (m.maxTokens !== undefined) rec.maxTokens = m.maxTokens;
 	if (m.headers && Object.keys(m.headers).length) rec.headers = m.headers;
+	// compat 二级透传整份对象（CR-029）：保存前的预检已确保其为合法对象，此处原样落盘。
 	if (m.compat) rec.compat = m.compat;
 	if (m.endpointOverride) rec.endpointOverride = m.endpointOverride;
 	return rec;
@@ -690,6 +788,11 @@ export function createProvidersController(deps: ProvidersControllerDeps): Provid
 			if (p.enabled) enabled[p.id] = rec;
 			else disabled[p.id] = rec;
 		}
+
+		// S-029：保存前预检——compat 非法（字符串/字段类型不符等）会让整份 models.json 被 Pi
+		// 判非法、所有 Provider 集体消失。此处在**任何落盘 / refresh 之前**拦下，抛
+		// ProvidersValidationError（server 回 4xx），磁盘 / sidecar / getAvailableSnapshot() 分毫不动。
+		await assertProvidersWritable(enabled, disabled);
 
 		// 原子写（临时文件 + rename）；两文件都重写
 		writeJsonAtomic(modelsPath, { providers: enabled });

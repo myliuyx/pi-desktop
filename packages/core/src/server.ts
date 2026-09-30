@@ -28,6 +28,7 @@ import { InvalidCwdError, SessionManageError, type CoreRuntime } from "./session
 import { SkillNotFoundError } from "./skills.ts";
 import { MAX_QUERY_LENGTH, SkillInstallError } from "./skills-install.ts";
 import { PackageNotFoundError } from "./packages.ts";
+import { ProvidersValidationError } from "./providers.ts";
 
 export interface ServerHandle {
   port: number;
@@ -894,6 +895,9 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				const result = await runtime.saveProviders(body);
 				return json(200, { ok: true, ...result });
 			} catch (e) {
+				// S-029：compat 等非法值 → 4xx 拒绝落盘（双闸之一：即便绕过 UI 直发 PUT 也拦得住）；
+				// 其余（读失败等）沿用既有 200+error 口径，UI 回落 mock 并提示。
+				if (e instanceof ProvidersValidationError) return json(e.status, { ok: false, error: e.message });
 				return json(200, { error: e instanceof Error ? e.message : String(e) });
 			}
 		}
