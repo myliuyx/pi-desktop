@@ -78,6 +78,15 @@ export interface ModelsControllerDeps {
     SettingsManager,
     "getDefaultProvider" | "getDefaultModel" | "getDefaultThinkingLevel"
   > | null;
+  /**
+   * 模型切换成功后的回调（CR-038，P1）。
+   *
+   * `select()` 只改**当前会话**与 settings.json，而调用方（session.ts）另持有一份用于
+   * 重建会话的「当前活动模型」闭包 `activeModel`（createAgentSession 显式传它，会覆盖历史/
+   * settings 恢复）。若不在此回写，切模型后 newSession / load / switchCwd 会沿用启动时的旧值
+   * 静默回退。本回调把新模型交回调用方，使其与当前会话保持同一条真相。
+   */
+  onModelChanged?(model: { id: string; provider: string }): void;
 }
 
 export interface ModelsController {
@@ -147,6 +156,9 @@ export function createModelsController(deps: ModelsControllerDeps): ModelsContro
       if (!model) throw new Error(`模型不存在：${provider}/${modelId}`);
       // persist:true ⇒ settingsManager.setDefaultModelAndProvider(...)
       await session.setModel(model, { persist: true });
+      // CR-038：切换成功后把新模型回写给调用方（session.ts 回写闭包 activeModel），
+      // 使后续 createAgentSession 用上新模型而非启动时的旧值（消除选择后静默回退）。
+      deps.onModelChanged?.({ id: model.id, provider: model.provider });
       return list();
     },
 

@@ -530,6 +530,13 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		getSession: () => session,
 		getRuntime: () => modelRuntime,
 		getSettings: () => settingsManager,
+		// CR-038：select 成功后回写闭包 activeModel——newSession/rebuildSession/switchCwd→bootProject
+		// 三处 createAgentSession 都显式传 `model: activeModel`（上游 sdk.js：显式 model 覆盖历史/
+		// settings 恢复）。不回写则切模型后这些操作仍用启动时的旧值、活动模型静默回退。此处与
+		// ready 流程的 `activeModel = runtime.getModel(...)` 同源：用 runtime 认识的完整模型对象。
+		onModelChanged: (m) => {
+			activeModel = (m && modelRuntime?.getModel(m.provider, m.id)) || null;
+		},
 	});
 
 	/** C2 · Provider 读写 / 目录 / 测试控制器（惰性 getter，不持有未就绪的 Pi 对象） */
