@@ -86,11 +86,13 @@ function parseJson(line: string): Record<string, unknown> | null {
 /**
  * 轻量扫一个会话文件：只取清单字段，**不逐行 JSON.parse**。
  *
- * 判据用行的前缀（`{"type":"message",` 等）。可靠性已在 40 个真实会话文件的
- * 2527 条 message 上实测：与真实 parse 出的 type **匹配 / 不匹配 = 0**；
- * 且所有行均以 `{"type":` 开头（无前导空格、无键序变体）。
- * 即使将来行格式漂移，最坏后果是「这一行的计数/时间戳漏掉」；
- * header 与 name 仍走完整 parse 兜底 —— 不会读出错值。
+ * 判据：常见键序（行首 `{"type":"message",` 等）走**零 parse 快路径**；
+ * 以 `{"` 开头但未命中快路径前缀的行做**一次** `parseJson` 再按真实 `type` 分派，
+ * 因此**对 JSON 键序不敏感**（`type` 不在行首也能正确计数/取名/读 header）。
+ * 可靠性已在 40 个真实会话文件的 2527 条 message 上实测：与真实 parse 出的 type
+ * 匹配 / 不匹配 = 0；且真实 Pi 文件所有行均以 `{"type":` 开头（无前导空格）。
+ * 真实数据里 message 行占绝大多数，新增 parse 只落在少数非 message / 键序变体行上
+ * —— 「不逐行 parse」的性能意图不变。
  */
 export function scanSessionFileLight(filePath: string): LightScan | null {
   const fd = fs.openSync(filePath, "r");
@@ -105,28 +107,58 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     lastActivity: 0,
   };
 
+  /**
+   * 以下三个 apply* 是「分派后的逻辑」：快路径命中 `{"type":…,` 时零 parse 直达；
+   * 键序变体（type 不在行首）先 parse 一次再按真实 type 调到这里。真实 Pi 文件
+   * message 行占绝大多数且 type 在首位，新增 parse 只作用于少数非 message /
+   * 非常见键序行 —— 「不逐行 parse」的性能意图不变。
+   */
+  const applyHeader = (e: Record<string, unknown> | null): void => {
+    if (!state.header && e) state.header = e;
+  };
+  const applyMessage = (line: string, parsed: Record<string, unknown> | null): void => {
+    state.messageCount++;
+    /*
+     * role=user 判定（诱饵安全）：快路径先看字面 `"role":"user"` 线索再 parse 确认
+     * （toolResult 的工具输出里真实存在该字面串）；兜底路径已 parse，直接看
+     * message.role —— 两者都不会把嵌套/诱饵的 role=user 误判为真 user。
+     */
+    if (!state.hasFirstUser) {
+      const e = parsed ?? (line.includes('"role":"user"') ? parseJson(line) : null);
+      if (e && (e.message as { role?: unknown } | undefined)?.role === "user") state.hasFirstUser = true;
+    }
+    // timestamp：兜底路径用 parse 后的字段；快路径用行首窗口正则（免 parse）
+    let ts: unknown = parsed?.timestamp;
+    if (typeof ts !== "string") {
+      const m = /"timestamp":"([^"]+)"/.exec(line.slice(0, 300));
+      ts = m ? m[1] : undefined;
+    }
+    if (typeof ts === "string") {
+      const t = Date.parse(ts);
+      if (Number.isFinite(t) && t > state.lastActivity) state.lastActivity = t;
+    }
+  };
+  const applySessionInfo = (e: Record<string, unknown> | null): void => {
+    if (!e) return;
+    const raw = e.name;
+    state.name = typeof raw === "string" && raw.trim() ? raw.trim() : null;
+  };
+
   const processLine = (line: string): void => {
     if (!line) return;
     if (line.startsWith('{"type":"session",')) {
-      if (!state.header) state.header = parseJson(line);
+      applyHeader(parseJson(line));
     } else if (line.startsWith('{"type":"message",')) {
-      state.messageCount++;
-      // role=user 判定：先看字符串再 parse 确认（诱饵字符串在工具输出里真实存在）
-      if (!state.hasFirstUser && line.includes('"role":"user"')) {
-        const e = parseJson(line);
-        if (e && (e.message as { role?: unknown } | undefined)?.role === "user") state.hasFirstUser = true;
-      }
-      const m = /"timestamp":"([^"]+)"/.exec(line.slice(0, 300));
-      if (m) {
-        const t = Date.parse(m[1]);
-        if (Number.isFinite(t) && t > state.lastActivity) state.lastActivity = t;
-      }
+      applyMessage(line, null);
     } else if (line.startsWith('{"type":"session_info",')) {
+      applySessionInfo(parseJson(line));
+    } else if (line.startsWith('{"')) {
+      // 键序变体：type 不在行首。整行只 parse 一次，再按真实 type 分派。
       const e = parseJson(line);
-      if (e) {
-        const raw = e.name;
-        state.name = typeof raw === "string" && raw.trim() ? raw.trim() : null;
-      }
+      if (!e) return;
+      if (e.type === "session") applyHeader(e);
+      else if (e.type === "message") applyMessage(line, e);
+      else if (e.type === "session_info") applySessionInfo(e);
     }
   };
 
@@ -177,14 +209,25 @@ export function readFirstUserText(filePath: string): string | null {
   const decoder = new StringDecoder("utf8");
   let carry = "";
 
-  const textOfLine = (line: string): string | null => {
-    if (!line.startsWith('{"type":"message",')) return null;
-    if (!line.includes('"role":"user"')) return null;
-    const e = parseJson(line);
+  /** 取一条 message entry 的 user 文本；判 role 与取 content 的单一口径 */
+  const textOfMessage = (e: Record<string, unknown> | null): string | null => {
     const message = e?.message as { role?: unknown; content?: unknown } | undefined;
     if (message?.role !== "user") return null;
     const text = extractText(message.content).trim();
     return text || null;
+  };
+  const textOfLine = (line: string): string | null => {
+    if (line.startsWith('{"type":"message",')) {
+      if (!line.includes('"role":"user"')) return null;
+      return textOfMessage(parseJson(line));
+    }
+    // 键序变体：type 不在行首 —— 解析一次后再判 type=message
+    if (line.startsWith('{"')) {
+      const e = parseJson(line);
+      if (e?.type !== "message") return null;
+      return textOfMessage(e);
+    }
+    return null;
   };
 
   try {

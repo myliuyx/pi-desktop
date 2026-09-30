@@ -136,6 +136,41 @@ fs.writeFileSync(fJ, headerJ + "\n" + j.line + "\n");
 const rJ = scanSessionFileLight(fJ);
 check("I2 跨 1MB 边界的 session_info.name 未被损坏", rJ?.name === j.expected, rJ?.name ? `len=${rJ.name.length} tail=${[...rJ.name.slice(-4)]}` : rJ?.name);
 
+/* ---------- J. 键序变体（`type` 不在行首）---------- */
+// Pi 实际写入是 `{"type":…` 打头；但合法 SessionEntry 的键序可能不同（本仓
+// sessions-manage-check 的手写夹具就是 `{"id":…,"type":"message",…}`）。
+// 判据必须键序无关，否则 messageCount=0 / name 丢失 / header 读不到 ⇒ 清单显错值。
+const headerVariant = (id, cwd, ts) => ({ id, cwd, type: "session", version: 3, timestamp: ts });
+const msgVariant = (role, text, ts) => ({
+  id: `m-${ts}`, parentId: "x", timestamp: ts, type: "message",
+  message: { role, content: [{ type: "text", text }] },
+});
+const infoVariant = (n) => ({ name: n, type: "session_info", id: "i1", parentId: "x", timestamp: "2026-09-30T10:00:00.000Z" });
+
+const fK = fixture("k.jsonl", [
+  headerVariant("id-K", "/proj/k", "2026-09-30T09:00:00.000Z"),
+  msgVariant("user", "键序变体的首问", "2026-09-30T09:00:01.000Z"),
+  msgVariant("assistant", "收到", "2026-09-30T09:00:02.000Z"),
+  infoVariant("键序变体的名字"),
+]);
+const rK = scanSessionFileLight(fK);
+check("J1 键序变体 header 仍读出 id/cwd（不返回 null）", rK?.id === "id-K" && rK?.cwd === "/proj/k", rK);
+check("J2 键序变体 message 计入 messageCount", rK?.messageCount === 2, rK?.messageCount);
+check("J3 键序变体 message 取到 modified（末条 timestamp）", rK?.modified === Date.parse("2026-09-30T09:00:02.000Z"), rK?.modified);
+check("J4 键序变体 message 的 hasFirstUser 正确", rK?.hasFirstUser === true, rK);
+check("J5 键序变体 session_info.name 被采纳", rK?.name === "键序变体的名字", rK?.name);
+check("J6 readFirstUserText 对键序变体 message 取到首条 user 文本", readFirstUserText(fK) === "键序变体的首问", readFirstUserText(fK));
+
+// 键序变体 + 诱饵：toolResult 的 details 里含字面 `"role":"user"`，不得误判
+const decoyVariant = {
+  id: "m1", parentId: "x", timestamp: "2026-09-30T09:00:01.000Z", type: "message",
+  message: { role: "toolResult", toolCallId: "t1", content: [{ type: "text", text: "普通输出" }], details: { role: "user" } },
+};
+const fKL = fixture("kl.jsonl", [headerVariant("id-KL", "/proj/kl", "2026-09-30T09:00:00.000Z"), decoyVariant]);
+const rKL = scanSessionFileLight(fKL);
+check("J7 键序变体诱饵：嵌套 role=user 不误判 hasFirstUser", rKL?.hasFirstUser === false && rKL?.messageCount === 1, rKL);
+check("J8 键序变体诱饵：readFirstUserText 不返回诱饵文本", readFirstUserText(fKL) === null, readFirstUserText(fKL));
+
 fs.rmSync(tmpRoot, { recursive: true, force: true });
 const failed = checks.filter((c) => !c.pass);
 console.log(`\n  ${checks.length - failed.length}/${checks.length} 通过`);
