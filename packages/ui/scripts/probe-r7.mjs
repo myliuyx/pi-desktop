@@ -17,7 +17,11 @@
  *   - 消息列中心 ≈ 工作区中心（±8px；全局滚动条 10px 使消息流内容盒左移 5px，
  *     属固有偏差，容差覆盖，不改滚动条）；
  *   - composer-area 全宽贴边（左右边缘与工作区重合 ±1px）；
- *   - composer-toolbar 距工作区左右边缘各 24px（±2px，即 padding 语义未变）；
+ *   - composer（输入框边框盒）距工作区左右边缘各 24px（±2px，即 padding 语义未变）。
+ *     ⚠️ 内嵌底行批次（task-composer-inline-toolbar.md）前这里锁的是 composer-toolbar；
+ *     工具条迁入输入框边框内部后，toolbar 左缘 ≈ 24+1(边框)+12(内边距) ≈ 37px，
+ *     原断言必破 —— 贴边语义改由 composer 边框盒承担（工具条 testid 仍保留，
+ *     但不再锁它的页面级 inset）。
  *   - 无横向溢出（workspace 与 document 两级）。
  *
  * 运行前置：dev server 5180 存活（M2_ORIGIN 同源）。用法：
@@ -33,16 +37,16 @@ const EVIDENCE = "_probe-r7-evidence.json";
 const TOL_CENTER = 8;
 /** 输入区贴边容差（px） */
 const TOL_EDGE = 2;
-/** toolbar 距边缘的期望内边距 = MESSAGE_LIST_PADDING */
+/** composer 边框盒距边缘的期望内边距 = MESSAGE_LIST_PADDING */
 const EXPECTED_INSET = 24;
 
 /** 每态测量：关键节点几何 + 溢出 + 折叠状态 */
 const MEASURE = `(() => {
   const q = (t) => document.querySelector('[data-testid="' + t + '"]');
-  const ws = q("workspace-area"), item = q("message-item"), toolbar = q("composer-toolbar"),
+  const ws = q("workspace-area"), item = q("message-item"), composer = q("composer"),
         area = q("composer-area"), sidebar = q("sidebar"), preview = q("preview-pane"),
         list = q("message-list");
-  const has = { ws: !!ws, item: !!item, toolbar: !!toolbar, area: !!area, list: !!list,
+  const has = { ws: !!ws, item: !!item, composer: !!composer, area: !!area, list: !!list,
                 sidebar: !!sidebar, preview: !!preview };
   if (Object.values(has).some((v) => !v)) return { error: "missing node", has };
   const r = (el) => {
@@ -51,7 +55,7 @@ const MEASURE = `(() => {
              width: +b.width.toFixed(2), cx: +((b.left + b.right) / 2).toFixed(2) };
   };
   return {
-    ws: r(ws), msg: r(item), toolbar: r(toolbar), area: r(area),
+    ws: r(ws), msg: r(item), composer: r(composer), area: r(area),
     sidebarCollapsed: sidebar.dataset.collapsed === "true",
     previewCollapsed: preview.dataset.collapsed === "true",
     wsOverflowX: ws.scrollWidth > ws.clientWidth,
@@ -65,16 +69,16 @@ function assertState(ctx, label, m, expect) {
   const msgCentered = Math.abs(m.msg.cx - m.ws.cx) <= TOL_CENTER;
   const areaFullLeft = Math.abs(m.area.left - m.ws.left) <= 1;
   const areaFullRight = Math.abs(m.ws.right - m.area.right) <= 1;
-  const toolbarInsetLeft = Math.abs(m.toolbar.left - m.ws.left - EXPECTED_INSET) <= TOL_EDGE;
-  const toolbarInsetRight = Math.abs(m.ws.right - m.toolbar.right - EXPECTED_INSET) <= TOL_EDGE;
+  const composerInsetLeft = Math.abs(m.composer.left - m.ws.left - EXPECTED_INSET) <= TOL_EDGE;
+  const composerInsetRight = Math.abs(m.ws.right - m.composer.right - EXPECTED_INSET) <= TOL_EDGE;
   const noOverflowX = !m.wsOverflowX && !m.docOverflowX;
   ctx.assert(`R7[${label}]`, {
     [`stateOk(侧收=${expect.sidebar},预收=${expect.preview})`]: stateOk,
     [`msgCentered(|Δ|≤${TOL_CENTER}px, Δ=${(m.msg.cx - m.ws.cx).toFixed(1)})`]: msgCentered,
     [`areaFullWidth(左Δ=${(m.area.left - m.ws.left).toFixed(1)},右Δ=${(m.ws.right - m.area.right).toFixed(1)})`]:
       areaFullLeft && areaFullRight,
-    [`toolbarInset24(左=${(m.toolbar.left - m.ws.left).toFixed(1)},右=${(m.ws.right - m.toolbar.right).toFixed(1)})`]:
-      toolbarInsetLeft && toolbarInsetRight,
+    [`composerInset24(左=${(m.composer.left - m.ws.left).toFixed(1)},右=${(m.ws.right - m.composer.right).toFixed(1)})`]:
+      composerInsetLeft && composerInsetRight,
     noOverflowX,
   });
 }

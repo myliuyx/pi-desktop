@@ -7,7 +7,7 @@ import {
   type HTMLAttributes,
   type KeyboardEvent,
 } from "react";
-import { Send, Square } from "lucide-react";
+import { Plus, Send, Square } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
 import { useChatStore } from "@/store/chat-store";
@@ -16,14 +16,16 @@ import {
   ComposerAtMenu,
   type ComposerAtMenuHandle,
 } from "@/components/chat/ComposerAtMenu";
+import { ComposerContextRing } from "@/components/chat/ComposerContextRing";
+import { ComposerToolbar } from "@/components/chat/ComposerToolbar";
 import type { FsSearchEntryResult } from "@/services/agent-transport";
 import {
-  COMPOSER_INPUT_TRAILING_SPACE,
-} from "@/lib/composer-layout";
-import {
+  COMPOSER_PADDING,
   COMPOSER_MAX_HEIGHT,
   COMPOSER_MIN_HEIGHT,
-  COMPOSER_PADDING,
+  COMPOSER_ROW_PADDING_BOTTOM,
+  COMPOSER_ROW_PADDING_TOP,
+  COMPOSER_ROW_SEND_CLEARANCE,
   COMPOSER_SEND_INSET,
   SEND_BUTTON_SIZE,
   SEND_ICON_OPTICAL_SHIFT_X,
@@ -31,7 +33,7 @@ import {
 } from "@/lib/layout";
 
 /**
- * 输入区（输入框本体 + 内嵌右下角圆形发送按钮）。
+ * 输入区（输入框本体 + 内嵌底行 + 内嵌右下角圆形发送按钮）。
  *
  * 冻结契约（task-M2.md 4.4）：
  * - 根节点 `data-testid="composer"` **即输入框本体**，带可见边框；
@@ -39,9 +41,14 @@ import {
  * - 发送按钮 `data-testid="composer-send"` 必须是根节点的**子孙**（验收 2-9），
  *   且矩形完全落在 composer 内、位于右下角（3.1）。
  *
- * 为什么把按钮用绝对定位放在 composer 内部最右下角：验收要的是 DOM 上的子孙关系 +
- * 几何上的「在边框内侧右下角」，而不是视觉上「看起来在旁边」。绝对定位 + 内缩
- * `COMPOSER_SEND_INSET` 能稳定满足这两条。
+ * ## 内嵌底行（task-composer-inline-toolbar.md，2026-09-30 用户裁决）
+ *
+ * 原先「输入框下方独立一行工具条」整体**搬进边框内部**成为底行（对齐参考图）：
+ * 左簇 = `+`（插入 @ 引用）+ 上下文占用环；右簇 = 模型 / 思考 / MCP 芯片
+ * （ComposerToolbar 原组件原样迁入，`composer-toolbar` testid 保留）。
+ * 发送按钮仍是绝对定位右下角（2-9 / 2-10 零改动），textarea 不再为其预留
+ * 右/下 padding（原 COMPOSER_INPUT_TRAILING_SPACE 退役）——底行把按钮区和
+ * 文字区天然分层，避让改由底行右侧净空承担。
  *
  * ## at-file 批次（task-composer-at-file.md §4.3）的两处增量
  *
@@ -52,6 +59,7 @@ import {
  * ② **@ 弹层**：光标所在 token 以 `@` 开头（且 @ 前是行首/空白，`a@b` 邮箱不触发）
  *    即激活文件搜索弹层；弹层开着时 ↑↓/Enter/Tab/Esc 被弹层消费（Enter 不发送）。
  *    发送时从全文提取 @token 作为 fileRefs 透传（core 展开成 `<file>` 块/图片附件）。
+ *    底行的 `+` 按钮走同一条通路（插入 `@` 并激活弹层，见 handlePlus）。
  */
 
 export interface ComposerProps extends HTMLAttributes<HTMLDivElement> {
@@ -207,6 +215,29 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     });
   }
 
+  /**
+   * 底行「+」按钮（task-composer-inline-toolbar.md 决策 6）：在光标处插入 `@` 并
+   * 激活文件搜索弹层——与文件树 @ 按钮、手打 @ 同一条通路（插入→光标落 @ 后→
+   * computeAtState 开弹层），不是上传附件。
+   * ⚠️ 弹层状态必须**同步**从刚构造的 `next` 计算，不能塞进 rAF 读 draftRef：
+   * rAF 在被遮挡/后台标签里会被节流到不执行，弹层就永远开不出来（5190 目验实踩）；
+   * 而且回调执行早于 React 提交时 draftRef 还是旧值，算出来恒 null。rAF 只负责
+   * 「等受控 value 提交后」的 focus / setSelectionRange（与插入引用消费点同一手法）。
+   */
+  function handlePlus() {
+    const el = taRef.current;
+    if (!el) return;
+    const pos = el.selectionStart ?? composerDraft.length;
+    const next = composerDraft.slice(0, pos) + "@" + composerDraft.slice(pos);
+    const caret = pos + 1;
+    setComposerDraft(next);
+    setAtState(computeAtState(next, caret));
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(caret, caret);
+    });
+  }
+
   return (
     <div
       ref={(node) => {
@@ -217,8 +248,9 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
       }}
       data-testid="composer"
       className={cn(
-        // relative 让内嵌按钮能相对它绝对定位；可见边框是「在内部」判定的前提（3.1）
-        "relative flex w-full items-start rounded-xl border border-border-default bg-bg-surface",
+        // relative 让内嵌按钮能相对它绝对定位；可见边框是「在内部」判定的前提（3.1）；
+        // flex-col = textarea 在上、底行在下（同盒内分层，task-composer-inline-toolbar.md）
+        "relative flex w-full flex-col rounded-xl border border-border-default bg-bg-surface",
         className,
       )}
       {...rest}
@@ -263,14 +295,49 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
           "overflow-y-auto overflow-x-hidden",
         )}
         style={{
-          // 右侧与底部预留出发送按钮占用的空间，避免文字被压住
+          // 底行把发送按钮区与文字区天然分层，textarea 四边回归统一内边距
+          // （原右/下 36px 按钮预留随工具条入盒退役，见文件头「内嵌底行」）
           paddingTop: COMPOSER_PADDING,
-          paddingBottom: COMPOSER_INPUT_TRAILING_SPACE,
+          paddingBottom: COMPOSER_PADDING,
           paddingLeft: COMPOSER_PADDING,
-          paddingRight: COMPOSER_INPUT_TRAILING_SPACE,
+          paddingRight: COMPOSER_PADDING,
           minHeight: COMPOSER_MIN_HEIGHT,
         }}
       />
+
+      {/*
+       * 内嵌底行：左簇（+ 引用入口、上下文占用环）+ 右簇（模型/思考/MCP 芯片，
+       * ComposerToolbar 自带 ml-auto 贴右）。右侧 padding 为绝对定位的发送按钮
+       * 预留净空（COMPOSER_ROW_SEND_CLEARANCE），底缘留白与按钮 bottom 内缩同值。
+       */}
+      <div
+        data-testid="composer-bottom-row"
+        className="flex w-full items-center gap-2"
+        style={{
+          paddingLeft: COMPOSER_PADDING,
+          paddingRight: COMPOSER_ROW_SEND_CLEARANCE,
+          paddingTop: COMPOSER_ROW_PADDING_TOP,
+          paddingBottom: COMPOSER_ROW_PADDING_BOTTOM,
+        }}
+      >
+        <button
+          type="button"
+          data-testid="composer-plus"
+          aria-label="插入 @ 文件引用"
+          title="插入 @ 文件引用"
+          onClick={handlePlus}
+          className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-text-secondary",
+            "transition-colors duration-150 ease-out hover:bg-bg-hover hover:text-text-primary active:bg-bg-active",
+          )}
+        >
+          <Icon icon={Plus} size={16} />
+        </button>
+
+        <ComposerContextRing />
+
+        <ComposerToolbar />
+      </div>
 
       <button
         type="button"

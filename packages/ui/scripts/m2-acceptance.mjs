@@ -61,6 +61,14 @@ window.__T = {
     Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, value);
     el.dispatchEvent(new Event('input', { bubbles: true }));
   },
+  // store 句柄（task-composer-inline-toolbar.md 2-15 三档颜色注入用）：DEV 形态下
+  // chat-store 把实例挂到 window.__chatStore（live 形态同挂），5182 dev server 恒可用
+  store: () => {
+    const s = window.__chatStore && window.__chatStore.getState ? window.__chatStore.getState() : null;
+    if (!s) throw new Error("window.__chatStore 不存在（m2 需要 DEV 形态的 dev server）");
+    return s;
+  },
+  setUsage: (u) => { window.__chatStore.setState({ tokenUsage: u }); return true; },
   theme: (t) => { document.documentElement.setAttribute('data-theme', t); return document.documentElement.dataset.theme; },
 };
 true;
@@ -435,91 +443,127 @@ await withBrowser(
       });
     }
 
-    /* ---------------------------------------------------------------- 2-11 / 2-12 / 2-16 工具条 */
+    /* ---------------------------------------------------------------- 2-11 / 2-12 内嵌底行工具条 */
     {
       // 变量名刻意叫 tb（toolbar）：早前把它也叫 r，结果 2-16 的断言引用了
-      // 下面 TokenStats 那个 r，`undefined >= 1` 恒为 false —— 假失败。
+      // 下面用量区那个 r，`undefined >= 1` 恒为 false —— 假失败。
+      // 内嵌底行（task-composer-inline-toolbar.md）：原「输入框下方独立工具条」
+      // 已迁入 composer 边框内部；左簇（+ / 环）是 composer-toolbar 的兄弟节点。
       const tb = await cdp.eval(`(() => {
+        const row = window.__T.q('[data-testid="composer-bottom-row"]');
+        const composer = window.__T.q('[data-testid="composer"]');
         const toolbar = window.__T.q('[data-testid="composer-toolbar"]');
-        const order = [...toolbar.children].map((el) => el.dataset.testid || el.tagName.toLowerCase());
+        const childrenOf = (el) => (el ? [...el.children].map((n) => n.dataset.testid || n.tagName.toLowerCase()) : null);
         const chips = ['composer-chip-model','composer-chip-thinking','composer-chip-mcp'].map((id) => {
           const el = window.__T.q('[data-testid="' + id + '"]');
           return { id, exists: !!el, height: el ? +el.getBoundingClientRect().height.toFixed(2) : null, text: el ? el.innerText.trim() : null };
         });
-        const spacer = window.__T.q('[data-testid="composer-toolbar-spacer"]');
-        const stats = window.__T.q('[data-testid="token-stats"]');
         return {
-          order, chips,
+          rowTestid: row ? row.dataset.testid : null,
+          rowInsideComposer: !!(composer && row && composer.contains(row)),
+          rowOrder: childrenOf(row),
+          order: childrenOf(toolbar),
+          chips,
           chipHeights: chips.map((c) => c.height),
           allChips32: chips.every((c) => Math.abs(c.height - 32) < 0.6),
-          spacerFlexGrow: spacer ? getComputedStyle(spacer).flexGrow : null,
-          statsRight: stats ? window.__T.rect(stats).right : null,
-          toolbarRight: window.__T.rect(toolbar).right,
         };
       })()`);
-      ctx.record("2-11_2-12_2-16_工具条", tb);
-      ctx.assert("2-11 工具条顺序：模型 → 思考强度 → MCP → 弹性占位 → TokenStats", {
-        顺序正确: JSON.stringify(tb.order) === JSON.stringify(["composer-chip-model", "composer-chip-thinking", "composer-chip-mcp", "composer-toolbar-spacer", "token-stats"]),
+      ctx.record("2-11_2-12_内嵌底行工具条", tb);
+      ctx.assert("2-11 内嵌底行顺序：+ → 上下文环 → 工具条（模型 → 思考强度 → MCP）", {
+        底行在输入框边框内: tb.rowInsideComposer === true,
+        底行顺序正确: JSON.stringify(tb.rowOrder) === JSON.stringify(["composer-plus", "composer-context-ring", "composer-toolbar"]),
+        工具条顺序正确: JSON.stringify(tb.order) === JSON.stringify(["composer-chip-model", "composer-chip-thinking", "composer-chip-mcp"]),
         三个芯片都在: tb.chips.every((c) => c.exists),
       });
       ctx.assert("2-12 工具条芯片高 32", {
         三个芯片均为32: tb.allChips32 === true,
         实测高度: JSON.stringify(tb.chipHeights) === JSON.stringify([32, 32, 32]),
       });
-      ctx.assert("2-16 TokenStats 靠右（弹性占位撑开）", {
-        占位flexGrow大于等于1: parseFloat(tb.spacerFlexGrow) >= 1,
-        右侧贴合工具条右边: Math.abs(tb.statsRight - tb.toolbarRight) <= 4,
-      });
     }
 
-    /* ---------------------------------------------------------------- 2-13 ~ 2-16 TokenStats */
+    /* ---------------------------------------------------------------- 2-13 ~ 2-16 上下文占用环 */
     {
+      // 内嵌底行（task-composer-inline-toolbar.md D1=A1）：原 TokenStats 四段退役，
+      // 「消耗」的行内代言改为上下文占用环；四段明细收进环的 title（2-14 断言）。
       const r = await cdp.eval(`(() => {
-        const root = window.__T.q('[data-testid="token-stats"]');
-        const keys = ['input','output','total','context'];
-        const items = keys.map((k) => {
-          const el = window.__T.q('[data-testid="token-stats-item-' + k + '"]');
-          if (!el) return { key: k, exists: false };
-          return {
-            key: k, exists: true,
-            text: el.innerText.trim(),
-            color: getComputedStyle(el).color,
-            value: el.lastElementChild ? el.lastElementChild.textContent.trim() : null,
-          };
-        });
-        const dividers = window.__T.qa('[data-testid="token-stats-divider"]');
-        const primary = window.__T.probe('text-text-primary');
-        const secondary = window.__T.probe('text-text-secondary');
+        const composer = window.__T.q('[data-testid="composer"]');
+        const ring = window.__T.q('[data-testid="composer-context-ring"]');
+        const value = window.__T.q('[data-testid="composer-context-ring-value"]');
+        const row = window.__T.q('[data-testid="composer-bottom-row"]');
+        const toolbar = window.__T.q('[data-testid="composer-toolbar"]');
+        const plus = window.__T.q('[data-testid="composer-plus"]');
+        const ws = window.__T.q('[data-testid="workspace-area"]');
         return {
-          items,
-          dividerCount: dividers.length,
-          rootBg: getComputedStyle(root).backgroundColor,
-          subtleProbe: window.__T.probeBg('bg-bg-subtle'),
-          primaryProbe: primary, secondaryProbe: secondary,
-          highlightMap: items.map((i) => ({ key: i.key, isPrimary: i.color === primary, isSecondary: i.color === secondary })),
-          values: items.map((i) => i.value),
+          exists: !!ring,
+          insideComposer: !!(composer && ring && composer.contains(ring)),
+          hasSvg: !!(ring && ring.querySelector('svg')),
+          valueText: value ? value.textContent.trim() : null,
+          valueColor: value ? getComputedStyle(value).color : null,
+          title: ring ? (ring.getAttribute('title') || '') : null,
+          composer: composer ? window.__T.rect(composer) : null,
+          row: row ? window.__T.rect(row) : null,
+          plus: plus ? window.__T.rect(plus) : null,
+          toolbar: toolbar ? window.__T.rect(toolbar) : null,
+          wsOverflowX: ws.scrollWidth > ws.clientWidth,
         };
       })()`);
-      ctx.record("2-13_2-14_2-15_TokenStats", r);
-      ctx.assert("2-13 TokenStats 四段齐全 + 段间细分隔线", {
-        四段都存在: r.items.every((i) => i.exists === true),
-        三段分隔线: r.dividerCount === 3,
-        段落顺序正确: JSON.stringify(r.items.map((i) => i.key)) === JSON.stringify(["input", "output", "total", "context"]),
-        容器底色为bgSubtle: r.rootBg === r.subtleProbe,
+      ctx.record("2-13_2-14_上下文环", r);
+      ctx.assert("2-13 上下文环结构（svg 圆环 + 数值，位于输入框边框内左簇）", {
+        环存在: r.exists === true,
+        在composer边框内: r.insideComposer === true,
+        含svg圆环: r.hasSvg === true,
+        数值节点存在: r.valueText !== null && r.valueText !== "",
       });
-      ctx.assert("2-14 数值格式化为 12.4k / 128k 形式", {
-        输入: r.values[0] === "12.4k",
-        输出: r.values[1] === "6.2k",
-        消耗: r.values[2] === "18.6k",
-        上下文: r.values[3] === "128k",
-        未出现128点0k: r.values[3] !== "128.0k",
+      ctx.assert("2-14 环数值口径（mock 合成 contextTokens = total → 14.5%）", {
+        "环值14.5%": r.valueText === "14.5%",
+        title含四段明细: r.title.includes("输入 12.4k · 输出 6.2k · 消耗 18.6k · 上下文 14.5%/128k"),
       });
-      ctx.assert("2-15 只有「消耗」段用 text-primary，其余为 text-secondary", {
-        消耗是primary: r.highlightMap[2].isPrimary === true,
-        输入是secondary: r.highlightMap[0].isSecondary === true,
-        输出是secondary: r.highlightMap[1].isSecondary === true,
-        上下文是secondary: r.highlightMap[3].isSecondary === true,
-        反例_消耗不是secondary: r.highlightMap[2].isSecondary === false,
+
+      // 2-15 三档颜色：经 store 注入三档 tokenUsage（占比 0.5 / 0.75 / 0.95，窗口不变）。
+      // ⚠️ setUsage 与读色必须拆成两次 eval 中间 sleep：React 对 store 变更的重渲染是
+      // 调度式的，同一 eval 里改完立刻读会拿到旧颜色（假失败）。
+      const toneTable = [
+        ["0.5", "text-text-tertiary"],
+        ["0.75", "text-warning"],
+        ["0.95", "text-danger"],
+      ];
+      const toneResults = [];
+      for (const [ratio, cls] of toneTable) {
+        await cdp.eval(`window.__T.setUsage({ input: 0, output: 0, total: 0, contextWindow: 128000, contextTokens: Math.round(128000 * ${ratio}) })`);
+        await sleep(150);
+        const one = await cdp.eval(`(() => {
+          const value = window.__T.q('[data-testid="composer-context-ring-value"]');
+          return {
+            text: value ? value.textContent.trim() : null,
+            color: value ? getComputedStyle(value).color : null,
+            probe: window.__T.probe('${cls}'),
+          };
+        })()`);
+        toneResults.push({ ratio, cls, ...one });
+      }
+      // 还原 mock 初始用量（INITIAL_TOKEN_USAGE），不污染后续断言
+      await cdp.eval("window.__T.setUsage({ input: 12400, output: 6200, total: 18600, contextWindow: 128000, contextTokens: 18600 })");
+      await sleep(150);
+      ctx.record("2-15_环三档颜色", toneResults);
+      ctx.assert("2-15 环颜色三档：≥90% danger / ≥70% warning / 其余中性", {
+        "中性档50%": toneResults[0].color === toneResults[0].probe,
+        "警示档75%": toneResults[1].color === toneResults[1].probe,
+        "危险档95%": toneResults[2].color === toneResults[2].probe,
+        注入后数值随动: toneResults[1].text === "75%",
+      });
+
+      // 2-16 几何（原「弹性占位」结构断言随 TokenStats 退役）：左簇贴输入框内容左缘
+      // （边框 1 + padding 12 = 13），工具条右缘距内容右缘一个发送净空
+      // （边框 1 + COMPOSER_ROW_SEND_CLEARANCE 40 = 41）。
+      ctx.record("2-16_底行几何", {
+        composer: r.composer, row: r.row, plus: r.plus, toolbar: r.toolbar,
+        plusInset: r.plus ? +(r.plus.left - r.composer.left).toFixed(2) : null,
+        toolbarClearance: r.toolbar ? +(r.composer.right - r.toolbar.right).toFixed(2) : null,
+      });
+      ctx.assert("2-16 底行几何：左簇贴左、工具条贴右净空、无横向溢出", {
+        加号贴左缘: Math.abs(r.plus.left - r.composer.left - 13) <= 2.5,
+        工具条右净空: Math.abs(r.composer.right - r.toolbar.right - 41) <= 2.5,
+        无横向溢出: r.wsOverflowX === false,
       });
     }
 
@@ -547,7 +591,10 @@ await withBrowser(
       ctx.assert("2-17 输入框高度随内容自适应且有最大高度上限", {
         单行有值: h1.valueLen > 0,
         十行比单行高: h10.composerHeight > h1.composerHeight + 20,
-        十行未超上限: h10.composerHeight <= 240,
+        // 上限的真身是 textarea（COMPOSER_MAX_HEIGHT=200 钳死，内部滚动承接溢出）；
+        // 盒子总高 = textarea 200 + 内嵌底行 ~44 + 边框 2 ≈ 246（内嵌底行批次
+        // task-composer-inline-toolbar.md 上修，旧口径 240 只认「无底行的盒子」）
+        十行未超上限: h10.inputClientHeight <= 200.5 && h10.composerHeight <= 260,
         四十行被上限截住: Math.abs(h40.composerHeight - h10.composerHeight) < 2,
         达到上限后内部可滚动: h40.inputScrollHeight > h40.inputClientHeight,
       });
@@ -757,7 +804,8 @@ await withBrowser(
           ['markdown-body p', '[data-testid="markdown-body"] p'],
           ['terminal-command', '[data-testid="terminal-command"]'],
           ['terminal-output', '[data-testid="terminal-output"]'],
-          ['token-stats-total', '[data-testid="token-stats-item-total"]'],
+          // token-stats-total 样本随 TokenStats 退役（task-composer-inline-toolbar.md）——
+          // 环的中性灰是有意低强调的次要文字，不进「主要文字对比度」清单
           ['plan-step', '[data-testid="plan-step"]'],
           ['composer-input', '[data-testid="composer-input"]'],
         ];

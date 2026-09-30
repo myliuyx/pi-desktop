@@ -5,8 +5,6 @@ import { isLiveEnabled, isMcpEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
 import { Chip } from "@/components/primitives/Chip";
 import { ChipMenu, type ChipMenuGroup } from "@/components/primitives/ChipMenu";
-import { TOOLBAR_CONTROL_HEIGHT } from "@/lib/layout";
-import { TokenStats } from "@/components/common/TokenStats";
 import { useUiStore } from "@/store/ui-store";
 import { useModelsStore } from "@/store/models-store";
 import { notifyFailure } from "@/store/notice-store";
@@ -23,10 +21,18 @@ import {
 import type { ModelInfo, ThinkingLevel } from "@/mock/types";
 
 /**
- * Composer 底部工具条。
+ * Composer 底行右簇（task-composer-inline-toolbar.md，2026-09-30 主控裁决）。
  *
- * 顺序固定（验收 2-11）：模型 → 思考强度 → MCP → 弹性占位 → TokenStats（靠右）。
+ * 原先独立于输入框下方的一行，现整体迁入输入框边框内部成为底行右簇（左簇是
+ * `+` 引用入口 + 上下文占用环，见 Composer.tsx / ComposerContextRing.tsx）。
+ * 本组件的模型 / 思考 / MCP 逻辑**零改动**，只动了容器：
+ * - 根 `ml-auto` 贴右（原「spacer + TokenStats」的右推结构随 TokenStats 退役而取消，
+ *   m2 2-16 已重写为几何断言）；`min-w-0` 允许整簇收缩——live 长模型名由
+ *   ChipMenu（wrapper min-w-0 + Chip truncate）截断省略号降级，参考图同款行为。
+ * - `composer-toolbar` testid **原样保留**：m4-579、probe-settings-onboarding U10
+ *   （`toolbar.children[0]` = 模型芯片）等探针无损存活（左簇是本组件的兄弟节点）。
  *
+ * 右簇内顺序（m2 2-11 重写口径）：模型 → 思考强度 → MCP（MCP 仍由 `?mcp=1` 门控）。
  * 模型 / 思考强度是「点开上拉菜单选」（ChipMenu，2026-09-22 用户裁决：循环切换
  * 看不到全部选项），MCP 暂为纯展示芯片（数量展示，无交互）。
  *
@@ -34,16 +40,10 @@ import type { ModelInfo, ThinkingLevel } from "@/mock/types";
  * Pi 无 MCP 概念（`usage.md:310`），数量无真实来源 → 默认关。但验收 2-11 的顺序断言
  * 含 `composer-chip-mcp`，故按 §五纪律选「保留 mock 分支供回归」：**芯片代码与 testid 保留，
  * 用 `?mcp=1` 门控**。见 `@/lib/feature-flags` 与 `.plan/archive/pi-survey-plan.md` S5。
- * 注意：`?mcp=1` 关闭时顺序退化为「模型 → 思考强度 → 弹性占位 → TokenStats」，
- * 这是有意的 —— 验收 2-11 带参数跑，断言仍是原样。
  *
  * 状态来源是 **ui-store 的 `modelId` / `thinkingLevel`**（M4 为 05 设置屏建立的字段），
  * 不是组件内 useState —— 工具条与 05 屏是同一个真相的两处展示，改哪边都同步。
  * store 这两个字段不持久化，与 05 屏现状一致。
- *
- * 为什么用 `composer-toolbar-spacer`（flex-1）把 TokenStats 推到右边、而不给
- * TokenStats 加 `ml-auto`：验收 2-16 要能看见「弹性占位」这个真实节点，且 3.2 明令
- * 不要藏结构。spacer 必须存在且独占剩余空间。
  */
 export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   function ComposerToolbar({ className, ...rest }, ref) {
@@ -176,10 +176,9 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
         ref={ref}
         data-testid="composer-toolbar"
         className={cn(
-          // @container：TokenStats 的标签随本工具条宽度做容器查询（≥690px 才显示标签，
-          // 632px 默认视口下只留数字——全宽内容实测 687.87px，塞不下是结构性事实，
-          // 见 TokenStats 内注释）。
-          "@container flex w-full shrink-0 items-center gap-2",
+          // ml-auto 贴右（原 spacer 右推结构已退役）；min-w-0 让整簇可收缩，
+          // 压力由模型芯片（ChipMenu wrapper min-w-0 + truncate）吸收
+          "ml-auto flex min-w-0 items-center gap-2",
           className,
         )}
         {...rest}
@@ -232,19 +231,6 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
             {`MCP ${MCP_CONNECTED_COUNT}`}
           </Chip>
         ) : null}
-
-        {/*
-         * 弹性占位：占满剩余空间，把 TokenStats 推到最右（2-16）。
-         * min-w-0（而非原 min-w-2）：芯片加了下拉箭头后工具条在默认视口已接近满宽，
-         * 占位下限改 0 把收缩余量让给无文字的它，避免 TokenStats 被挤出右缘（2-16 曾挂 12.88px）。
-         */}
-        <div
-          data-testid="composer-toolbar-spacer"
-          style={{ height: TOOLBAR_CONTROL_HEIGHT }}
-          className="min-w-0 flex-1"
-        />
-
-        <TokenStats />
       </div>
     );
   },

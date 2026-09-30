@@ -85,9 +85,14 @@ await withBrowser({ port: PORT, origin: ORIGIN, evidencePath: "_probe-mcp-gate-e
     带参数_有mcp_note: on.note === true,
     带参数_正文含MCP: on.scopeHasMcp === true,
     带参数_芯片回来了: onBar.mcpChip === true,
+    // 内嵌底行（task-composer-inline-toolbar.md）：toolbar 已迁入输入框边框内部，
+    // 右簇顺序为 模型 → 思考 → MCP（spacer / token-stats 随退役删除）
     带参数_顺序还原:
       JSON.stringify(onBar.order) ===
-      JSON.stringify(["composer-chip-model", "composer-chip-thinking", "composer-chip-mcp", "composer-toolbar-spacer", "token-stats"]),
+      JSON.stringify(["composer-chip-model", "composer-chip-thinking", "composer-chip-mcp"]),
+    默认_工具条退化为两芯片:
+      JSON.stringify(offBar.order) ===
+      JSON.stringify(["composer-chip-model", "composer-chip-thinking"]),
   });
 
   const summary = ctx.save("_probe-mcp-gate-evidence.json");

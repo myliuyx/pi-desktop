@@ -278,12 +278,18 @@ export const SESSION_SUMMARIES: SessionSummary[] = [
   { id: "session-demo-7", title: "技能列表分类方案", updatedAt: BASE_TS - 2700 * STEP_MS, messageCount: 132 },
 ];
 
-/** 初始 Token 用量（设计稿第 5 轮定稿的四个展示值，验收 2-13/2-14 用 formatCompact 呈现） */
+/**
+ * 初始 Token 用量（设计稿第 5 轮定稿的四个展示值，验收 2-14 用 formatCompact 呈现）。
+ *
+ * contextTokens = total（task-composer-inline-toolbar.md 决策 3）：内嵌底行的
+ * 上下文环要出百分比，mock 必须合成该字段——18600/128000 → 环值 `14.5%`（m2 2-14 锁定）。
+ */
 export const INITIAL_TOKEN_USAGE: TokenUsage = {
   input: 12400,
   output: 6200,
   total: 18600,
   contextWindow: 128000,
+  contextTokens: 18600,
 };
 
 /**

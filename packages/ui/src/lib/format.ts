@@ -73,6 +73,35 @@ export function formatClock(timestamp: number): string {
   return `${hours}:${minutes}`;
 }
 
+/* ---------------------------------------------------------------------------
+ * 上下文占用环分档（task-composer-inline-toolbar.md，2026-09-30 主控裁决 D1=A1）
+ * ------------------------------------------------------------------------- */
+
+export type ContextTone = "neutral" | "warning" | "danger";
+
+/**
+ * 上下文占用率 → 环的三档分色：≥90% 红（逼近窗口上限）/ ≥70% 黄（偏高）/
+ * 其余中性灰（安静态——多数时候占用离上限很远，不抢注意力）。
+ * 与 speedTone 同一纪律：一一映射 tokens.css 的语义令牌（G1/G5 安全）。
+ */
+export function contextTone(percent: number): ContextTone {
+  if (!Number.isFinite(percent)) return "neutral";
+  if (percent >= 90) return "danger";
+  if (percent >= 70) return "warning";
+  return "neutral";
+}
+
+/**
+ * 上下文占用率文案：一位小数、去尾零（`14.5%` / `24%` / `0%`）。
+ * 「一位小数」对齐旧 TokenStats 与 Pi CLI（`0.1%`）的口径；去尾零让
+ * `14.53125%` 这类值落成 `14.5%`、整数占用不出现 `24.0%`。
+ */
+export function formatContextPercent(percent: number): string {
+  if (!Number.isFinite(percent) || percent <= 0) return "0%";
+  const fixed = percent.toFixed(1);
+  return `${fixed.endsWith(".0") ? fixed.slice(0, -2) : fixed}%`;
+}
+
 /** 按行数截断文本，返回可见部分与被省略的行数 */
 export function truncateLines(text: string, maxLines: number): { visible: string; hiddenCount: number } {
   const lines = text.split("\n");

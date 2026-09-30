@@ -196,19 +196,16 @@ async function runMock() {
     });
 
     /* ================================================================ N10 · 草稿态用量归零（D9） */
-    // 数值读 item 的 lastElementChild（数值 span）—— 与 m2 验收 2-13 的口径一致；
-    // item 的 textContent 会带上（窄视口下隐藏的）标签字符，不能直接比。
+    // 内嵌底行（task-composer-inline-toolbar.md）：四段 TokenStats 已退役为上下文环，
+    // 「归零」的可见口径 = 环值 0%（草稿清零路径 contextTokens: 0 → 占用 0%）；
+    // store 归零断言保留，防「上一会话用量泄漏」的初衷不变。
     const stats = await cdp.eval(`({
-    input: window.__NS.q('[data-testid="token-stats-item-input"]')?.lastElementChild?.textContent,
-    output: window.__NS.q('[data-testid="token-stats-item-output"]')?.lastElementChild?.textContent,
-    total: window.__NS.q('[data-testid="token-stats-item-total"]')?.lastElementChild?.textContent,
+    ringValue: window.__NS.q('[data-testid="composer-context-ring-value"]')?.textContent,
     store: window.__NS.store(),
   })`);
     ctx.record("N10_草稿态用量观测", stats);
-    ctx.assert("N10 草稿态 TokenStats 归零（不显示上一会话的 12.4k/6.2k）", {
-      输入为0: stats?.input === "0",
-      输出为0: stats?.output === "0",
-      消耗为0: stats?.total === "0",
+    ctx.assert("N10 草稿态用量归零（环显示 0%，不显示上一会话的 12.4k/6.2k）", {
+      "环值为0%": stats?.ringValue === "0%",
       store归零: stats?.store?.tokenUsage?.input === 0 && stats?.store?.tokenUsage?.output === 0 && stats?.store?.tokenUsage?.total === 0,
     });
 

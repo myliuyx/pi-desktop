@@ -140,8 +140,31 @@ export const COMPOSER_PADDING = 12;
 /** 发送按钮距输入框右/下边缘的内缩距离（验收 2-9：必须在边框内侧） */
 export const COMPOSER_SEND_INSET = 8;
 
-/** Composer 与工具条之间的间距 */
-export const COMPOSER_TOOLBAR_GAP = 8;
+/* ---------------------------------------------------------------------------
+ * Composer 底行（task-composer-inline-toolbar.md，2026-09-30 主控裁决 D1=A1/D2=做/D3=不动）：
+ * 模型 / 思考 / 上下文环 / + 引用入口搬进输入框**边框内部**成为底行；
+ * 发送按钮保持绝对定位（m2 2-9 口径零改），底行右侧为其预留净空。
+ * 原「Composer 与工具条之间的间距 COMPOSER_TOOLBAR_GAP」随工具条入盒退役（唯一
+ * 使用点 WorkspaceArea 已删）。
+ * ------------------------------------------------------------------------- */
+
+/** 底行与 textarea 之间的留白 */
+export const COMPOSER_ROW_PADDING_TOP = 4;
+
+/** 底行与输入框下边缘的留白（与发送按钮的 bottom 内缩同值，底缘对齐） */
+export const COMPOSER_ROW_PADDING_BOTTOM = 8;
+
+/**
+ * 底行右侧为发送按钮预留的净空。
+ * 发送按钮占据 [W−36, W−8]（宽 28 + 内缩 8），再加 4px 呼吸 → 右簇最后一枚芯片
+ * 的右缘距输入框内容右缘 40px，与按钮之间不贴死（textarea 不再预留按钮空间——
+ * 底行把按钮区和文字区天然分层，原 COMPOSER_INPUT_TRAILING_SPACE 已退役）。
+ */
+export const COMPOSER_ROW_SEND_CLEARANCE = SEND_BUTTON_SIZE + COMPOSER_SEND_INSET + 4;
+
+/** 上下文占用环（ComposerContextRing）的直径与描边宽 */
+export const CONTEXT_RING_SIZE = 16;
+export const CONTEXT_RING_STROKE = 2;
 
 /** 代码块最大高度，超出后块内滚动 */
 export const CODE_BLOCK_MAX_HEIGHT = 360;

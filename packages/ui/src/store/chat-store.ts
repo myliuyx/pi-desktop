@@ -236,6 +236,11 @@ function computeTokens(messages: Message[]): TokenUsage {
     output,
     total: input + output,
     contextWindow: INITIAL_TOKEN_USAGE.contextWindow,
+    // 内嵌底行（task-composer-inline-toolbar.md 决策 3）：mock 合成上下文占用 =
+    // 会话累计输入+输出，量级仍是编造的演示值；补上后与 live 的 usage 事件
+    // （core 从 getContextUsage() 取同名字段）共用环组件的同一条渲染路径，
+    // 否则 mock 形态环只能走「占用未知」降级态，验收口径就要分叉。
+    contextTokens: input + output,
   };
 }
 
@@ -629,7 +634,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       settledTurnKeys: new Set(),
       newSessionDraft: true,
       // 草稿没有历史用量：不清零会一直显示上一个会话的数字（假事实，D9）
-      tokenUsage: { input: 0, output: 0, total: 0, contextWindow: INITIAL_TOKEN_USAGE.contextWindow },
+      // contextTokens: 0 → 环显示 0%（probe-new-session N10 锁定），同样是「真话」
+      tokenUsage: { input: 0, output: 0, total: 0, contextWindow: INITIAL_TOKEN_USAGE.contextWindow, contextTokens: 0 },
       // mock 形态本就恒 null，无条件清空即无行为差异；live 借此去掉侧栏旧会话高亮
       liveSessionId: null,
     });
