@@ -21,8 +21,11 @@
  *   · L8 GET /skills/search（S1）：缺 q 400 / 搜索 react 出结果且字段白名单齐（出网）；
  *   · L9 POST /skills/install（S2）非法 source → 400（不克隆）；
  *   · L10 真实克隆 octocat/Hello-World 但无此技能 → 404（正向安装人工验收）；
- *   · L11 搜索结果行三态（S5）：搜 tts 出结果后逐行比对 data-state 与服务端真值
- *     （unsupported / installed / addable 与徽标·按钮互斥；口径 skill-search-state.ts）。
+ *   · L11 搜索结果行四态（S5/S6）：搜 tts 出结果后逐行比对 data-state 与服务端真值
+ *     （unsupported / installed / conflict / addable 与徽标·按钮互斥；口径 skill-search-state.ts）；
+ *   · L12 真装端到端（S6，出网）：真装 shirenchuang/web-content-fetcher → 断言
+ *     .pi-source.json 落盘为真值 + /skills 透出 source + UI 搜 web-content 后
+ *     同来源行「已安装」、shino369 撞名行「同名冲突」（无网 clone 失败如实 skip）。
  *
  * 运行前置：M 段需 packages/ui dev server（:5180，cdp.mjs 自检并提示启动命令）；
  * L 段需先 `npm run build`（core 同源托管 dist）。CDP 端口 9346/9356（错开 9345/9355）。
@@ -526,15 +529,15 @@ try {
 				}) ? 0 : 1;
 			}
 
-			/* ---- L11 搜索结果行三态（S5）：data-state 与服务端真值逐行一致，徽标/按钮互斥 ---- */
+			/* ---- L11 搜索结果行四态（S5/S6）：data-state 与服务端真值逐行一致，徽标/按钮互斥 ---- */
 			{
-				// 服务端真值：user scope 已装技能名集合（页内 fetch，与 UI 数据同源）
+				// 服务端真值：user scope 已装技能（name+source，页内 fetch，与 UI 数据同源）
 				const truth = await cdp.eval(
 					`(async () => {
 						const token = window.__CORE_TOKEN__ || new URLSearchParams(location.search).get('token');
 						const res = await fetch('/skills', { headers: { Authorization: 'Bearer ' + token } });
 						const body = await res.json().catch(() => null);
-						return { ok: body?.ok === true, names: (body?.skills ?? []).filter((s) => s.scope === 'user').map((s) => s.name) };
+						return { ok: body?.ok === true, entries: (body?.skills ?? []).filter((s) => s.scope === 'user').map((s) => ({ name: s.name, source: s.source })) };
 					})()`,
 					true,
 				);
@@ -563,6 +566,7 @@ try {
 									state: li.dataset.state,
 									hasButton: !!li.querySelector('[data-testid="settings-skill-search-install"]'),
 									installedBadge: !!li.querySelector('[data-testid="settings-skill-search-installed"]'),
+									conflictBadge: !!li.querySelector('[data-testid="settings-skill-search-conflict"]'),
 									unsupportedBadge: !!li.querySelector('[data-testid="settings-skill-search-unsupported"]'),
 								})));
 							} else if (errEl || Date.now() - t0 > 20000) {
@@ -573,30 +577,103 @@ try {
 					})`,
 					true,
 				);
-				ctx.record("L11_搜索行三态", { truth, rows });
-				// 期望状态：与 skill-search-state.ts 同口径（SOURCE_PATTERN + 当前 scope 已装名集合）
+				ctx.record("L11_搜索行四态", { truth, rows });
+				// 期望状态：与 skill-search-state.ts 同口径（SOURCE_PATTERN + 当前 scope 已装条目 name+source；
+				// legacy 无记录 → conflict，2026-09-30 裁决 B）
 				const rowsArr = Array.isArray(rows) ? rows : [];
 				const pattern = /^[\w.-]+\/[\w.-]+$/;
+				const expectedState = (r) => {
+					if (!pattern.test(r.source)) return "unsupported";
+					const hit = (truth.entries ?? []).find((e) => e.name === r.name);
+					if (!hit) return "addable";
+					return hit.source !== undefined && hit.source === r.source ? "installed" : "conflict";
+				};
+				const badgeByState = { installed: "installedBadge", conflict: "conflictBadge", unsupported: "unsupportedBadge" };
 				const mismatches = rowsArr
 					.map((r) => {
-						const expected = !pattern.test(r.source)
-							? "unsupported"
-							: truth.names.includes(r.name)
-								? "installed"
-								: "addable";
+						const expected = expectedState(r);
 						const renderOk =
 							expected === "addable"
-								? r.state === "addable" && r.hasButton && !r.installedBadge && !r.unsupportedBadge
-								: r.state === expected && !r.hasButton && (expected === "installed" ? r.installedBadge && !r.unsupportedBadge : r.unsupportedBadge && !r.installedBadge);
+								? r.state === "addable" && r.hasButton && !r.installedBadge && !r.conflictBadge && !r.unsupportedBadge
+								: r.state === expected && !r.hasButton && r[badgeByState[expected]] === true;
 						return renderOk ? null : { name: r.name, source: r.source, expected, ui: r };
 					})
 					.filter(Boolean);
 				if (mismatches.length > 0) console.log("    L11 错位明细:", JSON.stringify(mismatches, null, 2));
-				failures += ctx.assert("L11 搜索结果行三态：data-state 与服务端真值逐行一致，徽标/按钮互斥（S5）", {
+				failures += ctx.assert("L11 搜索结果行四态：data-state 与服务端真值逐行一致，徽标/按钮互斥（S5/S6）", {
 					搜索未出错: Array.isArray(rows),
 					有结果行: rowsArr.length > 0,
 					零错位: mismatches.length === 0,
 				}) ? 0 : 1;
+			}
+
+			/* ---- L12 真装端到端（S6，出网）：安装落 .pi-source.json + UI 来源精确区分 ---- */
+			{
+				const inst = await request("POST", "/skills/install", {
+					source: "shirenchuang/web-content-fetcher",
+					skillId: "web-content-fetcher",
+					scope: "user",
+				});
+				ctx_record("L12_真装", { status: inst.status, json: inst.json });
+				const cloneFailed = inst.status !== 200 && String(inst.json?.error ?? "").includes("无法克隆仓库");
+				if (cloneFailed) {
+					// 无网环境（git 直连 github 被断）：如实记 skip，不伪造通过（同 A5-cp 口径）
+					console.log("    [skip] L12 真装被网络阻断（clone 失败），端到端判据本次未覆盖");
+				} else {
+					const recordPath = path.join(agentDir, "skills", "web-content-fetcher", ".pi-source.json");
+					let record = null;
+					try {
+						record = JSON.parse(fs.readFileSync(recordPath, "utf8"));
+					} catch {
+						/* 读不到保持 null，断言会红 */
+					}
+					const item = (inst.json?.skills?.skills ?? []).find((s) => s.name === "web-content-fetcher");
+					// UI 侧：关弹窗重开（重挂载拉新清单，含 source）→ 搜 web-content → 逐行断言来源区分
+					await cdp.eval(`(() => { window.__S.q('[data-testid="settings-dialog-close"]').click(); return true; })()`);
+					await sleep(350);
+					await cdp.eval(`(() => { window.__S.q('[data-testid="sidebar-footer-settings"]').click(); return true; })()`);
+					await sleep(450);
+					await cdp.eval(`(() => { window.__S.q('[data-testid="settings-tab-skills"]').click(); return true; })()`);
+					await sleep(400);
+					await cdp.eval(`(() => { window.__S.q('[data-testid="settings-skill-add"]').click(); return true; })()`);
+					await sleep(250);
+					await cdp.eval(`(() => {
+						const input = window.__S.q('[data-testid="settings-skill-search-input"]');
+						const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+						setter.call(input, 'web-content');
+						input.dispatchEvent(new Event('input', { bubbles: true }));
+						window.__S.q('[data-testid="settings-skill-search-submit"]').click();
+						return true;
+					})()`);
+					const l12rows = await cdp.eval(
+						`new Promise((resolve) => {
+							const t0 = Date.now();
+							const iv = setInterval(() => {
+								const ul = document.querySelector('[data-testid="settings-skill-search-results"]');
+								const errEl = document.querySelector('[data-testid="settings-skill-search-error"]');
+								if (ul && ul.children.length > 0) {
+									clearInterval(iv);
+									resolve([...ul.querySelectorAll('[data-testid="settings-skill-search-result"]')].map((li) => ({ name: li.dataset.name, source: li.dataset.source, state: li.dataset.state })));
+								} else if (errEl || Date.now() - t0 > 20000) {
+									clearInterval(iv);
+									resolve(errEl ? { searchError: errEl.textContent } : []);
+								}
+							}, 200);
+						})`,
+						true,
+					);
+					ctx.record("L12_搜索行状态", l12rows);
+					const l12arr = Array.isArray(l12rows) ? l12rows : [];
+					const rowOf = (src) => l12arr.find((r) => r.name === "web-content-fetcher" && r.source === src);
+					failures += ctx.assert("L12 真装端到端：.pi-source.json 落盘 + /skills 透出 source + UI 同来源已安装/他来源同名冲突（S6）", {
+						安装成功: inst.status === 200,
+						响应清单含来源: item?.source === "shirenchuang/web-content-fetcher",
+						记录文件为真值: record?.source === "shirenchuang/web-content-fetcher" && record?.skillId === "web-content-fetcher",
+						搜索未出错: Array.isArray(l12rows),
+						本来源行已安装: rowOf("shirenchuang/web-content-fetcher")?.state === "installed",
+						他来源行同名冲突: rowOf("shino369/claude-code-personal-workspace")?.state === "conflict",
+					}) ? 0 : 1;
+				}
 			}
 
 			ctx.save();
