@@ -32,25 +32,50 @@ export interface BootCoreEnvResult {
 }
 
 /**
- * 【先红态】如实承接当前 `bootCore` 的透传信封：`{ ...process.env, 覆写 ELECTRON_RUN_AS_NODE /
- * NODE_OPTIONS / CORE_RUN_DIR / CORE_UI_DIST / CORE_PORT }` —— **不收敛 `CORE_*`**。
- * 宿主 `CORE_HOST=0.0.0.0` 会透传给 core，使其绑内网（CR-072 病根，`boot-env-check` 据此标红）。
- * fix 提交改为白名单：显式钉 `CORE_HOST:"127.0.0.1"` / `CORE_ALLOWED_HOSTS:""` / **删** `CORE_TOKEN`
- * / 显式 `CORE_AGENT_DIR`，并把残留 `CORE_*` 登记进 `warnings`。
+ * CR-072：bootCore env **白名单化**。桌面壳对 core 的 env 完全收敛：
+ * 1. 非 `CORE_*` 的宿主变量（PATH/HOME/…，core 与工具子进程要用）照常透传；`NODE_OPTIONS`
+ *    不透传（electron 专属开关，见原 bootCore 注释），下方显式置空；
+ * 2. 任何宿主 `CORE_*` **一律不外传**（这正是 CR-072 的病根：`{ ...process.env }` 会带上它们）
+ *    —— 逐个登记进 `warnings`，由调用方向用户点名告警，不静默吞掉；
+ * 3. 桌面壳显式钉死一组**合法** `CORE_*`，含安全收敛的固定值：
+ *    - `CORE_HOST:"127.0.0.1"`：桌面 core 仅绑回环，绝不因宿主 `CORE_HOST` 暴露内网；
+ *    - `CORE_ALLOWED_HOSTS:""`：清空追加白名单，Host 校验收紧；
+ *    - `CORE_AGENT_DIR`：指向桌面壳在 userData 下的固定位置，**不由宿主 env 决定**（否则会
+ *      静默读写非预期 agentDir，见 CR-072 / CR-074）；
+ *    - `CORE_TOKEN`：此处**删除**（见下方注释，不能设成空串）。
+ *
+ * 与 README 自托管口径的冲突前提（CR-072 注释锚定）：README 教用户给自托管 core 设
+ * `CORE_HOST=0.0.0.0`；那对「core 独立跑」成立，但**桌面形态必须与之解耦**——桌面是本应边界
+ * 最紧的形态，内嵌 core 只服务本机窗口（`createWindow(\`http://127.0.0.1:port/\`)`），无任何
+ * 理由随宿主 env 变成内网可达。故这里无条件钉死回环，用户的自托管 env 不影响桌面版。
  */
 export function buildBootCoreEnv(input: BootCoreEnvInput): BootCoreEnvResult {
   const env: Record<string, string> = {};
-  // 全量透传宿主 env（含 CORE_*，= CR-072 病根）
+  const warnings: string[] = [];
   for (const [key, value] of Object.entries(input.parentEnv)) {
     if (value === undefined) continue;
+    if (key === "NODE_OPTIONS") continue; // electron 专属开关，下方显式置空
+    if (key.startsWith("CORE_")) {
+      warnings.push(key); // 宿主 CORE_* 一律不外传，逐条点名
+      continue;
+    }
     env[key] = value;
   }
   env.ELECTRON_RUN_AS_NODE = "1";
-  // electron 自身的 NODE_OPTIONS 可能含纯 Electron 才认的开关，别带进子进程
   env.NODE_OPTIONS = "";
+  // 桌面壳显式钉死的合法 CORE_*
   env.CORE_RUN_DIR = input.runDir;
   env.CORE_UI_DIST = input.uiDist;
   env.CORE_PORT = input.port;
-  // 【先红态】不设 CORE_HOST / CORE_ALLOWED_HOSTS / CORE_TOKEN / CORE_AGENT_DIR：宿主值原样透传。
-  return { env, warnings: [] };
+  env.CORE_HOST = "127.0.0.1";
+  env.CORE_ALLOWED_HOSTS = "";
+  env.CORE_AGENT_DIR = input.agentDir;
+  /*
+   * CORE_TOKEN：**删除**（不设值）—— core 取 `process.env.CORE_TOKEN ?? randomUUID()` 生成随机
+   * token。不能设成空串 ""：空串不触发 `??`，core 会用空 token，于是 /health 的 Authorization
+   * 头值 `Bearer `（尾随空格）被 HTTP 层裁成 `Bearer`、与 core 的 `Bearer ` 永不相等，恒 401
+   * （boot-env-check 实证过）。删除既阻断宿主注入的已知/弱 token，又保留「随机 UUID」安全默认
+   * （core 写入 core.json，桌面读它鉴权，见 desktop main.ts 的 readCoreInfo）。
+   */
+  return { env, warnings };
 }

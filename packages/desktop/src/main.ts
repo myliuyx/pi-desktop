@@ -23,6 +23,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
+import { buildBootCoreEnv } from "./boot-env";
 
 /** --smoke：无窗口进程级冒烟（B3 的自动化口径） */
 const SMOKE = process.argv.includes("--smoke");
@@ -43,6 +44,8 @@ const uiDistDir = app.isPackaged
 	? path.join(process.resourcesPath, "ui-dist")
 	: path.join(__dirname, "..", "..", "ui", "dist");
 const runDir = path.join(app.getPath("userData"), "run");
+/** agent 目录（CR-072/CR-074）：桌面壳在 userData 下的固定位置，**不由宿主 CORE_AGENT_DIR 决定** */
+const agentDir = path.join(app.getPath("userData"), "agent");
 /** 预加载脚本产物路径（tsc 与 main.js 同目录产出；sandbox 下暴露窗口控制 API） */
 const preloadEntry = path.join(__dirname, "preload.js");
 
@@ -120,6 +123,8 @@ function assertCoreDistFresh(): boolean {
 
 function bootCore(): ChildProcess {
 	fs.mkdirSync(runDir, { recursive: true });
+	// CR-072：agentDir 显式钉死为 userData 下的固定位置（不随宿主 CORE_AGENT_DIR 漂移）
+	fs.mkdirSync(agentDir, { recursive: true });
 	// 上一次运行遗留的 core.json 是死端口，必须清掉——否则 waitForCore 会抢在
 	// 新 core 覆盖之前读到旧文件，health 探活打在死端口上（B3 首跑实踩）
 	fs.rmSync(path.join(runDir, "core.json"), { force: true });
@@ -137,16 +142,26 @@ function bootCore(): ChildProcess {
 		);
 		app.exit(1);
 	}
+	/*
+	 * CR-072：env 白名单化（buildBootCoreEnv）——桌面壳对 core 的 env 完全收敛。宿主残留的
+	 * CORE_HOST=0.0.0.0 / CORE_TOKEN / CORE_AGENT_DIR 等一律不透传；桌面 core 只绑回环
+	 * （CORE_HOST=127.0.0.1）、token 由 core 随机生成、agentDir 钉死为 userData 下的固定位置。
+	 */
+	const { env: coreEnv, warnings } = buildBootCoreEnv({
+		parentEnv: process.env,
+		runDir,
+		uiDist: uiDistDir,
+		agentDir,
+		port: "0",
+	});
+	// 宿主残留的 CORE_* 被逐条丢弃（CR-072）：点名告警，不静默吞掉
+	for (const key of warnings) {
+		console.warn(
+			`[desktop] 警告: 检测到宿主环境变量 ${key} —— 桌面壳已忽略它，core 的该项按安全白名单取值（CR-072，桌面 core 仅绑回环、token 随机生成）`,
+		);
+	}
 	const child = spawn(process.execPath, [coreEntry], {
-		env: {
-			...process.env,
-			ELECTRON_RUN_AS_NODE: "1",
-			// electron 自身的 NODE_OPTIONS 可能含纯 Electron 才认的开关，别带进子进程
-			NODE_OPTIONS: "",
-			CORE_RUN_DIR: runDir,
-			CORE_UI_DIST: uiDistDir,
-			CORE_PORT: "0",
-		},
+		env: coreEnv,
 		stdio: ["ignore", "pipe", "pipe"],
 		windowsHide: true,
 	});
