@@ -186,8 +186,16 @@ function stripTrailingCommas(text: string): string {
 function writeJsonAtomic(filePath: string, data: unknown): void {
 	const dir = path.dirname(filePath);
 	const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${Date.now()}.tmp`);
-	fs.writeFileSync(tmp, JSON.stringify(data, null, 2), "utf8");
+	// CR-013/CR-030：models.json / sidecar 承载明文 apiKey，收敛 0600（本机他人不可读）。
+	// mode 只作用于新建的 tmp；rename 后目标即该 tmp（权限随之到位）。已存在文件被 rename 替换
+	// 通常换 inode，个别 FS 可能保留旧权限 ⇒ chmod 兜底（非 POSIX 尽力而为，不阻断）。
+	fs.writeFileSync(tmp, JSON.stringify(data, null, 2), { encoding: "utf8", mode: 0o600 });
 	fs.renameSync(tmp, filePath);
+	try {
+		fs.chmodSync(filePath, 0o600);
+	} catch {
+		/* 尽力而为（win32 无 POSIX 权限语义） */
+	}
 }
 
 /* ---------------------------------------------------------------------------

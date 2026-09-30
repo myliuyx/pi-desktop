@@ -330,7 +330,16 @@ function resolveModelsPath(agentDir: string): string {
 	const inAgent = path.join(agentDir, "models.json");
 	if (!fs.existsSync(inAgent)) {
 		try {
-			fs.mkdirSync(path.dirname(inAgent), { recursive: true });
+			// CR-013/CR-030：agentDir 承载 models.json 明文凭证，目录收敛 0700（本机他人不可
+			// 进入）。mkdirSync 的 mode 只作用于新建目录；已存在（历史遗留 775）chmod 兜底
+			// （非 POSIX 尽力而为）。
+			const agentRoot = path.dirname(inAgent);
+			fs.mkdirSync(agentRoot, { recursive: true, mode: 0o700 });
+			try {
+				fs.chmodSync(agentRoot, 0o700);
+			} catch {
+				/* 尽力而为（win32 无 POSIX 权限语义） */
+			}
 			fs.writeFileSync(inAgent, EMPTY_MODELS_JSON, { flag: "wx" });
 			console.log(`[core] 已创建空的 models.json：${inAgent}（请在设置页添加 Provider）`);
 		} catch (e) {

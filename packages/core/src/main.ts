@@ -25,6 +25,15 @@ import { createCoreRuntime } from "./session.ts";
 import { startServer } from "./server.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+
+/** 尽力而为的 chmod：非 POSIX / 权限异常不阻断启动，仅用于把已存在文件兜底收敛到目标权限 */
+function chmodQuiet(target: string, mode: number): void {
+  try {
+    fs.chmodSync(target, mode);
+  } catch {
+    /* 尽力而为（win32 无 POSIX 权限语义） */
+  }
+}
 /*
  * 运行时文件目录（core.json + events.jsonl）。CORE_RUN_DIR 可覆盖 —— 打包桌面端 / 服务器
  * 部署场景下源码旁不可写（Electron 的 asar 只读、系统安装目录），必须显式指到可写位置
@@ -34,14 +43,17 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const defaultRunDir = path.join(here, "..", "run");
 let runDir = process.env.CORE_RUN_DIR ? path.resolve(process.env.CORE_RUN_DIR) : defaultRunDir;
 try {
-  fs.mkdirSync(runDir, { recursive: true });
+  fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
 } catch (e) {
   console.warn(
     `[core] 警告: CORE_RUN_DIR="${runDir}" 无法创建（${e instanceof Error ? e.message : String(e)}），回落 "${defaultRunDir}"`,
   );
   runDir = defaultRunDir;
-  fs.mkdirSync(runDir, { recursive: true });
+  fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
 }
+// CR-013/CR-030：core.json（Bearer token）与 events.jsonl 落盘于此，目录收敛 0700。
+// mkdirSync 的 mode 只作用于「新建」目录；已存在（历史遗留可能是 775）chmod 兜底（POSIX；win32 尽力而为）。
+chmodQuiet(runDir, 0o700);
 
 // 同源托管前端：默认 core 包上一级的 ui/dist；可用 CORE_UI_DIST 覆盖
 const uiDist = process.env.CORE_UI_DIST
@@ -112,12 +124,16 @@ const boot = createCoreRuntime({
 
 const handle = await startServer(boot.runtime, { port, token, uiDist, host, allowedHosts });
 
-// 写 run/core.json（含 token，绝不提交）
-fs.writeFileSync(path.join(runDir, "core.json"), JSON.stringify({ port: handle.port, token }, null, 2));
+// 写 run/core.json（含 token，绝不提交）—— CR-013：0600，本机他人不可读
+const coreJsonPath = path.join(runDir, "core.json");
+fs.writeFileSync(coreJsonPath, JSON.stringify({ port: handle.port, token }, null, 2), { mode: 0o600 });
+// 已存在的旧文件（664）truncate 不换 inode/权限 ⇒ chmod 兜底收敛
+chmodQuiet(coreJsonPath, 0o600);
 
-// 事件落盘（真实冒烟证据）
+// 事件落盘（真实冒烟证据）—— events.jsonl 含 prompt / 工具输出，同样 0600
 const dumpPath = path.join(runDir, "events.jsonl");
-fs.writeFileSync(dumpPath, "");
+fs.writeFileSync(dumpPath, "", { mode: 0o600 });
+chmodQuiet(dumpPath, 0o600);
 boot.runtime.onEvent((e) => {
   fs.appendFileSync(dumpPath, `${JSON.stringify(e)}\n`);
 });
