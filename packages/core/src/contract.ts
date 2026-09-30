@@ -123,13 +123,39 @@ export interface PlanBlock {
   steps: PlanStep[];
 }
 
+/**
+ * 历史回放里的图片块（元数据，**不含字节**）—— 2026-10-01 图片真缩略图批次。
+ *
+ * 定位三元组 (sessionId, entryId, partIndex) 指向磁盘 session JSONL 里的那个
+ * image part；浏览器拿它向 `GET /sessions/image` 换原图。
+ *
+ * ⚠️ 为什么没有 `data` 字段：base64 内联进 `/sessions/load` 响应会让最坏情况
+ * 85MB/条消息（8 张 × 8MB × 1.33）打在这个**目前零限制**的接口上
+ * （docs/reviews/2026-09-29-global-review/packets/RP-02.md:63 实测 5MB 全量缓冲）。
+ * 定位到字节是 core 端职责，不该由载荷体积承担。
+ */
+export interface ImageBlock {
+  type: "image";
+  /** 会话内稳定标识（UI key / testid 用） */
+  id: string;
+  /** 源图片 MIME（png/jpeg/gif/webp/bmp） */
+  mimeType: string;
+  /** 原始字节数（UI 可据此提示"图片较大"） */
+  bytes: number;
+  sessionId: string;
+  entryId: string;
+  /** 该 image part 在 `entry.message.content[]` 里的下标 */
+  partIndex: number;
+}
+
 export type Block =
   | TextBlock
   | ThinkingBlock
   | ToolCallBlock
   | TerminalBlock
   | ApprovalBlock
-  | PlanBlock;
+  | PlanBlock
+  | ImageBlock;
 
 export type BlockType = Block["type"];
 
@@ -170,9 +196,12 @@ export interface Message {
   errorMessage?: string;
   /**
    * 粘贴图片批次（task-composer-paste-image.md §5.3）：user 消息的**待发附件快照**，
-   * **UI 乐观回显专用** —— 仅 chat-store 本地回显时写入，core 的序列化/历史回放
-   * （sessions.ts / 实时事件）**恒不写**；历史回放里的图片显示走 D3 口径
-   * （contentToBlocks 映射 `[图片]` 占位文本块）。dataUrl 兼作气泡缩略图预览源。
+   * **UI 乐观回显专用** —— 仅 chat-store 本地回显时写入，core 的序列化/实时事件
+   * **恒不写**。
+   *
+   * 2026-10-01 更新：历史回放**不再**用 `[图片]` 占位文本，改走 `Block` 里的
+   * `ImageBlock`（元数据 + 按需取图）。本字段仍只服务于「刚发出、尚未刷新」
+   * 的乐观回显。
    */
   attachments?: { id: string; dataUrl: string }[];
 }
