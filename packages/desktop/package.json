@@ -13,6 +13,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check:boot-env": "node --experimental-strip-types --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/boot-env-check.mjs",
     "build": "tsc -p tsconfig.json",
     "dev": "npm run build && electron .",
     "smoke": "npm run build && electron . --smoke",
