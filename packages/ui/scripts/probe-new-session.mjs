@@ -377,6 +377,30 @@ async function runLive() {
     await withBrowser({ port: LIVE_CDP, origin: LIVE_ORIGIN, evidencePath: LIVE_EVIDENCE }, async (ctx) => {
       const { cdp } = ctx;
 
+      /*
+       * L0（新）：live 首屏**不得出现 mock**。问题二的根因是 store 以
+       * INITIAL_SESSION.messages 为初值，首帧渲染 7 条演示消息、约 850ms 后被真实数据
+       * 替换。修法是初值改空 + bootstrapping 顶住 —— 本断言锁死「修好了」。
+       *
+       * 必须在页面脚本之前埋点（addScriptToEvaluateOnNewDocument），否则 React 首帧已过。
+       */
+      await ctx.cdp.send("Page.addScriptToEvaluateOnNewDocument", {
+        source: `
+      window.__bootTrace = [];
+      window.__bootIv = setInterval(() => {
+        const hero = document.querySelector('[data-testid="new-session-hero"]');
+        const s = window.__chatStore?.getState?.();
+        window.__bootTrace.push({
+          t: Math.round(performance.now()),
+          loading: hero?.getAttribute('data-loading') === 'true',
+          title: s?.sessionTitle ?? null,
+          messages: s?.messages?.length ?? -1,
+          boot: s?.bootstrapping ?? null,
+        });
+      }, 16);
+    `,
+      });
+
       /* ================================================================ L1 · 空清单启动 ⇒ 直接草稿态（D8） */
       await ctx.open(`/?live=1&token=${LIVE_TOKEN}`, '[data-testid="window-shell"]');
       // D8：空清单 → 草稿态。hero 可能晚于 window-shell 出现（等 live 启动加载分支跑完）
@@ -398,6 +422,25 @@ async function runLive() {
         草稿位开启: l1Page?.store?.newSessionDraft === true,
         placeholder是草稿文案: l1Page?.placeholder === DRAFT_PLACEHOLDER,
         core清单为空: l1List.sessions.length === 0,
+      });
+
+      /* ================================================================ L0 · live 首屏不出现 mock（问题二回归锁） */
+      const MOCK_TITLE = "接入 Pi 工具链的调研";
+      const bootTrace = JSON.parse(
+        await ctx.cdp.eval(`clearInterval(window.__bootIv), JSON.stringify(window.__bootTrace)`),
+      );
+      const sawMockTitle = bootTrace.some((f) => f.title === MOCK_TITLE);
+      const sawLoading = bootTrace.some((f) => f.loading === true);
+      const firstNonEmpty = bootTrace.find((f) => f.messages > 0);
+      ctx.record("L0_首屏采样轨道", {
+        帧数: bootTrace.length,
+        首帧: bootTrace[0] ?? null,
+        末帧: bootTrace[bootTrace.length - 1] ?? null,
+      });
+      ctx.assert("L0 live 首屏不出现 mock（问题二回归锁）", {
+        未出现mock标题: sawMockTitle === false,
+        出现过loading态: sawLoading === true,
+        首个非空消息帧不带mock语义: !firstNonEmpty || firstNonEmpty.boot !== true,
       });
 
       /* ================================================================ L2 · 草稿态发送 ⇒ 此刻才建会话（D6） */
