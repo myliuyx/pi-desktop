@@ -948,15 +948,55 @@ try {
 			{ 读到: readFrontmatterName(path.join(root, "SKILL.md")) },
 		);
 
-		// Windows 防线：`path.relative` 在 win32 返回反斜杠，若日后 filter 被「简化」成
-		// 按 relative 路径判等，.git 过滤会**静默失效**。用合成路径断言 basename 判等在
-		// 两种分隔符下等价（不真造平台差异，真造要 spawn 改 platform 不可靠）。
+		// Windows 防线：`.git` 排除 filter 必须用 `path.basename`（按平台实现），
+		// 不能自己切路径——`src.split("/").pop()` 对 `C:\repo\.git` 不切分，会**静默放行**，
+		// 把 .git 整棵搬进用户 skills 目录。
+		// 2026-09-30 修正：原判据拿**生产 filter**（宿主平台的 path.basename）直接判
+		// `C:\repo\.git`，在 posix 平台上它**必然为假**——posix basename 只认 `/`，
+		// 拿到的是整串 `C:\repo\.git`（≠ ".git" ⇒ 「放行」）。这不是生产缺陷：
+		// win32 上 path.basename 即 win32 实现，天然命中；但判据混淆了「filter 实现」与
+		// 「filter 在 win32 上的行为」，于是任何非 Windows CI 都假红（本版 CI 即栽在这）。
+		// 现按平台语义对拍：`path.win32.basename` 才是 win32 上 path.basename 的真值。
 		const winish = "C:\\repo\\.git";
 		const posixish = "C:/repo/.git";
+		const notGit = "C:/repo/.gitignore";
+		const winBasename = (p) => path.win32.basename(p); // win32 上 path.basename 的等价物
+		const posixBasename = (p) => path.posix.basename(p); // posix 上 path.basename 的等价物
+		// ① Windows 平台语义：反斜杠路径同样命中 .git（用 win32 basename 判等）
 		check(
-			"A5d 过滤器用 basename 判等，对反斜杠/正斜杠路径同样命中 .git（Windows 防线）",
-			filter(winish) === false && filter(posixish) === false,
-			{ 反斜杠: filter(winish), 正斜杠: filter(posixish) },
+			"A5d Windows 平台上过滤器用 basename 判等，反斜杠路径同样命中 .git（Windows 防线）",
+			winBasename(winish) === ".git" && winBasename(winish) !== ".gitignore" && winBasename(notGit) !== ".git",
+			{ 反斜杠basename: winBasename(winish), 正斜杠basename: winBasename(posixish), 误伤gitignore: winBasename(notGit) === ".git" },
+		);
+		// ② posix 平台语义：正斜杠路径同样命中 .git（本机 cp 行为，见上方真跑判据）
+		check(
+			"A5d posix 平台上过滤器用 basename 判等，正斜杠路径命中 .git 且不误伤 .gitignore",
+			posixBasename(posixish) === ".git" && posixBasename(notGit) === ".gitignore" && posixBasename(notGit) !== ".git",
+			{ 正斜杠basename: posixBasename(posixish), gitignore: posixBasename(notGit) },
+		);
+		// ③ 防线本体：为什么必须用 basename 而不是「自己切路径」。
+		//    真实的 Windows 静默失效面 = 按硬编码 `/` 切分 win32 路径：
+		//    `src.split("/").pop()` 对 `C:\repo\.git` 不切分，pop 回整串
+		//    （≠ ".git" ⇒ 过滤器放行，.git 被整棵搬进用户 skills 目录）。
+		//    basename 由 path 内部按平台实现，win32 上认反斜杠，故不会踩这个坑。
+		//    反事实对拍：naive 写法在 win32 路径上放行（防线存在）、
+		//    在 posix 路径上拦住（说明判据能区分两种写法，不是恒真）。
+		const naiveBySplit = (src) => src.split("/").pop() !== ".git"; // 被「简化」掉的写法
+		const byBasename = (src) => winBasename(src) !== ".git"; // 生产写法
+		check(
+			"A5d 防线本体：win32 下按 '/' 切分路径会放行 .git（静默失效写法），basename 判等拦下",
+			naiveBySplit(winish) === true && naiveBySplit(posixish) === false && byBasename(winish) === false,
+			{ naive放行win32: naiveBySplit(winish), naive拦下posix: naiveBySplit(posixish) === false, basename拦下: byBasename(winish) === false },
+		);
+		// ④ 源码接线：生产 filter 必须真的是「basename 判等」。复刻与源码会同进同退，
+		//    故拆成两半：判据只保证「basename 版拦得住、split 版拦不住」，
+		//    这一条把**生产源码那行**钉成 basename 版（源码被简化即红）。
+		const srcFilter = /filter:\s*\(src\)\s*=>\s*path\.basename\(src\)\s*!==\s*"\.git"/.test(installSource);
+		const srcSimplified = /filter:\s*\(src\)\s*=>\s*(?:src\.split\(\s*"\/"\s*\)\.pop\(\)|!src\.split\(\s*"\/"\s*\)\.pop\(\)\s*===\s*"?\.git"?)/.test(installSource);
+		check(
+			"A5d 源码接线：skills-install.ts 的 cp filter 确为 path.basename 判等（被改成 split 切分即红）",
+			srcFilter && !srcSimplified,
+			{ basenameFilter: srcFilter, split简化出现: srcSimplified },
 		);
 	}
 
