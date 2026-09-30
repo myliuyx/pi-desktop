@@ -198,6 +198,8 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
           groups={modelGroups}
           value={activeModelKey}
           onChange={selectModel}
+          /* 右簇贴输入框右缘，面板右对齐向左生长，防 overflow-hidden 裁切（内嵌底行批次） */
+          menuAlign="right"
           /* 无可用模型时不挂菜单（空菜单点了没反应），改渲染禁用态芯片并说明去处 */
           disabledReason={noModelDegrade?.reason}
         />
@@ -220,6 +222,8 @@ export const ComposerToolbar = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
           ]}
           value={activeThinking}
           onChange={selectThinking}
+          /* 同上：带说明副行的宽面板 left 对齐必被右缘裁掉（2026-09-30 用户实踩） */
+          menuAlign="right"
         />
 
         {mcpEnabled ? (

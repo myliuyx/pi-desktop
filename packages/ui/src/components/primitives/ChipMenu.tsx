@@ -59,6 +59,15 @@ export interface ChipMenuProps<T extends string> {
   onChange: (value: T) => void;
   className?: string;
   /**
+   * 面板水平对齐（默认 `"left"`：面板左缘钉住芯片左缘、向右生长）。
+   *
+   * `"right"`：面板**右缘**钉住芯片右缘、向左生长。右簇场景必用——内嵌底行批次
+   * （task-composer-inline-toolbar.md）把芯片挪到输入框右缘附近后，left 对齐的
+   * 宽面板（思考档位带说明副行时 ~330px）会伸出工作区右缘，被 WorkspaceArea 根的
+   * `overflow-hidden` 整段裁掉（2026-09-30 用户目验实踩）。
+   */
+  menuAlign?: "left" | "right";
+  /**
    * 降级态（2026-09-24）：没有任何可选项时**不挂菜单**，改为渲染一枚禁用态 Chip。
    *
    * 为什么不能只把 `groups` 传空：空菜单点开是一片空白，「点了没反应」是本项目明令避免的陷阱
@@ -85,6 +94,7 @@ export function ChipMenu<T extends string>({
   value,
   onChange,
   className,
+  menuAlign = "left",
   disabledReason,
 }: ChipMenuProps<T>) {
   const [open, setOpen] = useState(false);
@@ -212,7 +222,10 @@ export function ChipMenu<T extends string>({
           tabIndex={-1}
           onKeyDown={onMenuKeyDown}
           className={cn(
-            "absolute bottom-full left-0 z-20 mb-2 flex flex-col p-1",
+            // 水平对齐随 menuAlign：left = 向右生长（默认）；right = 右缘钉芯片右缘、
+            // 向左生长（右簇芯片防 WorkspaceArea overflow-hidden 裁切，见 props 注释）
+            menuAlign === "right" ? "right-0" : "left-0",
+            "absolute bottom-full z-20 mb-2 flex flex-col p-1",
             "min-w-44 rounded-lg border border-border-default bg-bg-elevated shadow-lg",
           )}
         >
