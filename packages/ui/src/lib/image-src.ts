@@ -33,7 +33,7 @@ export function imageUrl(
   // 参数序固定；token 非空时追加在最后。
   //
   // 为什么手拼而不 URLSearchParams.toString()：本仓既有惯例如此 ——
-  // `services/agent-transport.ts` 13 处 query 全部逐值 encodeURIComponent 手拼；
+  // `services/agent-transport.ts` 的 query 一律逐值 encodeURIComponent 手拼；
   // 这里沿用同一口径，check 脚本的断言也锁死了这个形态（两处口径一起改）。
   //
   // ⚠️ encodeURIComponent 遇**孤立代理**（lone surrogate，如 "\uD800"）会抛 URIError
