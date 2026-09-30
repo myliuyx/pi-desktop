@@ -249,8 +249,10 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
       data-testid="composer"
       className={cn(
         // relative 让内嵌按钮能相对它绝对定位；可见边框是「在内部」判定的前提（3.1）；
-        // flex-col = textarea 在上、底行在下（同盒内分层，task-composer-inline-toolbar.md）
+        // flex-col = textarea 在上、底行在下（同盒内分层，task-composer-inline-toolbar.md）；
+        // focus-within 边框加深 = 键盘/鼠标聚焦指示（见 textarea 的 outline-none 注释）
         "relative flex w-full flex-col rounded-xl border border-border-default bg-bg-surface",
+        "transition-colors duration-150 ease-out focus-within:border-border-strong",
         className,
       )}
       {...rest}
@@ -280,17 +282,17 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
         className={cn(
           "block w-full resize-none rounded-xl bg-transparent text-base leading-relaxed text-text-primary",
           /*
-           * ⚠️ 这里**不能**写 `outline-none`（M5 5-3 修复项）。
+           * ⚠️ outline-none 是 2026-09-30 用户目验裁决，**推翻 M5 5-3** 的「不能写
+           * outline-none」：globals.css 的 `:focus-visible` 全局环（accent 蓝 2px）
+           * 在 Chromium 里对文本输入框**鼠标点击也命中**（支持键盘输入的元素聚焦
+           * 即匹配 :focus-visible），蓝框因此常显、且只框住 textarea 上半截，
+           * 与底行同盒分层后观感尤其怪（用户截图反馈「蓝色框框取消」）。
            *
-           * 原来写的是 `outline-none`，本意是「鼠标点进输入框时不要那一圈难看的方框」。
-           * 但它生成 `outline-style: none`，**优先级高于** globals.css 里 `:focus-visible`
-           * 的 `outline: 2px solid var(--accent)` —— 于是纯键盘用户 Tab 到输入框时
-           * 完全看不到焦点环，G7「焦点环可见」直接挂（这是本轮 grep 盘点抓到的真缺陷）。
-           *
-           * 正确做法：不加 `outline-none`，把「鼠标点击不显示焦点环」交给浏览器原生的
-           * `:focus-visible` 启发式（鼠标聚焦不会命中 `:focus-visible`，键盘聚焦才命中）——
-           * 这正好是 globals.css 那条全局规则的设计意图，在这里不要覆盖它。
+           * 焦点指示没有丢：迁到 composer 根的 `focus-within:border-border-strong`
+           * （整盒边框加深），键盘 Tab 进输入框仍可见、指示面积反而更大。
+           * G7 采样（Tab 6 次落在标题栏按钮区）不受影响，m2 已复跑验证。
            */
+          "outline-none",
           "placeholder:text-text-tertiary",
           "overflow-y-auto overflow-x-hidden",
         )}

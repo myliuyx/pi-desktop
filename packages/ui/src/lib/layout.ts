@@ -128,8 +128,12 @@ export const MESSAGE_MAX_WIDTH = 840;
  */
 export const NEW_SESSION_COLUMN_WIDTH = 780;
 
-/** Composer 输入框最小高度（单行态） */
-export const COMPOSER_MIN_HEIGHT = 44;
+/**
+ * Composer 输入框最小高度（单行态）。
+ * 2026-09-30 用户目验裁决：44 → 64——底行入盒后单行态显得扁，加高留白。
+ * （上沿仍是 COMPOSER_MAX_HEIGHT=200 的多行钳制，2-17 口径不变。）
+ */
+export const COMPOSER_MIN_HEIGHT = 64;
 
 /** Composer 输入框最大高度，超出后输入框内部滚动（验收 2-17） */
 export const COMPOSER_MAX_HEIGHT = 200;
