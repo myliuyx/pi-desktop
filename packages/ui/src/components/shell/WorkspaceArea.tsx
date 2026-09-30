@@ -31,6 +31,7 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
   const awaitingModel = useChatStore((state) => state.awaitingModel);
   const pendingSince = useChatStore((state) => state.pendingSince);
   const newSessionDraft = useChatStore((state) => state.newSessionDraft);
+  const bootstrapping = useChatStore((state) => state.bootstrapping);
   // 处理详情折叠（task-process-collapse.md）：settled 标记与会话作用域同路下传
   const settledTurnKeys = useChatStore((state) => state.settledTurnKeys);
   const liveSessionId = useChatStore((state) => state.liveSessionId);
@@ -50,8 +51,12 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
        * 新建会话草稿态（task-new-session-page.md §4.2）：整块二选一顶替 MessageList，
        * Composer / 工具条原位保留 —— 侧栏、标题栏、预览区对这次切换零感知。
        * 旧空态（`?empty=1` 的 `empty-state`，m5 5-7 锚）只服务非草稿空消息路径，不经这里。
+       * 三分支（task-6，spec C3）：live 首帧 `bootstrapping` 为 true 时先占位，
+       * 拿到真实数据（或 mock 下恒 false）后回落到原有的「草稿 / MessageList」二选一。
        */}
-      {newSessionDraft ? (
+      {bootstrapping ? (
+        <NewSessionHero loading />
+      ) : newSessionDraft ? (
         <NewSessionHero />
       ) : (
         <MessageList
