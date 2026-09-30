@@ -22,6 +22,13 @@ export interface BootCoreEnvInput {
   agentDir: string;
   /** 监听端口 → CORE_PORT */
   port: string;
+  /**
+   * 上次工作目录 → CORE_CWD（task-desktop-stable-port.md F4）。取值来源是桌面壳自己
+   * 落盘的 last-run.json（上一轮 core 的自报目录），**不是宿主 env**——与 CR-072
+   * 「宿主 CORE_* 一律不外传」不冲突；缺省/空 = 不设该键（core 回落 process.cwd()）。
+   * 传空串会踩 core 的「空白值警告回落」分支，故约定只传非空或干脆不传。
+   */
+  cwd?: string;
 }
 
 export interface BootCoreEnvResult {
@@ -70,6 +77,8 @@ export function buildBootCoreEnv(input: BootCoreEnvInput): BootCoreEnvResult {
   env.CORE_HOST = "127.0.0.1";
   env.CORE_ALLOWED_HOSTS = "";
   env.CORE_AGENT_DIR = input.agentDir;
+  // F4：恢复上次工作目录。只认非空值（空串会触发 core 的空白值警告回落，白报警告）
+  if (input.cwd) env.CORE_CWD = input.cwd;
   /*
    * CORE_TOKEN：**删除**（不设值）—— core 取 `process.env.CORE_TOKEN ?? randomUUID()` 生成随机
    * token。不能设成空串 ""：空串不触发 `??`，core 会用空 token，于是 /health 的 Authorization

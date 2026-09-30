@@ -49,6 +49,46 @@ const agentDir = path.join(app.getPath("userData"), "agent");
 /** 预加载脚本产物路径（tsc 与 main.js 同目录产出；sandbox 下暴露窗口控制 API） */
 const preloadEntry = path.join(__dirname, "preload.js");
 
+/**
+ * 跨启动记忆（task-desktop-stable-port.md F1/F4）：上次 core 实际绑定端口 + 生效工作目录。
+ *
+ * 端口复用使页面 origin 稳定——localStorage 按 origin 隔离，CORE_PORT=0 的随机端口会把
+ * recent-dirs/theme 等全部偏好变成各次启动的孤岛（leveldb 实证：10 个 origin 各存一份）。
+ * cwd 记忆使重启自动回到上次目录——live 下此前根本没有这个机制（POST /cwd 只改内存，
+ * core 启动回落 process.cwd()）。与 core.json 分开放的原因：core.json 每次 spawn 前必须删
+ * （防旧端口竞态），这份恰恰要跨启动存活。坏文件一律视同缺失，不崩、下次成功启动后覆盖写好。
+ */
+interface LastRunState {
+	port: number;
+	cwd: string | null;
+}
+
+function readLastRun(): LastRunState {
+	try {
+		const raw = JSON.parse(fs.readFileSync(path.join(runDir, "last-run.json"), "utf8")) as {
+			port?: unknown;
+			cwd?: unknown;
+		};
+		const port =
+			typeof raw.port === "number" && Number.isInteger(raw.port) && raw.port >= 1 && raw.port <= 65535
+				? raw.port
+				: 0;
+		const cwdRaw = typeof raw.cwd === "string" ? raw.cwd.trim() : "";
+		const cwd = cwdRaw && path.isAbsolute(cwdRaw) ? cwdRaw : null;
+		return { port, cwd };
+	} catch {
+		return { port: 0, cwd: null };
+	}
+}
+
+function writeLastRun(state: LastRunState): void {
+	try {
+		fs.writeFileSync(path.join(runDir, "last-run.json"), JSON.stringify(state, null, 2));
+	} catch {
+		/* 写失败不影响本次运行（与 recent-dirs 同纪律） */
+	}
+}
+
 let core: ChildProcess | null = null;
 let quitting = false;
 let stderrTail = "";
@@ -121,7 +161,20 @@ function assertCoreDistFresh(): boolean {
 	return false;
 }
 
-function bootCore(): ChildProcess {
+/**
+ * 拉起 core 子进程（**一次尝试**，不含重试编排——见 startCoreWithFallback）。
+ *
+ * 端口：`preferredPort` 非 0 = 复用 last-run.json 记忆端口（F1，origin 稳定保住
+ * localStorage 偏好）；0 = OS 随机分配（首启 / smoke / 退避）。被占时 core 会因
+ * server.ts 的 listen 无 error handler 直接崩退（stderr 带 EADDRINUSE、core.json
+ * 不写出）——这个「崩溃」正是退避重试的结构信号，不要在 core 侧给它挂 error handler。
+ * cwd：非空 = 上次工作目录（F4，core 对失效目录已有警告回落兜底）；null 不设该键，
+ * 空字符串会踩 core 的「空白值警告回落」分支，白报警告。
+ */
+function bootCore(
+	preferredPort: number,
+	cwd: string | null,
+): { child: ChildProcess; markReady: () => void } {
 	fs.mkdirSync(runDir, { recursive: true });
 	// CR-072：agentDir 显式钉死为 userData 下的固定位置（不随宿主 CORE_AGENT_DIR 漂移）
 	fs.mkdirSync(agentDir, { recursive: true });
@@ -146,13 +199,15 @@ function bootCore(): ChildProcess {
 	 * CR-072：env 白名单化（buildBootCoreEnv）——桌面壳对 core 的 env 完全收敛。宿主残留的
 	 * CORE_HOST=0.0.0.0 / CORE_TOKEN / CORE_AGENT_DIR 等一律不透传；桌面 core 只绑回环
 	 * （CORE_HOST=127.0.0.1）、token 由 core 随机生成、agentDir 钉死为 userData 下的固定位置。
+	 * F1/F4 在此白名单内注入本轮取值：端口 = 记忆复用或 0（随机），cwd = 上次工作目录。
 	 */
 	const { env: coreEnv, warnings } = buildBootCoreEnv({
 		parentEnv: process.env,
 		runDir,
 		uiDist: uiDistDir,
 		agentDir,
-		port: "0",
+		port: String(preferredPort),
+		cwd: cwd ?? undefined,
 	});
 	// 宿主残留的 CORE_* 被逐条丢弃（CR-072）：点名告警，不静默吞掉
 	for (const key of warnings) {
@@ -165,30 +220,50 @@ function bootCore(): ChildProcess {
 		stdio: ["ignore", "pipe", "pipe"],
 		windowsHide: true,
 	});
+	core = child;
 	const tail = (chunk: Buffer) => {
 		stderrTail = (stderrTail + chunk.toString()).slice(-4000);
 	};
 	child.stdout?.on("data", tail);
 	child.stderr?.on("data", tail);
+	/*
+	 * 「意外死亡要弹窗」只对**已就绪**的 core 成立：就绪前退出是启动尝试的失败形态
+	 * （端口被占的 EADDRINUSE 崩退也在其中），由 startCoreWithFallback 的重试/失败
+	 * 路径统一处理——否则弹窗会拦住退避重试。ready 之后死亡仍立即点名退出。
+	 */
+	let ready = false;
 	child.on("exit", (code) => {
 		if (core === child) core = null;
-		if (quitting) return;
+		if (quitting || !ready) return;
 		// 服务进程意外死亡：点名原因，不留一个白窗口
 		failLoudly("后台服务已退出", `core 进程退出（code=${code ?? "?"}）：\n\n${stderrTail.slice(-800)}`);
 		app.quit();
 	});
-	return child;
+	return {
+		child,
+		markReady: () => {
+			ready = true;
+		},
+	};
 }
 
 interface CoreInfo {
 	port: number;
 	token: string;
+	/** core 当前生效工作目录（F4）；旧 core.json 无该字段时为 undefined，按「无 cwd 记忆」处理 */
+	cwd?: string;
 }
 
 function readCoreInfo(): CoreInfo | null {
 	try {
 		const raw = JSON.parse(fs.readFileSync(path.join(runDir, "core.json"), "utf8")) as CoreInfo;
-		if (typeof raw.port === "number" && typeof raw.token === "string") return raw;
+		if (typeof raw.port === "number" && typeof raw.token === "string") {
+			return {
+				port: raw.port,
+				token: raw.token,
+				cwd: typeof raw.cwd === "string" && raw.cwd.trim().length > 0 ? raw.cwd : undefined,
+			};
+		}
 	} catch {
 		/* 未就绪 */
 	}
@@ -204,6 +279,29 @@ async function waitForCore(): Promise<CoreInfo | null> {
 		if (!core) return null; // 进程没了就别等了
 		await new Promise((r) => setTimeout(r, 200));
 	}
+}
+
+/**
+ * 启动编排（F1/F2）：优先复用 last-run.json 记忆端口，被占退避随机。
+ *
+ * 「被占」的外形 = core 在 core.json 写出前就退了（listen EADDRINUSE 崩退，见
+ * bootCore 注释）。**结构判定而非 stderr 字符串匹配**：非端口原因的启动失败重试一次
+ * 也会同样失败，最终由调用方 failLoudly 带出 stderrTail 真实诊断——一次亚秒级冗余
+ * spawn 换取不依赖错误文案的稳健性。CORE_CWD 两轮都带：目录恢复与端口无关（F4）。
+ */
+async function startCoreWithFallback(last: LastRunState): Promise<CoreInfo | null> {
+	const attempts = last.port >= 1 ? [last.port, 0] : [0];
+	for (let i = 0; i < attempts.length; i++) {
+		const { child, markReady } = bootCore(attempts[i], last.cwd);
+		const info = await waitForCore();
+		if (info) {
+			markReady();
+			return info;
+		}
+		// 还活着但 90s 未就绪（挂起）：整树杀掉再换枪，不留占着端口的孤儿（A7）
+		if (child.exitCode === null && !child.killed) killCore();
+	}
+	return null;
 }
 
 function healthOk(port: number, token: string): Promise<boolean> {
@@ -245,7 +343,8 @@ async function waitForExit(child: ChildProcess, timeoutMs = 8000): Promise<boole
 }
 
 async function runSmoke(): Promise<void> {
-	core = bootCore();
+	// smoke 是一次性诊断进程：固定随机端口、不读写 last-run.json（二.7，不污染用户记忆）
+	const { child, markReady } = bootCore(0, null);
 	const info = await waitForCore();
 	if (!info) {
 		quitting = true;
@@ -254,11 +353,11 @@ async function runSmoke(): Promise<void> {
 		app.exit(1);
 		return;
 	}
+	markReady();
 	const ok = await healthOk(info.port, info.token);
-	const child = core;
 	quitting = true;
 	killCore();
-	const exited = child ? await waitForExit(child) : false;
+	const exited = await waitForExit(child);
 	if (ok && exited) {
 		console.log(`[desktop] SMOKE_OK port=${info.port} core 已退场，无孤儿进程`);
 		app.exit(0);
@@ -364,8 +463,7 @@ if (!gotLock) {
 			void runSmoke();
 			return;
 		}
-		core = bootCore();
-		void waitForCore().then((info) => {
+		void startCoreWithFallback(readLastRun()).then((info) => {
 			if (!info) {
 				failLoudly(
 					"启动失败",
@@ -374,6 +472,8 @@ if (!gotLock) {
 				app.exit(1);
 				return;
 			}
+			// 端口 + 目录落成记忆（F1/F4）：无论是否走过退避都写，幂等；启动失败不写
+			writeLastRun({ port: info.port, cwd: info.cwd ?? null });
 			createWindow(`http://127.0.0.1:${info.port}/?live=1`);
 		});
 	});
