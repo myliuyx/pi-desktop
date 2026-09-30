@@ -66,7 +66,7 @@ UI(React) --POST /prompt--> core --> @earendil-works/pi-coding-agent（agent 循
 
 ## 5. core HTTP API 面
 
-全部端点要求 Bearer token 鉴权（`guards.ts`）。速查（详见 `core/src/server.ts`）：
+全部 API 端点要求 Bearer token 鉴权（由 `core/src/server.ts` 的 `API_ROUTES` 单点包裹；`guards.ts` 仅为 `unknown` 收窄工具，**不是**鉴权处）。速查：
 
 | 组 | 端点 |
 |---|---|
@@ -74,11 +74,13 @@ UI(React) --POST /prompt--> core --> @earendil-works/pi-coding-agent（agent 循
 | 对话 | `POST /prompt`、`POST /abort` |
 | 授权 | `POST /approve`、`POST /cancel-approval` |
 | 会话 | `GET /sessions`、`POST /sessions/load`、`POST /sessions/continue-recent`、`POST /sessions/new` |
-| 工作目录 | `POST /cwd`（运行期热切换）、`GET /fs/list`、`GET /fs/read` |
+| 工作目录 | `POST /cwd`（运行期热切换）、`GET /fs/list`、`GET /fs/read`、`GET /fs/search` |
 | 模型 | `GET /models`、`POST /models/select`、`GET /models/catalog`、`POST /models/test`、`GET /providers`、`PUT /providers`、`POST /providers/models` |
 | 其它 | `POST /thinking`、`GET /tools/active`、`POST /tools/active`、`GET /resources` |
 
 安全三件套：随机 Bearer token（写入 `run/core.json`，同源访问自动注入页面）、`Host` 头白名单防 DNS rebinding、全端点鉴权。信任门跟随 Pi 语义（`CORE_CWD` 决定信任范围，ask 态等待上限 `CORE_TRUST_TIMEOUT_MS`）。
+
+**`/fs/*` 路径边界（2026-09-30 用户裁决，CR-018 选项 B：文档声明接受、零代码改动）**：`/fs/list|read|search` 与其它端点一样要求 Bearer token，但**不收敛到 `CORE_CWD`** —— 持 token 者可访问本机**任意绝对路径**（实测 `GET /fs/read?path=/etc/hostname` 即返回内容）。这是对既有能力的**明示声明**（风险面以文档收口）；按 cwd 收敛 / 跨目录需开关（选项 A）列为桌面版安全加固候选，本批不做。
 
 ## 6. 前端结构与路由
 

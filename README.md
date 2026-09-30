@@ -21,7 +21,7 @@
 - **对话**：SSE 流式输出、工具授权卡（含可填参的 input 型）、项目信任门（跟随 Pi 语义）、Token 用量统计
 - **模型管理**：设置页多 Provider 增删改、「导入模型…」拉真实清单勾选、思考档位切换、**无可用模型也能启动**（首启在设置页配置即可）
 - **工作目录**：侧栏目录菜单、**运行期热切换**（不重启换项目）
-- **安全**：随机 Bearer token（同源访问自动注入页面）、`Host` 头白名单防 DNS rebinding、API 全端点鉴权
+- **安全**：随机 Bearer token（同源访问自动注入页面）、`Host` 头白名单防 DNS rebinding、API 全端点鉴权；其中 `/fs/list|read|search` 需 Bearer token 且**可访问本机任意绝对路径**（不收敛到工作目录，既有能力明示，详见 [`docs/PROJECT_CONTEXT.md`](docs/PROJECT_CONTEXT.md) §5）
 
 ## 仓库结构
 
