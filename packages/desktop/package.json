@@ -16,7 +16,8 @@
     "build": "tsc -p tsconfig.json",
     "dev": "npm run build && electron .",
     "smoke": "npm run build && electron . --smoke",
-    "dist": "npm run build && electron-builder --publish never"
+    "dist": "npm run build && electron-builder --publish never",
+    "test:ci": "npm run typecheck && npm run build"
   },
   "build": {
     "appId": "com.pidesktop.app",

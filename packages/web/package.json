@@ -37,7 +37,8 @@
   },
   "scripts": {
     "assemble": "node scripts/assemble.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "test:ci": "npm run assemble"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.87.1"

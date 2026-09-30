@@ -41,7 +41,8 @@
     "probe:process-collapse": "node scripts/probe-process-collapse.mjs",
     "probe:turn-rail": "node scripts/probe-turn-rail.mjs",
     "probe:spa-fallback": "node scripts/probe-spa-fallback.mjs",
-    "shots:m1": "node scripts/m1-shots.mjs"
+    "shots:m1": "node scripts/m1-shots.mjs",
+    "test:ci": "npm run typecheck && npm run check:format && npm run check:turns && npm run check:cn && npm run check:sidebar-layout && npm run check:adapter && npm run check:contract && npm run check:turn-rail && npm run build"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.13",

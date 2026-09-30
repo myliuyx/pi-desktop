@@ -22,9 +22,52 @@ permissions:
   contents: read
 
 jobs:
+  # 发布前的离线测试门（CR-064）：四包 test:ci（离线确定性子集），build 依赖它。
+  # 被排除的脚本及原因（属 CR-042 后续）：check:c3/c4/c5/c6、check:providers、smoke:*、
+  # accept:*、probe:*、live:smoke——需真实模型凭证或外部 Chrome/dev server，非确定性。
+  test:
+    name: offline test gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          # monorepo：各包自带 package-lock.json，声明路径以便 npm 缓存生效
+          cache-dependency-path: packages/**/package-lock.json
+
+      - name: core test:ci
+        working-directory: packages/core
+        run: |
+          npm ci
+          npm run test:ci
+
+      - name: ui test:ci
+        working-directory: packages/ui
+        run: |
+          npm ci
+          npm run test:ci
+
+      - name: desktop test:ci
+        working-directory: packages/desktop
+        run: |
+          npm ci
+          npm run test:ci
+
+      - name: web test:ci
+        working-directory: packages/web
+        run: |
+          npm ci
+          npm run test:ci
+
   build:
     name: desktop (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    needs: test
     strategy:
       fail-fast: false
       matrix:
