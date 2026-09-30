@@ -624,15 +624,31 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			if (!sessionId || !entryId || !partIndexRaw || !Number.isInteger(partIndex)) {
 				return json(400, { ok: false, error: "缺少或非法的 sessionId/entryId/partIndex" });
 			}
-			const result = await runtime.readSessionImage({ sessionId, entryId, partIndex });
-			if (!result.ok) return json(result.status, { ok: false, error: result.error });
-			res.writeHead(200, {
-				"Content-Type": result.mimeType,
-				"Content-Length": String(result.bytes.length),
-				// append-only 会话文件 ⇒ 历史图片字节不可变，可长期强缓存
-				"Cache-Control": "private, max-age=31536000, immutable",
-			});
-			res.end(result.bytes);
+			// ⚠️ 写头与写盘**在** try 内：ERR_INVALID_CHAR 是 writeHead 抛的、不是
+			// readSessionImage 抛的。try 包在 await 外面这层（可读性），内层再兜一手
+			// （纵深）—— 即使将来 mimeType 的白名单被绕过，也只掉一条连接，不掉整个进程。
+			try {
+				let result: Awaited<ReturnType<CoreRuntime["readSessionImage"]>>;
+				try {
+					result = await runtime.readSessionImage({ sessionId, entryId, partIndex });
+				} catch (e) {
+					return json(500, { ok: false, error: String(e) });
+				}
+				if (!result.ok) return json(result.status, { ok: false, error: result.error });
+				res.writeHead(200, {
+					// mimeType 已由 readSessionImage 过白名单（不含 CR/LF ⇒ 不触发 ERR_INVALID_CHAR）
+					"Content-Type": result.mimeType,
+					"Content-Length": String(result.bytes.length),
+					// append-only 会话文件 ⇒ 历史图片字节不可变，可长期强缓存
+					"Cache-Control": "private, max-age=31536000, immutable",
+					// 成本 0：图片由白名单定型，不给浏览器嗅探空间
+					"X-Content-Type-Options": "nosniff",
+				});
+				res.end(result.bytes);
+			} catch (e) {
+				// json() 自己只写死 Content-Type: application/json，值来自这里不受数据影响 ⇒ 不再复发
+				return json(500, { ok: false, error: String(e) });
+			}
 			return;
 		}
 

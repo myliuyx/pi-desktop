@@ -82,6 +82,39 @@ import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } fro
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
 import { getToolsState, setToolsState } from "./tools.ts";
 
+/**
+ * 历史图片的 Content-Type 白名单（`readSessionImage` 用）。
+ *
+ * 取值 = UI 侧 `lib/image-attach.ts` 的 MIME_WHITELIST（png/jpeg/gif/webp/bmp，
+ * 即「Chromium `<img>` 能预览的集」）∪ core 侧 `prompt-files.ts` 的 `detectImage`
+ * 魔数集（png/jpeg/gif/webp）—— 两者同族的并集，bmp 由 UI 白名单贡献（core 魔数
+ * 嗅探不认 bmp，bmp 走粘贴路径进来）。非法或缺失一律回落 `image/png`。
+ *
+ * **为什么必须校验**：`mimeType` 来自 **session JSONL 里的数据**，不是代码里的常量。
+ * `/prompt` 的 `parsePastedImages` 只判 `typeof === "string"`，含 `\r\n` 的取值能原样
+ * 落盘；server 把它直写 `Content-Type` 响应头时，Node 抛
+ * `TypeError [ERR_INVALID_CHAR]`。该路由原先没有 try/catch，异常从 async handler
+ * 逃逸成 unhandled rejection ⇒ **整个 core 进程退出（exit 1）**。白名单是这条链上
+ * 唯一的值域闸门，漏了就是一次远程可触发的进程级 DoS。
+ * ⚠️ 值域要跟上传白名单一起改：新增可粘贴的图格式时两端必须同步，否则历史图片
+ * 会被降级成 image/png（表现为「浏览器打不开」而非报错）。
+ */
+const SESSION_IMAGE_MIME_WHITELIST: ReadonlySet<string> = new Set([
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"image/webp",
+	"image/bmp",
+]);
+
+/** 历史图片 MIME 归一：去 `;` 参数段 + 小写 + `image/jpg` 别名（非标准，剪贴板偶发）→ 白名单查表 */
+function sessionImageMime(raw: unknown): string {
+	if (typeof raw !== "string") return "image/png";
+	const base = raw.split(";")[0]?.trim().toLowerCase() ?? "";
+	const normalized = base === "image/jpg" ? "image/jpeg" : base;
+	return SESSION_IMAGE_MIME_WHITELIST.has(normalized) ? normalized : "image/png";
+}
+
 export interface CoreRuntime {
 	/**
 	 * 发送一条用户消息（驱动模型）。会等会话就绪（信任门裁决在此期间完成）。
@@ -139,10 +172,16 @@ export interface CoreRuntime {
 	 * 取历史会话里某张图片的原始字节（2026-10-01 图片预览批次）。
 	 *
 	 * `ImageBlock` 只带定位三元组，字节由这里兑现。走磁盘 session 文件而非活动
-	 * 会话内存态 —— 用户可以浏览**任意**历史会话的图片，不能只限当前活动会话。
+	 * 会话内存态 —— 用户可以浏览历史会话的图片，不限当前活动会话。
+	 *
+	 * 可达范围 = `findSessionPath`（`SessionManager.findById(cwd)`）扫到的集合，
+	 * 与 `GET /sessions` 清单**同 cwd 口径**（清单 `SessionManager.list(cwd)`）：
+	 * 清单里看得见的会话，图片一定取得到（无缺口）；但**跨 cwd 档位取不到** ——
+	 * 切过的项目目录下的历史会话不在可达集内。
 	 *
 	 * 错误口径沿用 server 的 `{ ok, status, error }`（与 `/sessions/load` 的
-	 * 400/404 一致），不抛异常。
+	 * 400/404 一致），不抛异常。`mimeType` 必是白名单内的图片 MIME
+	 * （见 `SESSION_IMAGE_MIME_WHITELIST`），调用方可直写响应头。
 	 */
 	readSessionImage(params: { sessionId: string; entryId: string; partIndex: number }): Promise<
 		| { ok: true; bytes: Buffer; mimeType: string }
@@ -988,7 +1027,8 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			if (!part || part.type !== "image" || typeof part.data !== "string") {
 				return { ok: false, status: 404, error: "该条目不是图片" };
 			}
-			const mimeType = typeof part.mimeType === "string" ? part.mimeType : "image/png";
+			// ⚠️ 必须过白名单（不判值合法性 = 一次 ERR_INVALID_CHAR 硬崩进程，见常量注释）
+			const mimeType = sessionImageMime(part.mimeType);
 			return { ok: true, bytes: Buffer.from(part.data, "base64"), mimeType };
 		},
 		continueRecentSession: async () => {
