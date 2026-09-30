@@ -388,7 +388,27 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		// ① 鉴权：Bearer token（仅对 API 端点生效；静态资源为公开 shell）
 		if (API_ROUTES.has(urlPath)) {
 			const auth = req.headers["authorization"];
-			if (!auth || auth !== `Bearer ${token}`) {
+			// 唯一豁免：`/sessions/image` 额外接受 `?token=`（2026-10-01 图片预览批次）。
+			//
+			// 为什么需要这条豁免：调用方是浏览器里的 `<img src=...>`，而 `<img>` **无法携带
+			// 自定义请求头** —— fetch/XHR 能在 headers 里放 Authorization，img 标签不能（用
+			// cookie 就要改整套安全模型）。实测：带 Bearer 头的 agent 可以 GET，但页面里
+			// 任何一个 <img> 拿 /sessions/image 都是 401 ⇒ Task 6/7 的 UI 接线全部拿不到字节。
+			// 旁证：本仓已有同款先例 —— feature-flags.ts 的 `?token=`（跨源 dev 场景，
+			// UI 读 getLiveConfig().token），core 同源托管时还会把 token 注入
+			// `window.__CORE_TOKEN__`，本机进程本就能读 run/core.json。
+			//
+			// 为什么严格限定这一个路由：token 进 URL 会经 Referer 泄露给第三方资源、
+			// 落在浏览器历史/日志里 —— 这是 Bearer 头**没有**的额外暴露面。若整条
+			// API_ROUTES 都放开，任何一个能注入 <img>/<link> 的地方就等于把 core 的
+			// 全权限（能读任意文件、驱动 agent）交出去。豁免只给「只读、已在
+			// API_ROUTES 后面跑同一套 Host 白名单 + 三元组校验」的取图端点，不外扩。
+			//
+			// 比对口径：**严格相等**（非空串、不做前缀/大小写宽容）；token 由 config 生成，
+			// 无形状可猜，猜中即等于拿到 Bearer 本身。
+			const queryToken =
+				urlPath === "/sessions/image" ? url.searchParams.get("token") ?? "" : "";
+			if ((!auth || auth !== `Bearer ${token}`) && queryToken !== token) {
 				res.writeHead(401, { "Content-Type": "application/json" });
 				res.end(JSON.stringify({ error: "unauthorized" }));
 				return;
