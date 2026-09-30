@@ -27,6 +27,7 @@
     "smoke": "node node_modules/tsx/dist/cli.mjs src/main.ts",
     "check:session-title": "node node_modules/tsx/dist/cli.mjs scripts/session-title-check.mjs",
     "check:session-cache-scan": "node node_modules/tsx/dist/cli.mjs scripts/session-cache-scan-check.mjs",
+    "check:session-cache-index": "node node_modules/tsx/dist/cli.mjs scripts/session-cache-index-check.mjs",
     "check:error-visible": "node node_modules/tsx/dist/cli.mjs scripts/error-visible-check.mjs",
     "check:sessions-manage": "node scripts/sessions-manage-check.mjs",
     "check:skills-install": "node node_modules/tsx/dist/cli.mjs scripts/skills-install-check.mjs",
