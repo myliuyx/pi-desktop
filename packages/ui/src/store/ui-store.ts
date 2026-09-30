@@ -19,6 +19,7 @@ import {
   INITIAL_MODEL_PROVIDERS,
   type ModelProviderConfig,
 } from "@/mock/model-config";
+import type { ProvidersSource } from "@/screens/settings/providers-save-state";
 import {
   pushRecentDir,
   readRecentDirs,
@@ -227,6 +228,20 @@ interface UiState {
    * ------------------------------------------------------------------------- */
   modelProviders: ModelProviderConfig[];
   saveModelProviders: (providers: ModelProviderConfig[]) => void;
+  /**
+   * 当前 `modelProviders` 的来源（CR-084）：`live`=core 真实读取或本地提交值；
+   * `fallback`=live 读取失败回落的演示数据。
+   *
+   * live 形态下 `providersSource==="fallback"` 时**禁止保存**：此时草稿是演示数据，
+   * 保存会把演示 Provider 全量 PUT 覆盖真实 `models.json`（真实 Provider/key 被抹）。
+   * 判定逻辑见 `resolveProvidersSaveState`，消费方是 `SettingsDialog` 的保存闸与
+   * 「重新读取」重试入口。mock 形态恒不据此设闸（无 PUT、无真实配置可覆盖）。
+   *
+   * 默认 `"live"`：mock 形态与 live 读取成功前都按「可保存」，只有 live 读失败才翻成
+   * `"fallback"`，读成功回填后再翻回 `"live"`。
+   */
+  providersSource: ProvidersSource;
+  setProvidersSource: (source: ProvidersSource) => void;
 
   /* -------------------------------------------------------------------------
    * M4 · 04 屏工具开关（验收 4-3）
@@ -395,6 +410,8 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   modelProviders: INITIAL_MODEL_PROVIDERS,
   saveModelProviders: (providers) => set({ modelProviders: providers }),
+  providersSource: "live",
+  setProvidersSource: (source) => set({ providersSource: source }),
 
   /* ---------------------------------------------------------------- M4 段 */
 

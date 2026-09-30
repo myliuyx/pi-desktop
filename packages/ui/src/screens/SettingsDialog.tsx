@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import {
   Button,
@@ -29,6 +29,7 @@ import { PANE_SCROLL_CLASS } from "./settings/form-fields";
 import { SkillsSettingsTab } from "./settings/SkillsSettingsTab";
 import { PluginsSettingsTab } from "./settings/PluginsSettingsTab";
 import { describeProviderIssues, validateProviders, type ProviderValidationIssue } from "./settings/provider-validation";
+import { resolveProvidersSaveState } from "./settings/providers-save-state";
 
 /**
  * 设置弹窗骨架（D1：全局 Dialog，替代原 05 屏路由）。
@@ -63,6 +64,9 @@ export function SettingsDialog() {
   const setSettingsOpen = useUiStore((s) => s.setSettingsOpen);
   const providers = useUiStore((s) => s.modelProviders);
   const saveModelProviders = useUiStore((s) => s.saveModelProviders);
+  /** 当前 modelProviders 的来源（CR-084）：live 读失败回落演示数据时据此禁存 */
+  const providersSource = useUiStore((s) => s.providersSource);
+  const setProvidersSource = useUiStore((s) => s.setProvidersSource);
 
   /** 默认打开「模型」Tab（2026-09-23 用户裁决：模型管理是设置的高频入口） */
   const [activeTab, setActiveTab] = useState<SettingsTabId>("models");
@@ -73,8 +77,59 @@ export function SettingsDialog() {
   const [focus, setFocus] = useState<{ id: string; seq: number } | null>(null);
   /** 被保存闸门拦过的 Provider id（下发下去，让对应表单就地标红缺哪一项） */
   const [blockedIds, setBlockedIds] = useState<Set<string>>(() => new Set());
+  /**
+   * live 读取中（CR-084）：读取未决时草稿仍是回落演示数据，此时也应禁存 —— 
+   * 保存会用尚未确认来源的数据 PUT 覆盖真实配置。
+   * 读取代际（`readSeqRef`）：连点「重新读取」/ 快速开关时，只有最后一次读取的结果算数。
+   */
+  const [reading, setReading] = useState(false);
+  const readSeqRef = useRef(0);
 
   const live = isLiveEnabled();
+
+  /** CR-084 的保存来源闸：mock 形态不设闸（无 PUT、无真实配置可覆盖）。 */
+  const saveState = live
+    ? resolveProvidersSaveState(providersSource, draft.length > 0)
+    : { canSave: true, canRetry: false, reason: "" };
+  /** 读取未决（reading）也禁存：此刻草稿来源未定，仍是回落演示数据。 */
+  const canSave = saveState.canSave && !reading;
+
+  /**
+   * live 读取模型配置（CR-084）。成功 → 回填 store 并切 source=live（把保存路径从「回落演示
+   * 数据」切回 live 真实数据）；失败 → source=fallback（草稿保持演示数据，保存被禁、提供重试）。
+   * 读取代际（readSeqRef）保证只有最后一次读取的结果算数，过期结果丢弃。
+   */
+  const reloadProviders = useCallback(() => {
+    if (!live) return;
+    const transport = getLiveTransport();
+    if (!transport) return;
+    const seq = ++readSeqRef.current;
+    setReading(true);
+    setStatus({ tone: "normal", text: "正在读取 core 的模型配置…" });
+    void transport
+      .listProviders()
+      .then((payload) => {
+        if (seq !== readSeqRef.current) return;
+        const entries = entriesToProviders(payload);
+        // 回填 store：提交值切回 live 真实数据（不再以演示数据兜底），并标记来源为 live
+        saveModelProviders(entries);
+        setProvidersSource("live");
+        setDraft(entries);
+        setStatus({ ...IDLE_STATUS });
+      })
+      .catch((e) => {
+        if (seq !== readSeqRef.current) return;
+        // C5 同范式：core 取不到就回落草稿（演示数据），绝不白屏；但标记来源，保存闸据此禁存
+        setProvidersSource("fallback");
+        setStatus({
+          tone: "danger",
+          text: `core 读取失败，已回落到演示数据：${e instanceof Error ? e.message : String(e)}`,
+        });
+      })
+      .finally(() => {
+        if (seq === readSeqRef.current) setReading(false);
+      });
+  }, [live, saveModelProviders, setProvidersSource]);
 
   /** 每次打开：从 store 提交值重新拉一份草稿（取消后重开即回落），并回到默认「模型」Tab */
   useEffect(() => {
@@ -85,31 +140,9 @@ export function SettingsDialog() {
     setStatus({ ...IDLE_STATUS });
     setFocus(null);
     setBlockedIds(new Set());
-
-    if (!live) return;
-    const transport = getLiveTransport();
-    if (!transport) return;
-    let alive = true;
-    setStatus({ tone: "normal", text: "正在读取 core 的模型配置…" });
-    void transport
-      .listProviders()
-      .then((payload) => {
-        if (!alive) return;
-        // 真实数据覆盖演示数据（模型列表 UI 无需区分来源）
-        setDraft(entriesToProviders(payload));
-        setStatus({ ...IDLE_STATUS });
-      })
-      .catch((e) => {
-        if (!alive) return;
-        // C5 同范式：core 取不到就回落草稿（演示数据），绝不白屏
-        setStatus({
-          tone: "danger",
-          text: `core 读取失败，已回落到演示数据：${e instanceof Error ? e.message : String(e)}`,
-        });
-      });
-    return () => {
-      alive = false;
-    };
+    readSeqRef.current = 0; // 重开对话框归零读取代际
+    // live 形态打开即触发一次读取（成功切回真实数据，失败标记 fallback 禁存）
+    reloadProviders();
     // 仅依赖 open：用打开那一刻的 store 提交值，避免编辑过程中被实时提交值覆盖
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -140,6 +173,15 @@ export function SettingsDialog() {
    * 不如在保存前就说清楚缺什么。
    */
   const onSave = async () => {
+    /*
+     * CR-084 来源闸（前置）：live 读失败回落演示数据时直接拦下，绝不 PUT（否则演示 Provider
+     * 会全量覆盖真实 models.json）。保存按钮此时已 disabled，这里是**纵深防御** —— 即便按钮
+     * 状态被绕过，发起点也拒绝外发，并把用户导向「重新读取」。
+     */
+    if (live && !saveState.canSave) {
+      setStatus({ tone: "danger", text: saveState.reason });
+      return;
+    }
     const snapshot = draft.map((p) => structuredClone(p));
 
     const issues = validateProviders(snapshot);
@@ -229,10 +271,28 @@ export function SettingsDialog() {
             {status.text}
           </p>
           <div className="flex shrink-0 items-center gap-2">
+            {saveState.canRetry ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={reloadProviders}
+                disabled={reading}
+                data-testid="settings-reload"
+              >
+                重新读取
+              </Button>
+            ) : null}
             <Button variant="ghost" size="sm" onClick={close} data-testid="settings-cancel">
               取消
             </Button>
-            <Button variant="primary" size="sm" onClick={onSave} data-testid="settings-save">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onSave}
+              disabled={!canSave}
+              title={canSave ? undefined : saveState.reason}
+              data-testid="settings-save"
+            >
               保存
             </Button>
           </div>

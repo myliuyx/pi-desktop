@@ -28,16 +28,20 @@ export interface ProvidersSaveState {
 }
 
 /**
- * 【先红态】如实承接 SettingsDialog 当前行为：**尚无来源闸**。
- * live 读失败回落演示数据时也返回「可保存」—— 这正是 CR-084 的病根（回归据此标红）。
- * fix 提交把 `fallback` 分支改成「禁存 + 重新读取」。
- * （`source` 已在签名承接以对齐目标形态；`_hasDraft` 待 fix 提交组织原因文案时启用，
- *   `_` 前缀避开 `noUnusedParameters`。）
+ * 依据「来源」判定能否保存：
+ * - `fallback`（live 读失败回落演示数据）→ **禁存 + 提供重试**（CR-084 核心）：保存会把
+ *   演示 Provider 全量 PUT 覆盖真实 models.json，故必须拦住并给「重新读取」入口；
+ * - `live`（core 真实读取 / 本地提交值）→ 允许保存，无需重试。
  */
-export function resolveProvidersSaveState(source: ProvidersSource, _hasDraft: boolean): ProvidersSaveState {
-  if (source === "live") {
-    return { canSave: true, canRetry: false, reason: "" };
+export function resolveProvidersSaveState(source: ProvidersSource, hasDraft: boolean): ProvidersSaveState {
+  if (source === "fallback") {
+    return {
+      canSave: false,
+      canRetry: true,
+      reason: hasDraft
+        ? "core 模型配置读取失败，当前草稿未与 core 确认（可能是演示/过期数据）；直接保存会用它们覆盖真实配置。请点「重新读取」成功后再保存。"
+        : "core 模型配置读取失败，未取到可保存的配置。请点「重新读取」重试。",
+    };
   }
-  // fallback：当前也放行（= CR-084 待修路径：演示数据被全量 PUT 覆盖真实 models.json）
   return { canSave: true, canRetry: false, reason: "" };
 }
