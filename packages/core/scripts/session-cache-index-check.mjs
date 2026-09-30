@@ -77,10 +77,11 @@ writeSession(otherDir, "z.jsonl", "sz", "/proj/beta", "beta", "2026-09-30T08:00:
 resetIndexCacheForTests();
 const rCur = await listSessionsCached(ref, { all: false });
 const rAll = await listSessionsCached(ref, { all: true });
-check("F1 默认档只含当前 cwd", rCur.entries.every((e) => e.info.id === "s1"), ids(rCur));
+check("F1 默认档只含当前 cwd", rCur.entries.length === 1 && rCur.entries.every((e) => e.info.id === "s1"), ids(rCur));
 check("F2 all=1 含其它 cwd", rAll.entries.some((e) => e.info.id === "sz"), ids(rAll));
 
 /* ---------- G. 并发去重：同一 ref 并发共享一次扫描 ---------- */
+fs.rmSync(indexFilePath(sessionDir), { force: true }); // 使「全 miss」不依赖磁盘残留（消除墙钟时序 flaky）
 resetIndexCacheForTests();
 const [g1, g2] = await Promise.all([listSessionsCached(ref), listSessionsCached(ref)]);
 check("G1 并发两拉共享一次扫描（misses 相同且等于文件数）", g1.stats.misses === g2.stats.misses && g1.stats.misses === g1.stats.files, { g1: g1.stats, g2: g2.stats });

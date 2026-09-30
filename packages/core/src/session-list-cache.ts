@@ -269,8 +269,11 @@ function getIndex(): Map<string, CacheEntry> {
   return globalThis.__piDesktopSessionIndex;
 }
 
-/** 测试缝：清空内存态（保留落盘文件） */
+/** 测试缝：清空内存态（保留落盘文件）。同时清模块级写盘节流，避免旧 timer 把已被替换的旧 Map 写到磁盘。 */
 export function resetIndexCacheForTests(): void {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = null;
+  saveDirty = false;
   globalThis.__piDesktopSessionIndex = undefined;
   globalThis.__piDesktopSessionIndexLoaded = undefined;
   globalThis.__piDesktopSessionIndexInflight = undefined;
@@ -438,7 +441,17 @@ function refreshIndex(sessionDir: string | undefined): Promise<RefreshResult> {
           hits++;
           return;
         }
-        const light = scanSessionFileLight(filePath);
+        let light: LightScan | null;
+        try {
+          light = scanSessionFileLight(filePath);
+        } catch {
+          /* 扫描失败（stat 后被删/chmod、EIO 等）：与相邻 stat 失败同风格降级，
+           * 缓存绝不能成为错误来源 */
+          index.delete(filePath);
+          changed = true;
+          misses++;
+          return;
+        }
         if (!light) {
           index.delete(filePath);
           changed = true;
