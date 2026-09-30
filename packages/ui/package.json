@@ -20,6 +20,7 @@
     "check:sidebar-layout": "node scripts/sidebar-layout-check.mjs",
     "check:adapter": "node --experimental-strip-types scripts/adapter-check.mjs",
     "check:contract": "node scripts/contract-mirror-check.mjs",
+    "check:image-src": "node --experimental-strip-types scripts/image-src-check.mjs",
     "check:turn-rail": "node --experimental-strip-types scripts/turn-rail-check.mjs",
     "check:skill-search-state": "node --experimental-strip-types scripts/skill-search-state-check.mjs",
     "accept:m1": "node scripts/m1-acceptance.mjs",
@@ -44,7 +45,7 @@
     "probe:turn-rail": "node scripts/probe-turn-rail.mjs",
     "probe:spa-fallback": "node scripts/probe-spa-fallback.mjs",
     "shots:m1": "node scripts/m1-shots.mjs",
-    "test:ci": "npm run typecheck && npm run check:format && npm run check:providers-source && npm run check:turns && npm run check:cn && npm run check:sidebar-layout && npm run check:adapter && npm run check:contract && npm run check:turn-rail && npm run build"
+    "test:ci": "npm run typecheck && npm run check:format && npm run check:providers-source && npm run check:turns && npm run check:cn && npm run check:sidebar-layout && npm run check:adapter && npm run check:contract && npm run check:image-src && npm run check:turn-rail && npm run build"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.13",
