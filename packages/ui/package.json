@@ -20,6 +20,7 @@
     "check:adapter": "node --experimental-strip-types scripts/adapter-check.mjs",
     "check:contract": "node scripts/contract-mirror-check.mjs",
     "check:turn-rail": "node --experimental-strip-types scripts/turn-rail-check.mjs",
+    "check:skill-search-state": "node --experimental-strip-types scripts/skill-search-state-check.mjs",
     "accept:m1": "node scripts/m1-acceptance.mjs",
     "accept:m2": "node scripts/m2-acceptance.mjs",
     "accept:m3": "node scripts/m3-acceptance.mjs",

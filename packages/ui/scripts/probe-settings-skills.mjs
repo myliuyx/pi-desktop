@@ -20,7 +20,9 @@
  *   · L7 toggle 不存在的技能 → 404 + core 原文；
  *   · L8 GET /skills/search（S1）：缺 q 400 / 搜索 react 出结果且字段白名单齐（出网）；
  *   · L9 POST /skills/install（S2）非法 source → 400（不克隆）；
- *   · L10 真实克隆 octocat/Hello-World 但无此技能 → 404（正向安装人工验收）。
+ *   · L10 真实克隆 octocat/Hello-World 但无此技能 → 404（正向安装人工验收）；
+ *   · L11 搜索结果行三态（S5）：搜 tts 出结果后逐行比对 data-state 与服务端真值
+ *     （unsupported / installed / addable 与徽标·按钮互斥；口径 skill-search-state.ts）。
  *
  * 运行前置：M 段需 packages/ui dev server（:5180，cdp.mjs 自检并提示启动命令）；
  * L 段需先 `npm run build`（core 同源托管 dist）。CDP 端口 9346/9356（错开 9345/9355）。
@@ -521,6 +523,79 @@ try {
 				failures += ctx.assert("L6 UI 开关开回：条目与开关同步回到启用态", {
 					条目为开: uiOn.itemEnabled === "true",
 					开关为开: uiOn.switchChecked === "true",
+				}) ? 0 : 1;
+			}
+
+			/* ---- L11 搜索结果行三态（S5）：data-state 与服务端真值逐行一致，徽标/按钮互斥 ---- */
+			{
+				// 服务端真值：user scope 已装技能名集合（页内 fetch，与 UI 数据同源）
+				const truth = await cdp.eval(
+					`(async () => {
+						const token = window.__CORE_TOKEN__ || new URLSearchParams(location.search).get('token');
+						const res = await fetch('/skills', { headers: { Authorization: 'Bearer ' + token } });
+						const body = await res.json().catch(() => null);
+						return { ok: body?.ok === true, names: (body?.skills ?? []).filter((s) => s.scope === 'user').map((s) => s.name) };
+					})()`,
+					true,
+				);
+				// 打开添加视图并搜索（受控输入走原生 setter；搜索走真实 skills.sh —— 与 L8 同一出网依赖）
+				await cdp.eval(`(() => { window.__S.q('[data-testid="settings-skill-add"]').click(); return true; })()`);
+				await sleep(250);
+				await cdp.eval(`(() => {
+					const input = window.__S.q('[data-testid="settings-skill-search-input"]');
+					const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+					setter.call(input, 'tts');
+					input.dispatchEvent(new Event('input', { bubbles: true }));
+					window.__S.q('[data-testid="settings-skill-search-submit"]').click();
+					return true;
+				})()`);
+				const rows = await cdp.eval(
+					`new Promise((resolve) => {
+						const t0 = Date.now();
+						const iv = setInterval(() => {
+							const ul = document.querySelector('[data-testid="settings-skill-search-results"]');
+							const errEl = document.querySelector('[data-testid="settings-skill-search-error"]');
+							if (ul && ul.children.length > 0) {
+								clearInterval(iv);
+								resolve([...ul.querySelectorAll('[data-testid="settings-skill-search-result"]')].map((li) => ({
+									name: li.dataset.name,
+									source: li.dataset.source,
+									state: li.dataset.state,
+									hasButton: !!li.querySelector('[data-testid="settings-skill-search-install"]'),
+									installedBadge: !!li.querySelector('[data-testid="settings-skill-search-installed"]'),
+									unsupportedBadge: !!li.querySelector('[data-testid="settings-skill-search-unsupported"]'),
+								})));
+							} else if (errEl || Date.now() - t0 > 20000) {
+								clearInterval(iv);
+								resolve(errEl ? { searchError: errEl.textContent } : []);
+							}
+						}, 200);
+					})`,
+					true,
+				);
+				ctx.record("L11_搜索行三态", { truth, rows });
+				// 期望状态：与 skill-search-state.ts 同口径（SOURCE_PATTERN + 当前 scope 已装名集合）
+				const rowsArr = Array.isArray(rows) ? rows : [];
+				const pattern = /^[\w.-]+\/[\w.-]+$/;
+				const mismatches = rowsArr
+					.map((r) => {
+						const expected = !pattern.test(r.source)
+							? "unsupported"
+							: truth.names.includes(r.name)
+								? "installed"
+								: "addable";
+						const renderOk =
+							expected === "addable"
+								? r.state === "addable" && r.hasButton && !r.installedBadge && !r.unsupportedBadge
+								: r.state === expected && !r.hasButton && (expected === "installed" ? r.installedBadge && !r.unsupportedBadge : r.unsupportedBadge && !r.installedBadge);
+						return renderOk ? null : { name: r.name, source: r.source, expected, ui: r };
+					})
+					.filter(Boolean);
+				if (mismatches.length > 0) console.log("    L11 错位明细:", JSON.stringify(mismatches, null, 2));
+				failures += ctx.assert("L11 搜索结果行三态：data-state 与服务端真值逐行一致，徽标/按钮互斥（S5）", {
+					搜索未出错: Array.isArray(rows),
+					有结果行: rowsArr.length > 0,
+					零错位: mismatches.length === 0,
 				}) ? 0 : 1;
 			}
 
