@@ -45,6 +45,12 @@ interface StartOptions {
   allowedHosts?: string[];
   /** 前端静态资源目录（vite build 产物）；存在则同源托管 UI */
   uiDist?: string;
+  /**
+   * POST /cwd 热切换**成功**后以新目录回调（task-desktop-stable-port.md F4）。
+   * 装配方（main.ts）用它把 cwd 落回 core.json，桌面端下次启动据此恢复「上次工作目录」；
+   * server 自身不感知 runDir，落盘职责留给装配方。缺省不回调 = 行为零变化。
+   */
+  onCwdChanged?: (cwd: string) => void;
 }
 
 const API_ROUTES = new Set([
@@ -442,6 +448,8 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			const dir = typeof body.dir === "string" && body.dir.trim().length > 0 ? body.dir.trim() : null;
 			try {
 				const r = await runtime.switchCwd(dir);
+				// F4：切换成功即回调（装配方落盘 core.json），与上面的 SSE 广播同为「成功后」副作用
+				opts.onCwdChanged?.(r.cwd);
 				return json(200, { ok: true, cwd: r.cwd, trust: r.trust });
 			} catch (e) {
 				if (e instanceof InvalidCwdError) return json(400, { ok: false, error: e.message });

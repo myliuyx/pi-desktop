@@ -122,12 +122,41 @@ const boot = createCoreRuntime({
   trustTimeoutMs: process.env.CORE_TRUST_TIMEOUT_MS ? Number(process.env.CORE_TRUST_TIMEOUT_MS) : undefined,
 });
 
-const handle = await startServer(boot.runtime, { port, token, uiDist, host, allowedHosts });
-
-// 写 run/core.json（含 token，绝不提交）—— CR-013：0600，本机他人不可读
 const coreJsonPath = path.join(runDir, "core.json");
-fs.writeFileSync(coreJsonPath, JSON.stringify({ port: handle.port, token }, null, 2), { mode: 0o600 });
-// 已存在的旧文件（664）truncate 不换 inode/权限 ⇒ chmod 兜底收敛
+
+/**
+ * F4（task-desktop-stable-port.md）：POST /cwd 热切换**成功**后把当前生效目录落回
+ * core.json，桌面端下次启动据此设 CORE_CWD 恢复「上次工作目录」——此前 cwd 只活在
+ * 内存里，重启即回落默认（live 恒真的假象：5190 长期不重启）。读改写保住 port/token；
+ * 文件缺失/读坏则跳过（下次启动按「无 cwd 记忆」处理），落盘失败绝不带崩服务。
+ * 重写沿用 CR-013 的 0600（truncate 不换 inode，mode 兜底同权限）。
+ */
+function updateCoreJsonCwd(cwd: string): void {
+	try {
+		const raw = JSON.parse(fs.readFileSync(coreJsonPath, "utf8")) as Record<string, unknown>;
+		if (typeof raw.port !== "number" || typeof raw.token !== "string") return;
+		fs.writeFileSync(coreJsonPath, JSON.stringify({ ...raw, cwd }, null, 2), { mode: 0o600 });
+	} catch {
+		/* core.json 尚未写出（listen 后的启动竞态）或读坏：跳过即可 */
+	}
+}
+
+const handle = await startServer(boot.runtime, {
+  port,
+  token,
+  uiDist,
+  host,
+  allowedHosts,
+  onCwdChanged: updateCoreJsonCwd,
+});
+
+// 写 run/core.json（含 token，绝不提交）；cwd 供桌面端记忆「上次工作目录」（F4）
+// —— CR-013：0600，本机他人不可读；已存在的旧文件（664）truncate 不换 inode/权限 ⇒ chmod 兜底收敛
+fs.writeFileSync(
+  coreJsonPath,
+  JSON.stringify({ port: handle.port, token, cwd: boot.runtime.getCwd() }, null, 2),
+  { mode: 0o600 },
+);
 chmodQuiet(coreJsonPath, 0o600);
 
 // 事件落盘（真实冒烟证据）—— events.jsonl 含 prompt / 工具输出，同样 0600
