@@ -884,9 +884,14 @@ function BlockView({
        * `<img>` 带不了 Authorization 头，core `/sessions/image` 只对该端点豁免
        * `?token=` —— 不带就是 401，图恒裂。空串时 `imageUrl` 不拼该段（mock 态无碍）。
        */
-      const url = imageUrl(block, getLiveConfig().token);
+      const url = imageUrl(block, getLiveConfig().token, getLiveConfig().baseUrl);
       if (!url) return null;
-      const alt = imageThumbnailAlt(block.partIndex);
+      // ⚠️ 用 mimeType 而不是 partIndex 编号：`partIndex` 是该 part 在
+      // `message.content[]` 里的**下标**，不是图片序号。真实会话里块结构恒为
+      // `[text, image]` ⇒ partIndex 几乎总是 1，拿它编号会让 13 张图的无障碍文案
+      // 全部变成「图片 2」，且与 Composer 侧 `i + 1` 的口径分叉。
+      // 屏读器文案只要能区分即可，不追求「第几张」——同一消息内多图极罕见。
+      const alt = `${imageThumbnailAlt(0)}（${block.mimeType}）`;
       return (
         <MessageAttachment
           src={url}
@@ -964,6 +969,14 @@ function MessageAttachment({
   alt: string;
   onPreview: (trigger: HTMLButtonElement) => void;
 }) {
+  /*
+   * 加载失败要直接可见（2026-09-28 用户裁决「失败要可见，不许静默」，同 contract.ts 的
+   * 诚实展示纪律）：`<img>` 无 onError 时加载失败只留浏览器默认碎图标，user 完全看不出
+   * 「图真的存在但没加载出来」——而取图失败在跨源形态、跨 cwd 档位、entryId 失效等
+   * 场景下都会发生，静默会让排查无从下手。
+   * 预览弹层里已有独立的失败态文案，这里给缩略图补上同一口径。
+   */
+  const [failed, setFailed] = useState(false);
   return (
     <button
       type="button"
@@ -971,9 +984,16 @@ function MessageAttachment({
       title="点击查看大图"
       aria-label={`查看${alt}`}
       data-testid="message-image-thumb"
+      data-load-state={failed ? "error" : "ok"}
       className="group inline-block h-16 max-w-full cursor-zoom-in overflow-hidden rounded-lg border border-border-subtle"
     >
-      <img src={src} alt={alt} className="h-16 max-w-full object-cover" />
+      {failed ? (
+        <span className="flex h-16 w-16 items-center justify-center text-text-tertiary" data-testid="message-image-failed">
+          <span className="text-xs">图未能加载</span>
+        </span>
+      ) : (
+        <img src={src} alt={alt} onError={() => setFailed(true)} className="h-16 max-w-full object-cover" />
+      )}
     </button>
   );
 }

@@ -19,6 +19,12 @@ export const SESSION_IMAGE_ROUTE = "/sessions/image";
  * `token` 可选：`<img>` 拿不到 Authorization 头（core 侧 `/sessions/image` 为此单点豁免
  * `?token=`，见 server.ts 鉴权段注释），所以把 token 拼进 URL。缺省/空串 ⇒ 不拼该段
  * （保持既有调用点逐字节兼容）。
+ *
+ * `baseUrl` 可选：core 的基址。与 `agent-transport` 的 `${cfg.baseUrl}${path}` 同口径 ——
+ * core 同源托管 UI 时 `baseUrl` 为 `""`（相对路径即可）；**跨源 dev 形态**（README:70 记的
+ * `5173/?live=1&core=http://127.0.0.1:5190`）下必须带上，否则 `/sessions/image` 会打到
+ * vite dev server —— 那里没这个路由，core 的 SPA 回退会把 index.html 当 200 返回，
+ * `<img>` 解 HTML 失败 ⇒ 历史图全裂且无任何报错。缺省 `""` ⇒ 逐字节不变。
  */
 export function imageUrl(
   block: {
@@ -27,6 +33,7 @@ export function imageUrl(
     partIndex?: number;
   },
   token?: string,
+  baseUrl?: string,
 ): string {
   const { sessionId, entryId, partIndex } = block;
   if (!sessionId || !entryId || !Number.isInteger(partIndex) || (partIndex ?? -1) < 0) return "";
@@ -51,7 +58,7 @@ export function imageUrl(
     )
       .map(([k, v]) => `${k}=${encodeURIComponent(v)}`)
       .join("&");
-    return `${SESSION_IMAGE_ROUTE}?${q}`;
+    return `${baseUrl ?? ""}${SESSION_IMAGE_ROUTE}?${q}`;
   } catch {
     return "";
   }

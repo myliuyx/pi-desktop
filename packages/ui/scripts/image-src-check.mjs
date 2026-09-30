@@ -65,6 +65,20 @@ check("带 token 时 URL 拼入 token=（<img> 无法带 Authorization 头）", 
   assert.ok(url.includes("token=tk-123"), url);
 });
 
+check("跨源 dev 形态：带 baseUrl 时拼到 core 基址（否则打到 vite，返 SPA HTML ⇒ 图裂）", () => {
+  const block = { sessionId: "s1", entryId: "e1", partIndex: 0 };
+  const url = imageUrl(block, "tk", "http://127.0.0.1:5190");
+  assert.ok(url.startsWith("http://127.0.0.1:5190/sessions/image?"), url);
+});
+
+check("缺省 / 空 baseUrl ⇒ 逐字节不变（core 同源托管形态，零回归）", () => {
+  const block = { sessionId: "s1", entryId: "e1", partIndex: 0 };
+  const expected = "/sessions/image?sessionId=s1&entryId=e1&partIndex=0";
+  assert.equal(imageUrl(block), expected);
+  assert.equal(imageUrl(block, "", ""), expected);
+  assert.equal(imageUrl(block, undefined, ""), expected);
+});
+
 check("无 token / 空 token 时不拼 token 段（保持既有调用点逐字节兼容）", () => {
   const noArg = imageUrl({ sessionId: "s1", entryId: "e1", partIndex: 0 });
   assert.equal(noArg.includes("token="), false, noArg);
