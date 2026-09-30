@@ -35,7 +35,7 @@
     "test:ci": "npm run typecheck && npm run build && npm run security-check && npm run check:run-dir && npm run check:fs-list && npm run check:fs-search && npm run check:prompt-filerefs && npm run check:error-visible && npm run check:usage-branch && npm run check:session-title && npm run check:sessions-manage && npm run check:skills-install && npm run check:compat && npm run check:model-select && npm run check:file-perms"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^0.87.1"
+    "@earendil-works/pi-coding-agent": "^0.99.1"
   },
   "devDependencies": {
     "tsx": "^4.19.2",
