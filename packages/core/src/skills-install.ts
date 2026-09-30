@@ -12,7 +12,9 @@
  *   （与 0.87.1 addAutoDiscoveredResources 的发现路径一致，装完 reload 即被加载）。
  * - 冲突不覆盖：目标目录已存在抛 409（v1 无更新/卸载入口，装错手动删目录）。
  * - 写路径加固：技能目录含符号链接抛 422（cp 默认 dereference:false 会原样搬运链接，
- *   装个技能会被升级为「读本机任意文件」）；SKILL.md 位于仓库根抛 400（cp 会连 .git 一起搬）。
+ *   装个技能会被升级为「读本机任意文件」）；SKILL.md 位于仓库根**照装**（2026-09-29
+ *   裁决推翻 66aca9c 的拒绝口径：单技能自成一仓是正常形态，拿仓库组织审判技能属越权），
+ *   cp 时以 filter 排除 .git，一个字节不落盘。
  * - 私库/断网 = clone 失败；git stderr 细节只进 core 本地日志，HTTP 侧只回分类后的
  *   稳定文案（不逐字回显仓库 URL 认证原文，I3）。临时目录 finally 必清。
  * - 阶段进度经 onProgress 回调发 SSE `skill_progress`（session.ts 接线）。
@@ -24,7 +26,7 @@ import os from "node:os";
 import path from "node:path";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参或仓库组织不合规 / 404 仓库无此技能或克隆不到 / 409 目录冲突**或项目未信任** / 422 技能目录不可安全拷贝 / 500 真实 IO 或环境故障，不伪装成 404 / 504 克隆超时）。`session.ts` 的 installSkill 也在装前抛本类（未信任项目），故 409 不只表示「目录已存在」。 */
+/** 可预期安装失败：status 即 HTTP 状态码（400 非法入参 / 404 仓库无此技能或克隆不到 / 409 目录冲突**或项目未信任** / 422 技能目录不可安全拷贝 / 500 真实 IO 或环境故障，不伪装成 404 / 504 克隆超时）。`session.ts` 的 installSkill 也在装前抛本类（未信任项目），故 409 不只表示「目录已存在」。 */
 export class SkillInstallError extends Error {
 	constructor(
 		public status: number,
@@ -143,8 +145,10 @@ function gitClone(repoUrl: string, destDir: string): Promise<void> {
  * 但 `readFileSync` 的 EACCES / EIO / EISDIR 若被同一个 catch 吞成「无 frontmatter」，
  * 最终会表现为 404「技能不在仓库中」—— 把真实 IO 故障伪装成业务失败，排查时
  * 完全看不出是权限问题还是文件损坏。IO 错误必须向上抛。
+ *
+ * export：供 `check:skills-install` 直接 import 断言（同 `assertSkillDirSafe` 先例）。
  */
-function readFrontmatterName(skillMdPath: string): string {
+export function readFrontmatterName(skillMdPath: string): string {
 	let raw: string;
 	try {
 		raw = fs.readFileSync(skillMdPath, "utf8");
@@ -355,23 +359,6 @@ export async function installSkillFromGitHub(args: {
 			throw new SkillInstallError(404, `技能「${skillId}」不在仓库 ${source} 中（未找到 SKILL.md 或 name 不匹配）`);
 		}
 		const skillDir = path.dirname(chosenFile);
-		// C3：`SKILL.md` 位于**仓库根**时 skillDir === 克隆根，cp 会把 .git
-		// （含全部历史/objects/config/refs）、README、CI 配置一并搬进用户
-		// skills 目录（实测落地产物 ['.git','.github','README.md','SKILL.md']）。
-		// 口径：报错拒绝，不默默排除 .git 后照装（用户 2026-09-29 裁决）。
-		// 判据用 realpathSync 双侧 canonical 比较，而非 path.resolve 字符串等值：
-		// 后者在大小写不敏感的平台（Windows）上会把同一目录判成不同（实测 /TMP vs /tmp
-		// → false），导致根目录 SKILL.md 逃过 400、.git 全量落进用户 skills 目录。
-		// realpathSync 会跟随符号链接，但这里两侧同源同法解析，恰好无害。
-		const isRepoRoot = fs.realpathSync(skillDir) === fs.realpathSync(cloneDir);
-		if (isRepoRoot) {
-			throw new SkillInstallError(
-				400,
-				`仓库 ${source} 的技能未按 skills 规范组织：SKILL.md 位于仓库根目录。` +
-					`该仓库仅在 SKILL.md 位于子目录时可安装；` +
-					`请改用把技能放在子目录的仓库（如 skills/<技能名>/SKILL.md）。`,
-			);
-		}
 		const skillName = readFrontmatterName(chosenFile) || path.basename(skillDir);
 
 		const targetDir = path.join(targetSkillsDir, sanitizeDirName(skillId));
@@ -396,7 +383,15 @@ export async function installSkillFromGitHub(args: {
 		args.onProgress?.(`正在安装到 ${targetDir}…`);
 		try {
 			await fs.promises.mkdir(targetSkillsDir, { recursive: true });
-			await fs.promises.cp(skillDir, stagingDir, { recursive: true });
+			// 排除 .git（返回 false = 该条目及其整棵子树不进入 staging）：根目录 SKILL.md
+			// 的仓库 skillDir === 克隆根，不带 filter 会把 .git 全量搬进用户 skills 目录。
+			// 按 basename 判等：path.relative 在 win32 返回反斜杠，按相对路径比较会静默
+			// 失效，basename 两平台一致；嵌套 submodule 的 .git 同样命中，.gitignore 等
+			// basename 非 ".git" 的文件不受影响。
+			await fs.promises.cp(skillDir, stagingDir, {
+				recursive: true,
+				filter: (src) => path.basename(src) !== ".git",
+			});
 			await fs.promises.rename(stagingDir, targetDir);
 		} catch (e) {
 			// 半拷贝残留一律清掉，不给「报错说失败、目录却生效」的错位留机会。
