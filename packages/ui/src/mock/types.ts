@@ -1,7 +1,7 @@
 /**
  * mock 数据类型 —— 刻意对齐 Pi 的事件模型。
  *
- * ⚠️ C0 契约提升：Block 六型 / Message / SessionSummary / TokenUsage / PlanStepStatus
+ * ⚠️ C0 契约提升：Block 七型 / Message / SessionSummary / TokenUsage / PlanStepStatus
  * 已提升为 `packages/core/src/contract.ts` 的共享契约（UI 只 `import type` 它，
  * vite build 后 dist 不含 core/pi 痕迹）。本文件统一 re-export 契约类型，
  * 并保留 UI 侧专属类型（ThinkingLevel / McpStatus / ModelOption / McpServer）

@@ -5,7 +5,7 @@
  * 1. **纯类型、零 import**：本文件不引入任何运行时依赖（不含 pi-coding-agent、
  *    node:*, core 运行时代码）。UI 只能 `import type` 它，从而 vite build 后
  *    dist 里绝不出现 core/pi 痕迹（硬约束 #2）。
- * 2. Block 六型 / Message / SessionSummary / TokenUsage / PlanStepStatus
+ * 2. Block 七型 / Message / SessionSummary / TokenUsage / PlanStepStatus
  *    字段签名原样搬自 `packages/ui/src/mock/types.ts`（M2 冻结契约），不改任何字段。
  * 3. AgentEvent 全集原样搬自 `packages/ui/src/adapter/pi-events.ts`，并做三处修订：
  *    - 新增 `approval_request` / `approval_settled`（我们的形状，非 Pi 9 变体）；
