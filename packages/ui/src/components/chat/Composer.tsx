@@ -23,6 +23,7 @@ import {
 } from "@/components/chat/ComposerAtMenu";
 import { ComposerContextRing } from "@/components/chat/ComposerContextRing";
 import { ComposerToolbar } from "@/components/chat/ComposerToolbar";
+import { ImagePreviewDialog } from "./ImagePreviewDialog";
 import type { FsSearchEntryResult } from "@/services/agent-transport";
 import {
   COMPOSER_PADDING,
@@ -140,6 +141,13 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
   const clearComposerImages = useUiStore((state) => state.clearComposerImages);
   /** @ 弹层状态：null = 关闭；非 null = 光标停在 @token 内 */
   const [atState, setAtState] = useState<AtTokenState | null>(null);
+  /*
+   * 图片大图预览（2026-10-01 图片预览批次 Task 7 Step 4）：待发缩略图点击后的大图。
+   * state 挂 Composer 顶层（与 MessageList 同款纪律：预览弹层只有一份），
+   * 弹层在根 <div> 末尾**条件渲染** —— 无预览对象时文档里没有 role=dialog，
+   * 不污染 probe-dir-menu / m4-acceptance 的「第一个 [role=dialog]」锚点。
+   */
+  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(null);
 
   const streaming = useChatStore((state) => state.streaming);
   // 「停止生成」全程可点（task-waiting-row-turn-start.md F4）：streaming 是消息级
@@ -347,17 +355,29 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
               data-mime={img.mimeType}
               className="group relative h-16 w-16 shrink-0"
             >
-              <img
-                src={img.dataUrl}
-                alt={`待发送图片 ${i + 1}`}
-                className="h-16 w-16 rounded-lg border border-border-subtle object-cover"
-              />
+              <button
+                type="button"
+                onClick={() => setPreview({ src: img.dataUrl, alt: `待发送图片 ${i + 1}` })}
+                title="点击查看大图"
+                aria-label={`查看待发送图片 ${i + 1}`}
+                className="block h-16 w-16 cursor-zoom-in overflow-hidden rounded-lg border border-border-subtle"
+              >
+                <img
+                  src={img.dataUrl}
+                  alt={`待发送图片 ${i + 1}`}
+                  className="h-16 w-16 object-cover"
+                />
+              </button>
               <button
                 type="button"
                 data-testid={`composer-image-remove-${i}`}
                 aria-label={`移除图片 ${i + 1}`}
                 title="移除"
-                onClick={() => removeComposerImage(img.id)}
+                /* ⚠️ 必须阻断冒泡：否则点「移除」会同时触发大图预览 */
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeComposerImage(img.id);
+                }}
                 className={cn(
                   "absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full",
                   "border border-border-subtle bg-bg-surface text-text-secondary",
@@ -502,6 +522,16 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
           anchorEl={anchorRef.current}
           onPick={handleAtPick}
           onClose={() => setAtState(null)}
+        />
+      ) : null}
+
+      {/* 图片大图预览（待发图）：条件渲染，理由见 preview state 注释 */}
+      {preview ? (
+        <ImagePreviewDialog
+          open
+          onClose={() => setPreview(null)}
+          src={preview.src}
+          alt={preview.alt}
         />
       ) : null}
     </div>

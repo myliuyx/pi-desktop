@@ -46,6 +46,9 @@ import { ApprovalCard } from "./ApprovalCard";
 import { ProcessGroupRow } from "./ProcessGroupRow";
 import { MessageErrorCard } from "./MessageErrorCard";
 import { TurnRail } from "./TurnRail";
+import { ImagePreviewDialog } from "./ImagePreviewDialog";
+import { getLiveConfig } from "@/lib/feature-flags";
+import { imageThumbnailAlt, imageUrl } from "@/lib/image-src";
 
 export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   messages: Message[];
@@ -410,6 +413,21 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const isEmpty = messages.length === 0;
 
   /*
+   * 图片大图预览（2026-10-01 图片预览批次 Task 7 Step 1b）。
+   *
+   * ⚠️ state 必须挂在 **MessageList 顶层**、弹层在这里条件渲染，绝不能下沉到
+   * `BlockView`：`BlockView` 经 MessageItem 被**递归调用**，一条消息 N 个 image block
+   * 就会挂 N 个弹层实例（后开的覆盖先开的，还各自持有独立的 Esc 处理器）。
+   *
+   * token 从 `getLiveConfig()` 直读（读 window 上的稳定值，不订阅变化），
+   * 由 `imageUrl` 拼进 `?token=` —— `<img>` 带不了 Authorization 头，
+   * 不带 token 一律 401（core `/sessions/image` 只对该端点单点豁免 query token）。
+   * mock 态 token 为空串 ⇒ `imageUrl` 不拼该段，行为与不带参数时逐字节一致。
+   */
+  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(null);
+  const openPreview = useCallback((src: string, alt: string) => setPreview({ src, alt }), []);
+
+  /*
    * 刻度纵向位置（紧凑居中簇，task-turn-rail-compact-cluster.md 第二次修订）：位置只由
    * 提问数、栏高与固定档距决定，不读 virtualizer 测量。常显渲染、每渲染期直算
    * （N = 提问数，代价可忽略）。未量到高度时给空表（刻度不渲染）。
@@ -536,7 +554,11 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
                 {isPendingRow ? (
                   <ThinkingPending since={pendingSince as number} />
                 ) : (
-                  <MessageItem message={message} turn={turn} />
+                  <MessageItem
+                    message={message}
+                    turn={turn}
+                    onPreviewImage={openPreview}
+                  />
                 )}
               </div>
             );
@@ -568,6 +590,17 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
           railRef={railRef}
           onJump={jumpToMessage}
           onWheelScroll={handleRailWheel}
+        />
+      ) : null}
+
+      {/* 图片大图预览：条件渲染（无预览对象则文档里没有 role=dialog，
+          不污染 probe-dir-menu / m4-acceptance 的「第一个 [role=dialog]」锚点） */}
+      {preview ? (
+        <ImagePreviewDialog
+          open
+          onClose={() => setPreview(null)}
+          src={preview.src}
+          alt={preview.alt}
         />
       ) : null}
     </div>
@@ -687,7 +720,18 @@ function ModelLabelRow({ message }: { message: Message }) {
   );
 }
 
-function MessageItem({ message, turn }: { message: Message; turn?: MessageTurnInfo }) {
+function MessageItem({
+  message,
+  turn,
+  onPreviewImage,
+}: {
+  message: Message;
+  turn?: MessageTurnInfo;
+  /** 图片预览请求冒泡到 MessageList 层（弹层只有一份，见 MessageList 的 preview state 注释）。
+      必传：MessageItem 只有 MessageList 一个调用点，那里恒有 openPreview —— 可选化就得
+      造一个「点了没反应」的哑按钮（本仓明令避免的陷阱）。 */
+  onPreviewImage: (src: string, alt: string) => void;
+}) {
   const isUser = message.role === "user";
   /*
    * 处理详情折叠（task-process-collapse.md）：收起轮次的中间行整行不渲染内容 ——
@@ -780,6 +824,7 @@ function MessageItem({ message, turn }: { message: Message; turn?: MessageTurnIn
                   ? terminalById.get(block.toolCallId)
                   : undefined
               }
+              onPreviewImage={onPreviewImage}
             />
           </div>
         );
@@ -798,13 +843,27 @@ function BlockView({
   message,
   block,
   pairedTerminal,
+  onPreviewImage,
 }: {
   message: Message;
   block: Block;
   /** 与该 tool_call 同 toolCallId 配对的终端块（同消息内存在才传，见 MessageItem 的合并注释） */
   pairedTerminal?: TerminalBlock;
+  /** 冒泡到 MessageList 层去开预览（见该文件 preview state 注释：弹层只有一份） */
+  onPreviewImage: (src: string, alt: string) => void;
 }) {
   switch (block.type) {
+    case "image": {
+      /*
+       * 历史图片（ImageBlock，元数据 + 按需取图）。token 必传：
+       * `<img>` 带不了 Authorization 头，core `/sessions/image` 只对该端点豁免
+       * `?token=` —— 不带就是 401，图恒裂。空串时 `imageUrl` 不拼该段（mock 态无碍）。
+       */
+      const url = imageUrl(block, getLiveConfig().token);
+      if (!url) return null;
+      const alt = imageThumbnailAlt(block.partIndex);
+      return <MessageAttachment src={url} alt={alt} onPreview={() => onPreviewImage(url, alt)} />;
+    }
     case "text":
       return (
         <MessageBubble
@@ -852,5 +911,26 @@ function ToolCallInline({ block }: { block: Extract<Block, { type: "tool_call" }
       <span className="font-medium text-text-primary">{block.toolName}</span>
       <span className="min-w-0 truncate font-mono text-xs text-text-tertiary">{argsPreview}</span>
     </div>
+  );
+}
+
+/**
+ * 历史消息里的图片缩略图（ImageBlock）—— 64px 与既有 attachments 缩略图同尺寸，
+ * 保证视觉一致；点击开大图预览。
+ *
+ * ⚠️ 尺寸是几何契约的一部分（既有探针按 h-16 采样），不要改。
+ */
+function MessageAttachment({ src, alt, onPreview }: { src: string; alt: string; onPreview: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onPreview}
+      title="点击查看大图"
+      aria-label={`查看${alt}`}
+      data-testid="message-image-thumb"
+      className="group inline-block h-16 max-w-full cursor-zoom-in overflow-hidden rounded-lg border border-border-subtle"
+    >
+      <img src={src} alt={alt} className="h-16 max-w-full object-cover" />
+    </button>
   );
 }
