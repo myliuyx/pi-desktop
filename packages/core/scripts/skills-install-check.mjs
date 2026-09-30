@@ -36,7 +36,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { childEnv, seedModelsJson } from "./lib/credentials.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -116,7 +116,8 @@ async function waitForHealth(ok, timeoutMs = 60_000) {
  * 判据 A1–A7：纯函数 + 合成目录（不起 core、不出网）
  * ================================================================== */
 
-const mod = await import(path.join(coreDir, "src", "skills-install.ts"));
+// Windows：ESM 动态 import 不收盘符绝对路径（`F:\…` 抛 ERR_UNSUPPORTED_ESM_URL_SCHEME），必须转 file:// URL
+const mod = await import(pathToFileURL(path.join(coreDir, "src", "skills-install.ts")).href);
 const {
 	installSkillFromGitHub,
 	assertSkillDirSafe,
