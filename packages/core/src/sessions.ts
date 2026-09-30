@@ -469,6 +469,18 @@ export interface SessionRef {
 }
 
 /**
+ * `readFirstUserText` 的防御包装：单个文件在扫描后消失（TOCTOU）或不可读时退化为
+ * `null`，绝不让一条会话的故障拖垮整个清单请求（`GET /sessions` 返回 500）。
+ */
+function safeReadFirstUserText(filePath: string): string | null {
+  try {
+    return readFirstUserText(filePath);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 会话清单。`all=true` 走跨项目目录（不过滤 cwd），否则只列 `ref.cwd`。
  *
  * 2026-09-30 起改走 `session-list-cache.ts` 的两层索引（spec 方案 A4）：
@@ -489,7 +501,7 @@ export async function listSessions(ref: SessionRef, options: { all?: boolean } =
      * 其中 100 条有 name ⇒ 纯浪费）。故只在「无名 + 有 user 消息」时才回读 ——
      * 输出逐条比对零差异（见 task-3-report 的等价性验证）。索引刻意不存 firstMessage。
      */
-    const firstMessage = !info.name && info.hasFirstUser ? (readFirstUserText(filePath) ?? "") : "";
+    const firstMessage = !info.name && info.hasFirstUser ? (safeReadFirstUserText(filePath) ?? "") : "";
     return toSessionSummary({
       id: info.id,
       // name 为 null 时不传（SummarySource.name 是可选 string）

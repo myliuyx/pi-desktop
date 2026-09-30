@@ -171,6 +171,85 @@ const rKL = scanSessionFileLight(fKL);
 check("J7 键序变体诱饵：嵌套 role=user 不误判 hasFirstUser", rKL?.hasFirstUser === false && rKL?.messageCount === 1, rKL);
 check("J8 键序变体诱饵：readFirstUserText 不返回诱饵文本", readFirstUserText(fKL) === null, readFirstUserText(fKL));
 
+/* ---------- K. modified 严格对齐 Pi getMessageActivityTime ---------- */
+// Pi 语义（dist/core/session-manager.js）：仅 role=user/assistant 且 "content" in message；
+// 优先 message.timestamp（数字），否则顶层 entry.timestamp（ISO）；toolResult/system/toolCall 不抬高。
+const msgWithMsgTs = (role, text, entryIso, msgTs, contentExtra) => ({
+  type: "message",
+  id: `m-${entryIso}`,
+  parentId: "x",
+  timestamp: entryIso,
+  message: { role, content: contentExtra ?? [{ type: "text", text }], timestamp: msgTs },
+});
+const fMix = fixture("mix.jsonl", [
+  header("id-MIX", "/proj/mix", "2026-09-30T09:00:00.000Z"),
+  msgWithMsgTs("user", "问", "2026-09-30T10:00:00.000Z", 1000),
+  msgWithMsgTs("assistant", "答", "2026-09-30T10:00:05.000Z", 2000),
+  // toolResult 的 message.timestamp 远大于任何 user/assistant —— 绝不抬 modified
+  msgWithMsgTs("toolResult", "", "2026-09-30T10:00:06.000Z", 9_999_999, [{ type: "text", text: "输出" }]),
+  // system 同样不抬
+  msgWithMsgTs("system", "", "2026-09-30T10:00:07.000Z", 9_999_998, ""),
+  // assistant 内含 toolCall 块（toolCall 不是 entry role，不应影响 role 判定）
+  msgWithMsgTs("assistant", "", "2026-09-30T10:00:08.000Z", 3000, [
+    { type: "toolCall", id: "tc1", name: "bash", arguments: { command: "echo hi" } },
+  ]),
+  // 末条 user 的 entry.timestamp 远晚于 message.timestamp —— 必须取 message.timestamp
+  msgWithMsgTs("user", "末问", "2026-09-30T20:00:00.000Z", 4000),
+]);
+const rMix = scanSessionFileLight(fMix);
+check("K1 modified 取 user/assistant 的 message.timestamp 最大值（=4000）", rMix?.modified === 4000, rMix?.modified);
+check("K2 messageCount 仍计全部 type=message（含 toolResult/system）", rMix?.messageCount === 6, rMix?.messageCount);
+
+// 末条 message 系统/toolResult 不抬高 modified：退化到上一条 user/assistant 的 entry.timestamp
+const fTailTool = fixture("tail-tool.jsonl", [
+  header("id-TAIL", "/proj/tail", "2026-09-30T09:00:00.000Z"),
+  msg("user", "唯一 user", "2026-09-30T09:00:01.000Z"),
+  { type: "message", id: "m2", parentId: "x", timestamp: "2026-09-30T09:00:09.000Z", message: { role: "toolResult", toolCallId: "t1", content: [{ type: "text", text: "很晚的输出" }] } },
+]);
+const rTail = scanSessionFileLight(fTailTool);
+check("K3 末条 toolResult 不抬高 modified（退化到 user entry.timestamp）", rTail?.modified === Date.parse("2026-09-30T09:00:01.000Z"), rTail?.modified);
+
+// message.timestamp 缺失时退化 entry.timestamp（Pi 同款）
+const fNoMsgTs = fixture("no-msg-ts.jsonl", [
+  header("id-NOMSGTS", "/proj/nomsgts", "2026-09-30T09:00:00.000Z"),
+  msg("user", "q", "2026-09-30T09:00:01.000Z"),
+  msg("assistant", "a", "2026-09-30T09:00:05.000Z"),
+]);
+check("K4 message.timestamp 缺失时退化 entry.timestamp", scanSessionFileLight(fNoMsgTs)?.modified === Date.parse("2026-09-30T09:00:05.000Z"), scanSessionFileLight(fNoMsgTs)?.modified);
+
+// 诱饵：toolResult 内容里含字面 "role":"assistant" 与数字 timestamp，不得抬 modified（快路径两头都不得误判）
+const decoyAssistant = {
+  type: "message",
+  id: "m-decoy",
+  parentId: "x",
+  timestamp: "2026-09-30T09:00:02.000Z",
+  message: {
+    role: "toolResult",
+    toolCallId: "t1",
+    content: [{ type: "text", text: 'decoy {"role":"assistant","timestamp":9999999}' }],
+    timestamp: 9_999_997,
+  },
+};
+const fDecoyA = fixture("decoy-assistant.jsonl", [
+  header("id-DEC", "/proj/dec", "2026-09-30T09:00:00.000Z"),
+  msgWithMsgTs("user", "q", "2026-09-30T09:00:01.000Z", 1234),
+  decoyAssistant,
+]);
+check("K5 toolResult 内容里的 assistant 诱饵不抬 modified", scanSessionFileLight(fDecoyA)?.modified === 1234, scanSessionFileLight(fDecoyA)?.modified);
+
+/* ---------- L. readFirstUserText 抗 TOCTOU（Finding 2）---------- */
+const fToc = fixture("tocu.jsonl", [header("id-TOC", "/proj/toc", "2026-09-30T09:00:00.000Z"), msg("user", "toctou 文本", "2026-09-30T09:00:01.000Z")]);
+check("L1 readFirstUserText 正常读到文本", readFirstUserText(fToc) === "toctou 文本", readFirstUserText(fToc));
+fs.rmSync(fToc);
+let tocThrew = false;
+let tocResult;
+try {
+  tocResult = readFirstUserText(fToc);
+} catch {
+  tocThrew = true;
+}
+check("L2 scan 之后文件消失：readFirstUserText 返回 null 而非抛异常", tocThrew === false && tocResult === null, { tocThrew, tocResult });
+
 fs.rmSync(tmpRoot, { recursive: true, force: true });
 const failed = checks.filter((c) => !c.pass);
 console.log(`\n  ${checks.length - failed.length}/${checks.length} 通过`);

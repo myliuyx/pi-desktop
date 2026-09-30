@@ -55,7 +55,11 @@ export interface LightScan {
   messageCount: number;
   /** header.timestamp 原样（ISO 字符串） */
   created: string;
-  /** epoch ms：最后一条 message 的 timestamp，退化 header，再退化 mtime */
+  /**
+   * epoch ms：Pi `buildSessionInfo().modified` 同口径 —— 最后活动时间取
+   * `getMessageActivityTime` 在 user/assistant 消息上的最大值，退化 header.timestamp，
+   * 再退化文件 mtime。**注意 toolResult / toolCall / system 不抬高 modified**。
+   */
   modified: number;
   /** 是否出现过 role=user 的消息 —— 决定 title 是否需要回读 firstMessage 兜底 */
   hasFirstUser: boolean;
@@ -81,6 +85,82 @@ function parseJson(line: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 一条 message entry 对 `modified` 的贡献 —— **严格对齐 Pi 的 `getMessageActivityTime`**。
+ *
+ * Pi 出处 `pi-coding-agent/dist/core/session-manager.js`：
+ * ```js
+ * function isMessageWithContent(message) {
+ *   return typeof message.role === "string" && "content" in message;
+ * }
+ * function getMessageActivityTime(entry) {
+ *   const message = entry.message;
+ *   if (!isMessageWithContent(message)) return undefined;
+ *   if (message.role !== "user" && message.role !== "assistant") return undefined;
+ *   const msgTimestamp = message.timestamp;
+ *   if (typeof msgTimestamp === "number") return msgTimestamp;
+ *   const t = new Date(entry.timestamp).getTime();
+ *   return Number.isNaN(t) ? undefined : t;
+ * }
+ * ```
+ * 要点：只认 user/assistant（toolResult 不抬高 modified）；优先 `message.timestamp`（数字），
+ * 否则退到顶层 `entry.timestamp`（ISO）；都没有 → 不计入。`buildSessionInfo` 最后取
+ * `lastActivityTime > 0 ? lastActivityTime : headerTime : stats.mtime`（本文件末段同款退化）。
+ */
+function activityTimeOfEntry(entry: Record<string, unknown>): number | undefined {
+  const message = entry.message as { role?: unknown; content?: unknown; timestamp?: unknown } | undefined;
+  if (!message || typeof message.role !== "string" || !("content" in message)) return undefined;
+  if (message.role !== "user" && message.role !== "assistant") return undefined;
+  if (typeof message.timestamp === "number") return message.timestamp;
+  const t = Date.parse(String(entry.timestamp));
+  return Number.isFinite(t) ? t : undefined;
+}
+
+/**
+ * 常见键序快路径：`message` 对象以 `"role":"…"` 开头（Pi 与 JSON.stringify 默认即此）。
+ * 只识别 message 对象**首键**的 role，故 content 里的诱饵（如 toolResult 工具输出中的
+ * 字面 `"role":"user"`）不会被误判 —— 它出现在 content 内部而非 message 对象首键。
+ */
+const MSG_ROLE_HEAD = /"message"\s*:\s*\{\s*"role"\s*:\s*"([^"]*)"/;
+/** role 为 user/assistant 且 `content` 紧邻其后（Pi 的写入键序）—— 确认 `"content" in message` */
+const MSG_USER_ASSIST_CONTENT = /"message"\s*:\s*\{\s*"role"\s*:\s*"(?:user|assistant)"\s*,\s*"content"\s*:/;
+/** 数字 timestamp（message.timestamp 是 epoch ms 数字；JSON 字符串里的 `\"timestamp\"` 因闭合引号被转义不会命中） */
+const NUM_TIMESTAMP = /"timestamp"\s*:\s*(\d+)/g;
+/** 首个带引号的 timestamp（= 顶层 entry.timestamp） */
+const QUOTED_TIMESTAMP = /"timestamp"\s*:\s*"([^"]+)"/;
+
+/**
+ * 快路径提取 activity time（不整行 `JSON.parse`）。
+ *
+ * - message 首键 role 是 user/assistant 且 content 紧随：从原始行取
+ *   `message.timestamp`（无则顶层 entry.timestamp）。message 级的数字 timestamp 位于
+ *   content 之后，故取**最后一个**数字 timestamp；content 里的 JSON 字符串被转义，不会命中。
+ * - 其它 role：Pi 恒不计 activity，直接返回 undefined（无需 parse）。
+ * - 键序不是「role 居首」/ content 不紧随 / 行内含 `"message"` 但结构陌生：parse 一次兜底，
+ *   保证与 Pi 的 `getMessageActivityTime` 逐字段一致（键序无关）。
+ */
+function activityTimeOfLine(line: string): number | undefined {
+  const roleMatch = MSG_ROLE_HEAD.exec(line);
+  if (roleMatch) {
+    const role = roleMatch[1];
+    if (role !== "user" && role !== "assistant") return undefined;
+    if (MSG_USER_ASSIST_CONTENT.test(line)) {
+      let num: number | undefined;
+      NUM_TIMESTAMP.lastIndex = 0;
+      for (let m = NUM_TIMESTAMP.exec(line); m; m = NUM_TIMESTAMP.exec(line)) num = Number(m[1]);
+      if (num !== undefined && Number.isFinite(num)) return num;
+      const q = QUOTED_TIMESTAMP.exec(line);
+      if (!q) return undefined;
+      const t = Date.parse(q[1]);
+      return Number.isFinite(t) ? t : undefined;
+    }
+  } else if (!line.includes('"message"')) {
+    return undefined;
+  }
+  const e = parseJson(line);
+  return e ? activityTimeOfEntry(e) : undefined;
 }
 
 /**
@@ -118,6 +198,9 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
   };
   const applyMessage = (line: string, parsed: Record<string, unknown> | null): void => {
     state.messageCount++;
+    // modified：Pi getMessageActivityTime 同口径（仅 user/assistant，优先 message.timestamp）
+    const activity = parsed ? activityTimeOfEntry(parsed) : activityTimeOfLine(line);
+    if (activity !== undefined && activity > state.lastActivity) state.lastActivity = activity;
     /*
      * role=user 判定（诱饵安全）：快路径先看字面 `"role":"user"` 线索再 parse 确认
      * （toolResult 的工具输出里真实存在该字面串）；兜底路径已 parse，直接看
@@ -126,16 +209,6 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     if (!state.hasFirstUser) {
       const e = parsed ?? (line.includes('"role":"user"') ? parseJson(line) : null);
       if (e && (e.message as { role?: unknown } | undefined)?.role === "user") state.hasFirstUser = true;
-    }
-    // timestamp：兜底路径用 parse 后的字段；快路径用行首窗口正则（免 parse）
-    let ts: unknown = parsed?.timestamp;
-    if (typeof ts !== "string") {
-      const m = /"timestamp":"([^"]+)"/.exec(line.slice(0, 300));
-      ts = m ? m[1] : undefined;
-    }
-    if (typeof ts === "string") {
-      const t = Date.parse(ts);
-      if (Number.isFinite(t) && t > state.lastActivity) state.lastActivity = t;
     }
   };
   const applySessionInfo = (e: Record<string, unknown> | null): void => {
@@ -204,7 +277,14 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
  * 不读完文件。
  */
 export function readFirstUserText(filePath: string): string | null {
-  const fd = fs.openSync(filePath, "r");
+  // openSync 纳入自身 try：文件在 refreshIndex 扫描后、本次读取前被删/chmod
+  // （TOCTOU）时返回 null，而不是把异常抛给调用方。
+  let fd: number;
+  try {
+    fd = fs.openSync(filePath, "r");
+  } catch {
+    return null;
+  }
   const buf = Buffer.allocUnsafe(FIRST_USER_BLOCK);
   const decoder = new StringDecoder("utf8");
   let carry = "";
