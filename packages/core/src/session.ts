@@ -136,6 +136,19 @@ export interface CoreRuntime {
 	 */
 	loadSession(id: string): Promise<SessionLoadResult | null>;
 	/**
+	 * 取历史会话里某张图片的原始字节（2026-10-01 图片预览批次）。
+	 *
+	 * `ImageBlock` 只带定位三元组，字节由这里兑现。走磁盘 session 文件而非活动
+	 * 会话内存态 —— 用户可以浏览**任意**历史会话的图片，不能只限当前活动会话。
+	 *
+	 * 错误口径沿用 server 的 `{ ok, status, error }`（与 `/sessions/load` 的
+	 * 400/404 一致），不抛异常。
+	 */
+	readSessionImage(params: { sessionId: string; entryId: string; partIndex: number }): Promise<
+		| { ok: true; bytes: Buffer; mimeType: string }
+		| { ok: false; status: 400 | 404; error: string }
+	>;
+	/**
 	 * 续接最近一次会话。C6 起**会重建活动 AgentSession**（§1.2）：
 	 * `createAgentSession({ sessionManager: SessionManager.open(file) })` 是公开路径
 	 * （sdk.d.ts `sessionManager` 选项 + `sdk.js:230` 把历史消息灌进 agent state），
@@ -949,6 +962,34 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 				await rebuildSession(loaded.path);
 			}
 			return loaded.result;
+		},
+		readSessionImage: async ({ sessionId, entryId, partIndex }) => {
+			// 参数校验：partIndex 允许 0，其余必须非空整数
+			if (!sessionId || !entryId || !Number.isInteger(partIndex) || partIndex < 0) {
+				return { ok: false, status: 400, error: "参数非法" };
+			}
+			const file = findSessionPath(sessionRef(), sessionId);
+			if (!file) return { ok: false, status: 404, error: `会话不存在：${sessionId}` };
+			let manager: SessionManager;
+			try {
+				manager = SessionManager.open(file, sessionRef().sessionDir, cwd);
+			} catch (e) {
+				return { ok: false, status: 404, error: `会话文件不可读：${sessionId}` };
+			}
+			// ⚠️ 0.99.1 声明是 `SessionEntry | undefined`，必须显式判 undefined
+			//    （entryId 拼错 / entry 在被弃旁支上 / entry 非 message 类型）
+			const entry = manager.getEntry(entryId);
+			if (!entry || entry.type !== "message") {
+				return { ok: false, status: 404, error: `条目不存在：${entryId}` };
+			}
+			const content = (entry.message as { content?: unknown }).content;
+			if (!Array.isArray(content)) return { ok: false, status: 404, error: "条目无内容" };
+			const part = content[partIndex] as { type?: unknown; data?: unknown; mimeType?: unknown } | undefined;
+			if (!part || part.type !== "image" || typeof part.data !== "string") {
+				return { ok: false, status: 404, error: "该条目不是图片" };
+			}
+			const mimeType = typeof part.mimeType === "string" ? part.mimeType : "image/png";
+			return { ok: true, bytes: Buffer.from(part.data, "base64"), mimeType };
 		},
 		continueRecentSession: async () => {
 			await ready;

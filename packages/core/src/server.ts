@@ -116,6 +116,7 @@ const API_ROUTES = new Set([
 	// C4 · 会话列表与加载
 	"/sessions",
 	"/sessions/load",
+	"/sessions/image",
 	"/sessions/continue-recent",
 	// 新建（换入）空白活动会话（task-new-session-page.md D7）
 	"/sessions/new",
@@ -609,6 +610,30 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			} catch (e) {
 				return json(500, { ok: false, error: String(e) });
 			}
+		}
+
+		// 取历史会话里的单张图片（2026-10-01 图片预览批次）
+		// ImageBlock 只带定位三元组，字节在这里兑现 —— 避免 base64 内联进
+		// /sessions/load 响应（最坏 85MB/条消息打在这个零限制接口上）。
+		// Cache-Control immutable：session 文件 append-only，历史图片字节永不改变。
+		if (req.method === "GET" && urlPath === "/sessions/image") {
+			const sessionId = url.searchParams.get("sessionId") ?? "";
+			const entryId = url.searchParams.get("entryId") ?? "";
+			const partIndexRaw = url.searchParams.get("partIndex") ?? "";
+			const partIndex = Number(partIndexRaw);
+			if (!sessionId || !entryId || !partIndexRaw || !Number.isInteger(partIndex)) {
+				return json(400, { ok: false, error: "缺少或非法的 sessionId/entryId/partIndex" });
+			}
+			const result = await runtime.readSessionImage({ sessionId, entryId, partIndex });
+			if (!result.ok) return json(result.status, { ok: false, error: result.error });
+			res.writeHead(200, {
+				"Content-Type": result.mimeType,
+				"Content-Length": String(result.bytes.length),
+				// append-only 会话文件 ⇒ 历史图片字节不可变，可长期强缓存
+				"Cache-Control": "private, max-age=31536000, immutable",
+			});
+			res.end(result.bytes);
+			return;
 		}
 
 		// 续接最近：读出内容并把活动会话切过去（C6 §1.2，重建路径见 session.ts 的 rebuildSession）
