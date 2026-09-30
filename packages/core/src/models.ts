@@ -44,7 +44,7 @@ export function normalizeThinkingLevel(value: unknown): ThinkingLevelName | null
 
 /** `Model` → UI 的 `ModelOption` 同形对象（`supportsXhigh` 用 `Model.reasoning` 代理） */
 export function toModelInfo(
-  model: { id: string; name?: string; provider: string; reasoning?: boolean },
+  model: { id: string; name?: string; provider: string; reasoning?: boolean; input?: readonly string[] },
   providerLabel?: string,
 ): ModelInfo {
   const info: ModelInfo = {
@@ -58,6 +58,9 @@ export function toModelInfo(
   }
   // 「支持 Max」标记：reasoning 为真的是支持思考的模型（Pi 的档位开关本就以它为前提）
   if (model.reasoning === true) info.supportsXhigh = true;
+  // 输入模态（粘图批次）：UI 门控「模型不支持图片则禁贴」的数据源；Pi Model 恒有 input，
+  // 可选透传只为兼容测试桩（只给 id/provider 的窄对象）
+  if (Array.isArray(model.input)) info.input = model.input.filter((x): x is "text" | "image" => x === "text" || x === "image");
   return info;
 }
 

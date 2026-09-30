@@ -65,7 +65,8 @@ function toEpochMs(value: unknown): number {
   return 0;
 }
 
-/** 消息内容数组 → 我们的 Block[]（text / thinking / toolCall 三型，与实时 reducer 同形） */
+/** 消息内容数组 → 我们的 Block[]（text / thinking / toolCall 三型，与实时 reducer 同形；
+ *  image part 映射 `[图片]` 占位文本块，见下方 D3-A 注释） */
 function contentToBlocks(content: unknown): Block[] {
   if (!Array.isArray(content)) {
     // 容错：旧版本/手改过的会话可能把 content 存成裸字符串
@@ -76,6 +77,12 @@ function contentToBlocks(content: unknown): Block[] {
     if (!isRecord(part)) continue;
     if (part.type === "text" && typeof part.text === "string") {
       blocks.push({ type: "text", content: part.text });
+    } else if (part.type === "image" && typeof part.data === "string") {
+      // 粘贴图片批次 D3-A（2026-09-30 用户裁决，task-composer-paste-image.md §5.6）：
+      // 历史回放里的图片 part 映射为占位文本块 —— 不把 base64 塞进载荷（成本/体积），
+      // 但刷新后气泡保留「有图」的痕迹（此前被静默丢弃，@ 引用图片同样中招）。
+      // 全链路真缩略图 = C0 契约加 ImageBlock，规格书列为另立批次的备选 B。
+      blocks.push({ type: "text", content: "[图片]" });
     } else if (part.type === "thinking" && typeof part.thinking === "string") {
       // 与实时通道一致：历史里的思考默认折叠（reducer 亦如此）
       blocks.push({ type: "thinking", content: part.thinking, collapsed: true });

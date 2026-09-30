@@ -37,8 +37,9 @@ export interface ExpandedFileRefs {
 	skipped: string[];
 }
 
-/** 图片附件的原始字节上限（base64 后 ≈10.7MB，超出即让 agent 自己用 read 工具读） */
-const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+/** 图片附件的原始字节上限（base64 后 ≈10.7MB，超出即让 agent 自己用 read 工具读）。
+ *  ⚠️ UI 侧 lib/image-attach.ts 的 IMAGE_MAX_BYTES 与此同口径，改一处必须同步另一处。 */
+export const IMAGE_MAX_BYTES = 8 * 1024 * 1024;
 /** 魔数嗅探窗口：png 8 字节签名 / webp 12 字节 RIFF….WEBP，取最大 */
 const SNIFF_BYTES = 12;
 /**

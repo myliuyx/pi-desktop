@@ -11,6 +11,11 @@ export interface MessageBubbleProps extends HTMLAttributes<HTMLDivElement> {
   role: MessageRole;
   /** 流式进行中：在末尾显示一个跳动光标 */
   streaming?: boolean;
+  /**
+   * user 消息的贴图附件（粘图批次，Message.attachments 透传；BlockView 持有整个
+   * message 所以由它传）。仅乐观回显存在（core 序列化恒不写），历史回放没有该字段。
+   */
+  attachments?: { id: string; dataUrl: string }[];
 }
 
 /* -------------------------------------------------------------------------
@@ -100,11 +105,12 @@ function FileBlockChip({ name, body }: { name: string; body: string }) {
  * Markdown 的 overflow-wrap 不撑破容器（验收 2-18）。
  */
 export const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
-  { block, role, streaming = false, className, ...rest },
+  { block, role, streaming = false, attachments, className, ...rest },
   ref,
 ) {
-  // F1 §2.4：空文本（mock 首字未到的占位块）不渲染 —— 否则等待占位行下方会并存一个空壳气泡
-  if (!block.content.trim()) return null;
+  // F1 §2.4：空文本（mock 首字未到的占位块）不渲染 —— 否则等待占位行下方会并存一个空壳气泡。
+  // 粘图批次豁免：纯图消息正文为空但有附件，气泡（及其附件行）必须照常出现。
+  if (!block.content.trim() && !(role === "user" && attachments && attachments.length > 0)) return null;
 
   // at-file D5：user 消息按「text + 注入文件块」拆段渲染；assistant 不拆（见上方注释）
   const segments = role === "user" ? splitInjectedFileBlocks(block.content) : null;
@@ -133,6 +139,20 @@ export const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(func
       ) : (
         <Markdown content={block.content} />
       )}
+      {/* 粘图批次：user 气泡的贴图缩略图（乐观回显）。纯展示不做灯箱；样式全走 rgb token（G1） */}
+      {attachments && attachments.length > 0 ? (
+        <div data-testid="message-attachments" className="mt-1.5 flex max-w-full flex-wrap gap-1.5">
+          {attachments.map((g) => (
+            <img
+              key={g.id}
+              src={g.dataUrl}
+              alt="粘贴的图片"
+              data-testid={`message-attachment-${g.id}`}
+              className="h-16 max-w-full rounded-lg border border-border-subtle object-cover"
+            />
+          ))}
+        </div>
+      ) : null}
       {streaming ? (
         <span
           className="ml-0.5 inline-block h-3.5 w-1.5 translate-y-0.5 animate-pulse rounded-sm bg-text-primary align-middle"

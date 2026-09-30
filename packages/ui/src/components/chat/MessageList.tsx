@@ -806,7 +806,15 @@ function BlockView({
 }) {
   switch (block.type) {
     case "text":
-      return <MessageBubble block={block} role={message.role} streaming={block.streaming} />;
+      return (
+        <MessageBubble
+          block={block}
+          role={message.role}
+          streaming={block.streaming}
+          /* 粘图批次：贴图附件随 user 消息回显（仅乐观回显存在；core 历史回放恒无此字段） */
+          attachments={message.role === "user" ? message.attachments : undefined}
+        />
+      );
     case "thinking":
       return <ThinkingCard block={block} />;
     case "plan":

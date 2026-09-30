@@ -20,6 +20,7 @@ import {
   type ModelProviderConfig,
 } from "@/mock/model-config";
 import type { ProvidersSource } from "@/screens/settings/providers-save-state";
+import type { ComposerImage } from "@/lib/image-attach";
 import {
   pushRecentDir,
   readRecentDirs,
@@ -334,6 +335,19 @@ interface UiState {
    */
   composerInsertRequest: { text: string; seq: number } | null;
   insertComposerText: (text: string) => void;
+
+  /* -------------------------------------------------------------------------
+   * 粘贴图片批次（task-composer-paste-image.md §5.2）：待发图片附件区。
+   *
+   * 为什么进 store 而不是 Composer 本地 state：与 composerDraft 同生命周期管理
+   * （发送后清、跨会话切换保留——草稿什么待遇它什么待遇），新建会话草稿态复用
+   * 同一 Composer 时无需额外接线。非持久化：待发图是「正在编辑的消息」的一部分，
+   * 跨启动还原是造假事实（与 composerDraft 同待遇）。
+   * ------------------------------------------------------------------------- */
+  pendingComposerImages: ComposerImage[];
+  addComposerImage: (image: ComposerImage) => void;
+  removeComposerImage: (id: string) => void;
+  clearComposerImages: () => void;
 }
 
 function persistFlag(key: string, value: boolean): void {
@@ -475,6 +489,13 @@ export const useUiStore = create<UiState>((set, get) => ({
   composerInsertRequest: null,
   insertComposerText: (text) =>
     set((s) => ({ composerInsertRequest: { text, seq: (s.composerInsertRequest?.seq ?? 0) + 1 } })),
+
+  /* --------------------------------------------------- 粘贴图片 · 待发区 */
+  pendingComposerImages: [],
+  addComposerImage: (image) => set((s) => ({ pendingComposerImages: [...s.pendingComposerImages, image] })),
+  removeComposerImage: (id) =>
+    set((s) => ({ pendingComposerImages: s.pendingComposerImages.filter((g) => g.id !== id) })),
+  clearComposerImages: () => set({ pendingComposerImages: [] }),
 }));
 
 let initialized = false;

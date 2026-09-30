@@ -168,6 +168,13 @@ export interface Message {
    * 与流式中的 pending 不算失败，不设此字段。
    */
   errorMessage?: string;
+  /**
+   * 粘贴图片批次（task-composer-paste-image.md §5.3）：user 消息的**待发附件快照**，
+   * **UI 乐观回显专用** —— 仅 chat-store 本地回显时写入，core 的序列化/历史回放
+   * （sessions.ts / 实时事件）**恒不写**；历史回放里的图片显示走 D3 口径
+   * （contentToBlocks 映射 `[图片]` 占位文本块）。dataUrl 兼作气泡缩略图预览源。
+   */
+  attachments?: { id: string; dataUrl: string }[];
 }
 
 export interface Session {
@@ -455,6 +462,12 @@ export interface ModelInfo {
   providerLabel?: string;
   /** 模型是否支持思考（Pi 的 `Model.reasoning`）—— 05 屏「支持 Max」标记的 live 口径 */
   supportsXhigh?: boolean;
+  /**
+   * 输入模态（Pi `Model.input`，粘图批次 2026-09-30 补）：UI 据此做「当前模型
+   * 不支持图片输入则禁止粘贴」的门控（规格书 D2）。可选 = 旧版 payload 没有；
+   * 消费方对缺省**宽松放行**（不能因字段缺失把门控做成全面禁贴）。
+   */
+  input?: ("text" | "image")[];
 }
 
 /** 思考档位（字面量集合与 UI `mock/types.ts` 的 `ThinkingLevel` 一致；core 侧独立声明，避免跨包运行时依赖） */

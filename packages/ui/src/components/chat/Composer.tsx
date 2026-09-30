@@ -4,14 +4,19 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ClipboardEvent,
   type HTMLAttributes,
   type KeyboardEvent,
 } from "react";
-import { Plus, Send, Square } from "lucide-react";
+import { Plus, Send, Square, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
 import { useChatStore } from "@/store/chat-store";
 import { useUiStore } from "@/store/ui-store";
+import { useModelsStore } from "@/store/models-store";
+import { useNoticeStore } from "@/store/notice-store";
+import { isLiveEnabled } from "@/lib/feature-flags";
+import { attachFromBlob, MAX_IMAGES_PER_MESSAGE } from "@/lib/image-attach";
 import {
   ComposerAtMenu,
   type ComposerAtMenuHandle,
@@ -60,6 +65,16 @@ import {
  *    即激活文件搜索弹层；弹层开着时 ↑↓/Enter/Tab/Esc 被弹层消费（Enter 不发送）。
  *    发送时从全文提取 @token 作为 fileRefs 透传（core 展开成 `<file>` 块/图片附件）。
  *    底行的 `+` 按钮走同一条通路（插入 `@` 并激活弹层，见 handlePlus）。
+ *
+ * ## 粘贴图片（task-composer-paste-image.md，2026-09-30 用户裁决）
+ *
+ * textarea `onPaste` 旁路收集剪贴板里的 image item（**永不 preventDefault**——
+ * textarea 原生忽略 image item，文本粘贴不受影响；图文混合 = 文本落框 + 图进待发区）。
+ * 待发图存 ui-store（与 composerDraft 同生命周期：发送后清、跨会话切换保留），
+ * 缩略图行渲染在 textarea 上方（D4 = 用户参考图），**有图才渲染**——无图时 composer
+ * 的 DOM 与既有几何契约（testid / probe-r7）零差异。门控 D2：live 且当前模型
+ * `input` 不含 `"image"` ⇒ 粘贴拒收 + 弹提示（models-store 的 payload 缺 current /
+ * 缺 input 字段时宽松放行——不能因数据未到把门控做成全面禁贴）。
  */
 
 export interface ComposerProps extends HTMLAttributes<HTMLDivElement> {
@@ -118,6 +133,11 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
   const composerDraft = useUiStore((state) => state.composerDraft);
   const setComposerDraft = useUiStore((state) => state.setComposerDraft);
   const composerInsertRequest = useUiStore((state) => state.composerInsertRequest);
+  // 粘图批次：待发图区（同在 ui-store，与草稿同生命周期）
+  const pendingImages = useUiStore((state) => state.pendingComposerImages);
+  const addComposerImage = useUiStore((state) => state.addComposerImage);
+  const removeComposerImage = useUiStore((state) => state.removeComposerImage);
+  const clearComposerImages = useUiStore((state) => state.clearComposerImages);
   /** @ 弹层状态：null = 关闭；非 null = 光标停在 @token 内 */
   const [atState, setAtState] = useState<AtTokenState | null>(null);
 
@@ -128,6 +148,18 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
   const awaitingModel = useChatStore((state) => state.awaitingModel);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const abortStream = useChatStore((state) => state.abortStream);
+
+  /* 粘图批次 · 门控（D2）：当前模型是否接受图片输入。宽松口径见文件头。
+     模型匹配 / label 回退与 ComposerToolbar 同款（provider+id 匹配，label 缺省回落 modelId）。 */
+  const live = isLiveEnabled();
+  const modelsPayload = useModelsStore((state) => state.payload);
+  const activeImageModel = (() => {
+    if (!live || !modelsPayload?.current) return null;
+    const cur = modelsPayload.current;
+    return modelsPayload.models.find((m) => m.provider === cur.provider && m.id === cur.modelId) ?? null;
+  })();
+  const activeModelSupportsImage =
+    activeImageModel === null || !activeImageModel.input || activeImageModel.input.includes("image");
 
   // 自适应多行高度：先归零再量 scrollHeight，超过上限就锁死并改内部滚动（验收 2-17）。
   // 用 layout effect 在绘制前完成，避免先以旧高度闪一帧。
@@ -172,9 +204,10 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     setAtState(computeAtState(el.value, el.selectionStart ?? el.value.length));
   };
 
-  // 停止态：整轮进行中（流式或轮间等待，F4）按钮可点（中止）；空闲且空：禁用（验收要求无内容禁用）
+  // 停止态：整轮进行中（流式或轮间等待，F4）按钮可点（中止）；空闲且空：禁用（验收要求无内容禁用）。
+  // 粘图批次：待发图也算「有内容」——纯图无文本可发送。
   const busy = streaming || awaitingModel;
-  const disabled = !busy && composerDraft.trim().length === 0;
+  const disabled = !busy && composerDraft.trim().length === 0 && pendingImages.length === 0;
 
   function handleSend() {
     if (busy) {
@@ -182,11 +215,49 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
       return;
     }
     const text = composerDraft.trim();
-    if (!text) return;
+    if (!text && pendingImages.length === 0) return;
     // at-file ②：全文 @token 作为 fileRefs 透传（core 展开；读不到的引用经 skippedFiles 弹通知）
-    sendMessage(text, extractAtRefs(text));
+    // 粘图批次：待发图随 sendMessage 透传（chat-store 剥 base64 进 /prompt body + 快照进回显）
+    sendMessage(text, extractAtRefs(text), pendingImages);
     setComposerDraft("");
+    clearComposerImages();
     setAtState(null);
+  }
+
+  /**
+   * 粘贴采集（粘图批次 §5.2）：旁路收集剪贴板 image item，**永不 preventDefault**——
+   * textarea 原生忽略 image item，文本粘贴零影响（图文混合 = 文本正常落框 + 图进待发区）。
+   * 门控失败/校验失败都弹 notice（上游的降级 hints 只进模型文本，用户看不见，即时反馈在 UI）。
+   * busy 态允许收图（只进待发区；此时发送钮语义是「停止」，abort 后图仍在，合理）。
+   */
+  async function handlePaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const items = Array.from(e.clipboardData?.items ?? []);
+    const files = items
+      .filter((it) => it.kind === "file" && it.type.startsWith("image/"))
+      .map((it) => it.getAsFile())
+      .filter((f): f is File => f !== null);
+    if (files.length === 0) return;
+    if (!activeModelSupportsImage) {
+      const label = activeImageModel?.label ?? "当前模型";
+      useNoticeStore.getState().notify({ tone: "warning", text: `模型 ${label} 不支持图片输入，已忽略粘贴的图片` });
+      return;
+    }
+    let added = 0;
+    for (const file of files) {
+      if (pendingImages.length + added >= MAX_IMAGES_PER_MESSAGE) {
+        useNoticeStore
+          .getState()
+          .notify({ tone: "warning", text: `单条消息最多 ${MAX_IMAGES_PER_MESSAGE} 张图片，超出部分已忽略` });
+        break;
+      }
+      const r = await attachFromBlob(file);
+      if (r.ok) {
+        addComposerImage(r.image);
+        added += 1;
+      } else {
+        useNoticeStore.getState().notify({ tone: "warning", text: r.reason });
+      }
+    }
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -257,6 +328,50 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
       )}
       {...rest}
     >
+      {/* 粘图批次：待发缩略图行（D4 = 参考图：框内顶部）。条件渲染——无图时本节点
+          不存在，composer 的 DOM 结构与既有几何/探针契约零差异。 */}
+      {pendingImages.length > 0 ? (
+        <div
+          data-testid="composer-images"
+          className="flex flex-wrap gap-2"
+          style={{
+            paddingLeft: COMPOSER_PADDING,
+            paddingRight: COMPOSER_PADDING,
+            paddingTop: COMPOSER_PADDING,
+          }}
+        >
+          {pendingImages.map((img, i) => (
+            <div
+              key={img.id}
+              data-testid={`composer-image-${i}`}
+              data-mime={img.mimeType}
+              className="group relative h-16 w-16 shrink-0"
+            >
+              <img
+                src={img.dataUrl}
+                alt={`待发送图片 ${i + 1}`}
+                className="h-16 w-16 rounded-lg border border-border-subtle object-cover"
+              />
+              <button
+                type="button"
+                data-testid={`composer-image-remove-${i}`}
+                aria-label={`移除图片 ${i + 1}`}
+                title="移除"
+                onClick={() => removeComposerImage(img.id)}
+                className={cn(
+                  "absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full",
+                  "border border-border-subtle bg-bg-surface text-text-secondary",
+                  "transition-opacity duration-150 ease-out hover:bg-bg-hover hover:text-text-primary",
+                  "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                )}
+              >
+                <Icon icon={X} size={11} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       <textarea
         ref={taRef}
         data-testid="composer-input"
@@ -267,6 +382,7 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
         }}
         onSelect={syncAtState}
         onKeyDown={onKeyDown}
+        onPaste={handlePaste}
         onBlur={() => setAtState(null)}
         // ⚠️ 默认 placeholder 文案被 probe-new-session.mjs 的 DEFAULT_PLACEHOLDER 断言锁定，
         // 改文案须先改探针（「@ 引用文件」的提示已由 NewSessionHero 提示行承担）

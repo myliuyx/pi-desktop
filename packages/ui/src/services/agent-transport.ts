@@ -142,15 +142,24 @@ export interface FsSearchResult {
 export interface PromptSendResult {
   /** 被跳过的 @file 引用（用户输入原样 + 括注原因），UI 据此弹通知 */
   skippedFiles: string[];
+  /** 被跳过的贴图（图片N + 括注原因；粘图批次 2026-09-30），UI 据此弹通知 */
+  skippedImages: string[];
+}
+
+/** 贴图附件的请求形态（与 core prompt-files 的 PromptImage / 上游 ImageContent 同形） */
+export interface PromptImagePayload {
+  data: string;
+  mimeType: string;
 }
 
 export interface AgentTransport {
   /**
    * 发送一条用户消息。`opts.fileRefs`（at-file 批次）= 消息文本中的 @引用文件列表，
-   * core 展开成 `<file>` 块/图片附件后发给模型；缺省/空数组时请求体与旧版逐字节相同。
-   * 返回 skippedFiles（core 读不到的引用），UI 据此弹通知。
+   * core 展开成 `<file>` 块/图片附件后发给模型；`opts.images`（粘图批次）= 剪贴板
+   * 贴图的 base64 附件，随 body 直传（RPC 对位）。两者缺省/空数组时请求体与旧版
+   * 逐字节相同。返回 skipped*（core 读不到的引用/超限的贴图），UI 据此弹通知。
    */
-  sendMessage(text: string, opts?: { fileRefs?: string[] }): Promise<PromptSendResult>;
+  sendMessage(text: string, opts?: { fileRefs?: string[]; images?: PromptImagePayload[] }): Promise<PromptSendResult>;
   /** 中止当前流式输出 */
   abort(): Promise<void>;
   /** 回收授权（Pi 的 select/confirm/input 应答） */
@@ -486,14 +495,22 @@ export class HttpAgentTransport implements AgentTransport {
     }
   }
 
-  async sendMessage(text: string, opts?: { fileRefs?: string[] }): Promise<PromptSendResult> {
-    // fileRefs 缺省/空时不带字段——请求体与旧版逐字节相同（旧 core 零风险）
+  async sendMessage(
+    text: string,
+    opts?: { fileRefs?: string[]; images?: PromptImagePayload[] },
+  ): Promise<PromptSendResult> {
+    // fileRefs/images 缺省/空时不带字段——请求体与旧版逐字节相同（旧 core 零风险）
     const refs = opts?.fileRefs && opts.fileRefs.length > 0 ? { fileRefs: opts.fileRefs } : {};
-    const body = await this.post<{ ok?: boolean; skippedFiles?: unknown }>("/prompt", { text, ...refs });
+    const imgs = opts?.images && opts.images.length > 0 ? { images: opts.images } : {};
+    const body = await this.post<{ ok?: boolean; skippedFiles?: unknown; skippedImages?: unknown }>("/prompt", {
+      text,
+      ...refs,
+      ...imgs,
+    });
+    const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : []);
     return {
-      skippedFiles: Array.isArray(body?.skippedFiles)
-        ? body.skippedFiles.filter((s): s is string => typeof s === "string")
-        : [],
+      skippedFiles: strings(body?.skippedFiles),
+      skippedImages: strings(body?.skippedImages),
     };
   }
 

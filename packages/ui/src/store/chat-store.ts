@@ -10,6 +10,27 @@ import { collectCollapsibleTurnKeys } from "@/lib/turns";
 import type { AgentEvent } from "@/adapter/pi-events";
 import { notifyFailure, useNoticeStore } from "@/store/notice-store";
 import { useUiStore } from "@/store/ui-store";
+import { stripDataUrl, type ComposerImage } from "@/lib/image-attach";
+
+/** 乐观回显的 attachments 快照 + live 请求体的 images 载荷（粘图批次共用一步算好） */
+function resolveSendImages(images?: ComposerImage[]): {
+  attachments: { id: string; dataUrl: string }[] | null;
+  payload: { data: string; mimeType: string }[] | null;
+} {
+  if (!images || images.length === 0) return { attachments: null, payload: null };
+  const attachments: { id: string; dataUrl: string }[] = [];
+  const payload: { data: string; mimeType: string }[] = [];
+  for (const g of images) {
+    const stripped = stripDataUrl(g.dataUrl);
+    if (!stripped) continue; // 理论不可达：待发区只经 attachFromBlob 产出
+    attachments.push({ id: g.id, dataUrl: g.dataUrl });
+    payload.push(stripped);
+  }
+  return {
+    attachments: attachments.length > 0 ? attachments : null,
+    payload: payload.length > 0 ? payload : null,
+  };
+}
 
 /**
  * 会话工作台状态。
@@ -65,8 +86,11 @@ export interface ChatState {
    * `fileRefs`（at-file 批次）：消息文本中的 @引用文件列表，仅 live 链路透传给 core
    * （展开成 `<file>` 块/图片附件）；core 读不到的引用经响应 skippedFiles 回来，此处
    * 弹 warning 通知（规格书 §4.2「诚实告知优于静默」）。mock 无 fs 概念，直接忽略。
+   * `images`（粘图批次）：待发贴图附件（Composer 待发区），live 链路剥出 base64 随
+   * /prompt body 直传；同时以 `attachments` 快照进 user 消息做乐观回显（mock 同样回显，
+   * 纯 UI 展示）。core 超限跳过的贴图经 skippedImages 弹通知。
    */
-  sendMessage: (text: string, fileRefs?: string[]) => void;
+  sendMessage: (text: string, fileRefs?: string[], images?: ComposerImage[]) => void;
   /** 中止正在进行的流式输出（已产出内容定格） */
   abortStream: () => void;
   /** 解决授权卡片；对已决的 requestId 再次调用应无效 */
@@ -292,9 +316,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   tokenUsage: INITIAL_TOKEN_USAGE,
   sessionTitle: INITIAL_SESSION_TITLE,
 
-  sendMessage: (text, fileRefs) => {
+  sendMessage: (text, fileRefs, images) => {
     const trimmed = text.trim();
-    if (!trimmed) return;
+    // 纯图无文本也可发送（粘图批次）：文本空但有附件时不拦截
+    if (!trimmed && !(images && images.length > 0)) return;
+    const sendImages = resolveSendImages(images);
+    const attachments = sendImages.attachments ?? undefined;
 
     /*
      * ★ 新建会话草稿的首条消息（task-new-session-page.md §4.4 · D6 语义核心）：
@@ -314,7 +341,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             notifyFailure("新会话创建失败，消息未发送", e);
             return;
           }
-          useChatStore.getState().sendMessage(text, fileRefs);
+          useChatStore.getState().sendMessage(text, fileRefs, images);
         })();
         return;
       }
@@ -330,18 +357,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
         role: "user",
         timestamp: now,
         blocks: [{ type: "text", content: trimmed }],
+        ...(attachments ? { attachments } : {}),
       };
       set((state) => ({ messages: [...state.messages, userMsg], streaming: true, pendingSince: now }));
       // liveDraft 以「当前消息 + 新 user 消息」为基线，后续 assistant 消息由 reducer 追加
       liveDraft = createDraft([...get().messages]);
       void transport
-        .sendMessage(trimmed, fileRefs && fileRefs.length > 0 ? { fileRefs } : undefined)
+        .sendMessage(trimmed, {
+          ...(fileRefs && fileRefs.length > 0 ? { fileRefs } : {}),
+          ...(sendImages.payload ? { images: sendImages.payload } : {}),
+        })
         .then((r) => {
           // at-file：core 读不到的引用被跳过（消息照发）——诚实告知，不让引用静默失效
           if (r.skippedFiles.length > 0) {
             useNoticeStore
               .getState()
               .notify({ tone: "warning", text: `@引用已跳过：${r.skippedFiles.join("、")}` });
+          }
+          // 粘图批次：core 超限/非法的贴图被跳过（消息照发），同款诚实告知
+          if (r.skippedImages.length > 0) {
+            useNoticeStore
+              .getState()
+              .notify({ tone: "warning", text: `图片已跳过：${r.skippedImages.join("、")}` });
           }
         })
         .catch((e) => {
@@ -359,6 +396,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       role: "user",
       timestamp: now,
       blocks: [{ type: "text", content: trimmed }],
+      ...(attachments ? { attachments } : {}),
     };
     // 2. 追加一条 streaming 的 assistant 占位消息
     const assistantId = `a-${now + 1}`;

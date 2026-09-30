@@ -22,7 +22,60 @@ import type { AgentEvent, ModelTestRequest, ProviderModelsRequest, PutProvidersR
 import { DirListError, listDirectories } from "./fs-list.ts";
 import { FsSearchError, searchFiles } from "./fs-search.ts";
 import { FileReadError, readTextFile } from "./fs-read.ts";
-import { expandFileRefs } from "./prompt-files.ts";
+import { expandFileRefs, IMAGE_MAX_BYTES, type PromptImage } from "./prompt-files.ts";
+
+/** 单条消息贴图数量上限（D6；UI 侧 lib/image-attach.ts 的 MAX_IMAGES_PER_MESSAGE 同口径） */
+const MAX_PASTED_IMAGES = 8;
+
+/**
+ * 粘贴图片批次（task-composer-paste-image.md §5.5）：解析 /prompt body 的可选
+ * `images: [{data(base64), mimeType}]`。**不做魔数嗅探、不做缩放/转码** —— 附件
+ * 进入 AgentSession.prompt 后由上游 `_normalizePromptImages` → processImage 统一
+ * 兜底（异格式转 PNG / autoResize / 失败降级 hints）；这里只守传输层上限：
+ * 字段合法性、单图 8MB（IMAGE_MAX_BYTES）、单条消息 8 张（MAX_PASTED_IMAGES），
+ * 超限跳过并计入 skippedImages（UI 弹通知），绝不因一张坏图吞掉整条消息。
+ */
+function parsePastedImages(raw: unknown): { images: PromptImage[]; skipped: string[] } {
+	const images: PromptImage[] = [];
+	const skipped: string[] = [];
+	if (!Array.isArray(raw)) return { images, skipped };
+	for (let i = 0; i < raw.length; i++) {
+		const label = `图片${i + 1}`;
+		const item = raw[i] as { data?: unknown; mimeType?: unknown } | undefined;
+		if (
+			!item ||
+			typeof item !== "object" ||
+			typeof item.data !== "string" ||
+			item.data.length === 0 ||
+			typeof item.mimeType !== "string" ||
+			item.mimeType.length === 0
+		) {
+			skipped.push(`${label}（格式无效）`);
+			continue;
+		}
+		let decoded: Buffer;
+		try {
+			decoded = Buffer.from(item.data, "base64");
+		} catch {
+			skipped.push(`${label}（解码失败）`);
+			continue;
+		}
+		if (decoded.length === 0) {
+			skipped.push(`${label}（空图片）`);
+			continue;
+		}
+		if (decoded.length > IMAGE_MAX_BYTES) {
+			skipped.push(`${label}（超过 8MB）`);
+			continue;
+		}
+		if (images.length >= MAX_PASTED_IMAGES) {
+			skipped.push(`${label}（超过单条消息 ${MAX_PASTED_IMAGES} 张上限）`);
+			continue;
+		}
+		images.push({ type: "image", data: item.data, mimeType: item.mimeType });
+	}
+	return { images, skipped };
+}
 import { isRecord } from "./guards.ts";
 import { InvalidCwdError, SessionManageError, type CoreRuntime } from "./session.ts";
 import { SkillNotFoundError } from "./skills.ts";
@@ -393,24 +446,38 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		 * 并在响应里带 skippedFiles（UI 弹通知）——不让一条坏引用吞掉整条消息。
 		 * ----------------------------------------------------------------- */
 		if (req.method === "POST" && urlPath === "/prompt") {
-			const body = (await readBody(req)) as { text?: string; fileRefs?: unknown };
+			const body = (await readBody(req)) as { text?: string; fileRefs?: unknown; images?: unknown };
 			const text = String(body.text ?? "");
 			const refs = Array.isArray(body.fileRefs)
 				? body.fileRefs.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
 				: [];
 			try {
+				// 粘图批次：贴图先行解析（超限/非法计 skippedImages，不阻塞发送）
+				const pasted = parsePastedImages(body.images);
 				let finalText = text;
 				let images;
-				let skipped: string[] = [];
+				let skippedFiles: string[] = [];
 				if (refs.length > 0) {
 					const expanded = expandFileRefs(refs, runtime.getCwd());
 					// file 块前置直拼（CLI buildInitialMessage 同序 join("")；块自带尾随换行）
 					finalText = expanded.promptText + text;
-					if (expanded.images.length > 0) images = expanded.images;
-					skipped = expanded.skipped;
+					// 贴图在前、@引用展开的图在后（同入 PromptOptions.images，上游统一 normalize）
+					const merged = [...pasted.images, ...expanded.images];
+					if (merged.length > 0) images = merged;
+					skippedFiles = expanded.skipped;
+				} else if (pasted.images.length > 0) {
+					images = pasted.images;
+				}
+				// 纯图无文本兜底：Anthropic 对 content 里的空 text 块直接 400，补一行占位
+				//（与上游 anthropic-messages.ts 纯图时插的 "(see attached image)" 同措辞）
+				if (images && images.length > 0 && !finalText.trim()) {
+					finalText = "(see attached image)";
 				}
 				await runtime.prompt(finalText, images);
-				return skipped.length > 0 ? json(200, { ok: true, skippedFiles: skipped }) : json(200, { ok: true });
+				const resp: { ok: boolean; skippedFiles?: string[]; skippedImages?: string[] } = { ok: true };
+				if (skippedFiles.length > 0) resp.skippedFiles = skippedFiles;
+				if (pasted.skipped.length > 0) resp.skippedImages = pasted.skipped;
+				return json(200, resp);
 			} catch (e) {
 				return json(500, { ok: false, error: String(e) });
 			}
