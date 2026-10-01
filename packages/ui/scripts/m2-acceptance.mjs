@@ -586,6 +586,38 @@ await withBrowser(
         降级输入回退最近一次: popDegrade.input.includes("12,400"),
       });
 
+      // 2-14 补（2026-10-01 上下文环真值批次）：窗口未知 ⇒ 环显示「—」、浮框上下文行
+      // 「— / —」。注入 contextWindow: 0（未知哨兵值），断言渲染层**不显示**任何
+      // 数字 —— 这正是假 128k 的同款坑（此前降级态会显示 formatCompact(0) = "0"）。
+      // ⚠️ 临时改 store，**末尾必须还原** INITIAL_TOKEN_USAGE，否则污染 2-15 之后的段。
+      await cdp.eval("window.__T.setUsage({ input: 0, output: 0, total: 0, contextWindow: 0, contextTokens: 500 })");
+      await sleep(150);
+      const unknownRing = await cdp.eval(
+        `window.__T.q('[data-testid="composer-context-ring-value"]')?.textContent.trim()`,
+      );
+      await cdp.eval(`document.querySelector('[data-testid="composer-context-ring"]')
+        .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))`);
+      await sleep(150);
+      const unknownContext = await cdp.eval(
+        `window.__T.q('[data-testid="composer-token-row-context"]')?.textContent.trim()`,
+      );
+      await cdp.eval(`document.querySelector('[data-testid="composer-context-ring"]')
+        .dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }))`);
+      await sleep(150);
+      // 还原 mock 初始用量（INITIAL_TOKEN_USAGE），不污染后续断言
+      await cdp.eval("window.__T.setUsage({ input: 12400, output: 6200, total: 18600, contextWindow: 128000, contextTokens: 18600, inputSum: 12400, outputSum: 6200, costTotal: 0.0217 })");
+      await sleep(150);
+      ctx.record("2-14_窗口未知降级", { ringValue: unknownRing, contextRow: unknownContext });
+      ctx.assert("2-14 窗口未知 ⇒ 环显示「—」且浮框上下文行含「— / —」（不显示任何数字）", {
+        环值为破折号: unknownRing === "—",
+        /*
+         * 用 includes 而非 === 全文比对：整行 textContent 是 label + value 两个 span 的
+         * 直接拼接（`上下文— / —`），中间要不要空格属 DOM 实现细节，不是本断言要锁的口径。
+         * 口径仍能抓住真回归 —— 旧实现此处渲染 `— / 0`，不含 `— / —`。
+         */
+        上下文行含双破折号: typeof unknownContext === "string" && unknownContext.includes("— / —"),
+      });
+
       // 2-15 三档颜色：经 store 注入三档 tokenUsage（占比 0.5 / 0.75 / 0.95，窗口不变）。
       // ⚠️ setUsage 与读色必须拆成两次 eval 中间 sleep：React 对 store 变更的重渲染是
       // 调度式的，同一 eval 里改完立刻读会拿到旧颜色（假失败）。

@@ -14,7 +14,9 @@
  *       store 的 liveSessionId（D6 的浏览器级实证 —— 点击时零创建、发送时才创建）；
  *   L3  有会话后点「新建会话」⇒ 回草稿态且 **core 清单不变**（U2 的 live 实证：
  *       点击只是本地视图态）；
- *   L4  点历史项 ⇒ 离开草稿态回到正常会话视图（草稿的出路仍通）。
+ *   L4  点历史项 ⇒ 离开草稿态回到正常会话视图（草稿的出路仍通）；
+ *   L5  新建会话草稿态 ⇒ 浮框上下文行的窗口**等于当前模型的 contextWindow**（真值，
+ *       2026-10-01 上下文环真值批次）：不许再出现 mock 演示值 128k。
  *
  * ★ 防假绿设计（mock 段，别"优化"掉）：
  * - N1 同时断言 `message-list` 与 `empty-state` **不存在** —— 只断言 hero 存在时，
@@ -37,6 +39,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { withBrowser, waitForSelector, SET_TEXT_HELPER, sleep } from "./cdp.mjs";
 import { childEnv, seedModelsJson } from "../../core/scripts/lib/credentials.mjs";
+// 期望窗口文案在 Node 侧算（formatCompact 是纯函数），不写死 "1.0M" 这类数字：
+// 换夹具模型时断言自动跟上，不会假红。跨语言 import TS 的先例见 format-check.mjs。
+import { formatCompact } from "../src/lib/format.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const uiDir = path.resolve(here, "..");
@@ -89,7 +94,14 @@ const HELPERS = `
         streaming: s.streaming,
         messageCount: s.messages.length,
         liveSessionId: s.liveSessionId,
-        tokenUsage: { input: s.tokenUsage.input, output: s.tokenUsage.output, total: s.tokenUsage.total },
+        tokenUsage: {
+          input: s.tokenUsage.input,
+          output: s.tokenUsage.output,
+          total: s.tokenUsage.total,
+          // 2026-10-01 上下文环真值批次：窗口分母也带出来，L5 才能在 Node 侧
+          // 与浮框 DOM 互证（页内只看得到渲染结果，缺这一项就只能"看着像"）。
+          contextWindow: s.tokenUsage.contextWindow,
+        },
       };
     },
   };
@@ -425,6 +437,49 @@ async function runLive() {
         草稿位开启: l1Page?.store?.newSessionDraft === true,
         placeholder是草稿文案: l1Page?.placeholder === DRAFT_PLACEHOLDER,
         core清单为空: l1List.sessions.length === 0,
+      });
+
+      /* ================================================================ L5 · 草稿态窗口取自模型清单（2026-10-01 上下文环真值批次） */
+      /*
+       * 假 128k 的根因：草稿态写死 mock 的 contextWindow，而 usage 事件要等第一条
+       * assistant 回复结束才来 ⇒ 首屏与草稿态必然落在假窗口期。
+       *
+       * ⚠️ 断言打在**浮框上下文行**（`X% / Yk` 的 Y 位），不是环值：草稿态
+       * contextTokens=0 ⇒ 环值无论真假都是 `0%`，只断言环值是假绿。
+       * hover 用 m2 同款显式派发（React 的 onMouseEnter 由 mouseover 合成）。
+       */
+      const l5Models = await cdp.eval(`(async () => {
+        const res = await fetch('/models', { headers: { Authorization: 'Bearer ${LIVE_TOKEN}' } });
+        return res.json();
+      })()`);
+      const l5Active =
+        l5Models?.models?.find(
+          (m) => m.provider === l5Models?.current?.provider && m.id === l5Models?.current?.modelId,
+        ) ?? null;
+      await cdp.eval(
+        `document.querySelector('[data-testid="composer-context-ring"]')
+          .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))`,
+      );
+      await sleep(200);
+      const l5Row = await cdp.eval(
+        `document.querySelector('[data-testid="composer-token-row-context"]')?.textContent?.trim() ?? null`,
+      );
+      await cdp.eval(
+        `document.querySelector('[data-testid="composer-context-ring"]')
+          .dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }))`,
+      );
+      const l5ExpectedWindow =
+        typeof l5Active?.contextWindow === "number" ? formatCompact(l5Active.contextWindow) : null;
+      ctx.record("L5_草稿态窗口真值观测", {
+        currentWindow: l5Active?.contextWindow ?? null,
+        expectedWindow: l5ExpectedWindow,
+        contextRow: l5Row,
+      });
+      ctx.assert("L5 草稿态窗口 = 当前模型 contextWindow 真值（不再是 mock 的 128k）", {
+        清单带窗口字段: typeof l5Active?.contextWindow === "number" && l5Active.contextWindow > 0,
+        浮框窗口位等于模型配置:
+          typeof l5ExpectedWindow === "string" && typeof l5Row === "string" && l5Row.endsWith(l5ExpectedWindow),
+        不再是演示值128k: typeof l5Row === "string" && !l5Row.endsWith("128k"),
       });
 
       /* ================================================================ L0 · live 首屏不出现 mock（问题二回归锁） */
