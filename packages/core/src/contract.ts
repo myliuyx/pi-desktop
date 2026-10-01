@@ -293,6 +293,26 @@ export interface TokenUsage {
   cacheRead?: number;
   /** 最近一次 assistant 请求的缓存写入 tokens（F2；>0 才写） */
   cacheWrite?: number;
+  /**
+   * 会话累计输入 tokens（Σ 各次 assistant 请求的 `input`；task-context-ring-token-popover.md D1）。
+   *
+   * 与 `input`（最近一次）并存：环悬停浮框的明细面板用累计口径（参考图四行加总=总计）。
+   * 累计四项**直接写、0 合法**（「会话无缓存」是真事实，区别于最近一次 cache 两项的
+   * 「>0 才写」反假数据纪律）。
+   */
+  inputSum?: number;
+  /** 会话累计输出 tokens（Σ 各次 `output`；口径同 `inputSum`） */
+  outputSum?: number;
+  /** 会话累计缓存命中 tokens（Σ 各次 `cacheRead`；口径同 `inputSum`） */
+  cacheReadSum?: number;
+  /** 会话累计缓存写入 tokens（Σ 各次 `cacheWrite`；口径同 `inputSum`） */
+  cacheWriteSum?: number;
+  /**
+   * 会话累计费用美元（Σ pi-ai `usage.cost.total`——按每次请求的模型单价算好的值，
+   * 模型中途切换天然正确）。**>0 才写**：0 = 模型没配单价（或旧会话 jsonl 无 cost 字段），
+   * 消费方（浮框费用行）按缺省/≤0 整行隐藏。
+   */
+  costTotal?: number;
 }
 
 /**

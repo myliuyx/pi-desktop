@@ -139,6 +139,8 @@ function commandOf(toolName: string, args: Record<string, unknown> | undefined):
  *
  * 口径（2026-09-24 用户裁定）：`input`/`output` 取**最近一次**（`input` 已含历史上下文，
  * 累加会重复计）；`total` **历史累加** = ΣPi `totalTokens`（含 cache，故 ≥ Σ(input+output)）。
+ * *Sum 五项（task-context-ring-token-popover.md D1）：会话累计口径，供环悬停浮框明细；
+ * 分量四项 0 合法直接写，costTotal（Σ `usage.cost.total`，pi 按当次模型单价算好）>0 才写。
  */
 function foldUsage(target: TokenUsage, usage: unknown): void {
 	if (!isRecord(usage)) return;
@@ -150,6 +152,13 @@ function foldUsage(target: TokenUsage, usage: unknown): void {
 	const cacheWrite = num(usage.cacheWrite);
 	if (cacheRead > 0) target.cacheRead = cacheRead;
 	if (cacheWrite > 0) target.cacheWrite = cacheWrite;
+	// D1 累计五项：Σ 分量 + Σ 费用（旧会话 jsonl 无 cost 字段 → num(undefined)=0 → 不写）
+	target.inputSum = (target.inputSum ?? 0) + num(usage.input);
+	target.outputSum = (target.outputSum ?? 0) + num(usage.output);
+	target.cacheReadSum = (target.cacheReadSum ?? 0) + cacheRead;
+	target.cacheWriteSum = (target.cacheWriteSum ?? 0) + cacheWrite;
+	const cost = isRecord(usage.cost) ? num(usage.cost.total) : 0;
+	if (cost > 0) target.costTotal = (target.costTotal ?? 0) + cost;
   /*
    * 已用上下文（最后一次带 usage 的 assistant 覆盖写入，口径同 Pi 的
    * `calculateContextTokens`：totalTokens 优先，否则 input+output+cacheRead+cacheWrite）。
