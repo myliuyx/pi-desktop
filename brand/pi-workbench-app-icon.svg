@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Pi Workbench">
+  <rect width="1024" height="1024" rx="224" fill="#14161A" />
+  <g fill="#F4F5F6" transform="translate(93.09 93.09) scale(13.0909)">
+    <rect x="12" y="10" width="40" height="8" rx="1.5" />
+    <rect x="15" y="22" width="8" height="32" rx="1.5" />
+    <rect x="41" y="22" width="8" height="32" rx="1.5" />
+  </g>
+</svg>
