@@ -322,6 +322,16 @@ function mkText(content: string, streaming: boolean): TextBlock {
 /** live 判定：模块加载时确定（与 Sidebar / feature-flags 同口径） */
 const LIVE = isLiveEnabled();
 
+/**
+ * 「用量未知」的空快照（2026-10-01 上下文环真值批次）。
+ *
+ * 与 `INITIAL_TOKEN_USAGE`（mock 演示值）的区别是纪律性的：`contextWindow: 0`
+ * 不是"窗口为零"，而是**窗口未知** —— 渲染层据此走降级态显示「—」，
+ * 绝不让 mock 演示值（128000）混进 live 路径。`contextTokens` 故意**不给**：
+ * 「还没开始」与「已用 0」是两件事，后者该由 core 的 usage 事件下发。
+ */
+const EMPTY_TOKEN_USAGE: TokenUsage = { input: 0, output: 0, total: 0, contextWindow: 0 };
+
 export const useChatStore = create<ChatState>((set, get) => ({
   // live 首帧不得有 mock 可渲染（问题二根因）：初值给空数组，由 bootstrapping 顶住
   messages: LIVE ? [] : INITIAL_SESSION.messages,
@@ -329,7 +339,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   awaitingModel: false,
   pendingSince: null,
   settledTurnKeys: new Set<string>(),
-  tokenUsage: INITIAL_TOKEN_USAGE,
+  // mock 形态保留设计稿演示值（验收 2-13/2-14 的 14.5% / 128k 就锁在这个值上）；
+  // live 形态给"未知"（0）—— 首屏还没有任何真实 usage，沿用 mock 的 128000 会让
+  // 上下文环一上来就显示假的窗口分母（2026-10-01 上下文环真值批次）。
+  tokenUsage: LIVE ? EMPTY_TOKEN_USAGE : INITIAL_TOKEN_USAGE,
   sessionTitle: LIVE ? "会话" : INITIAL_SESSION_TITLE,
 
   sendMessage: (text, fileRefs, images) => {
@@ -690,7 +703,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
       newSessionDraft: true,
       // 草稿没有历史用量：不清零会一直显示上一个会话的数字（假事实，D9）
       // contextTokens: 0 → 环显示 0%（probe-new-session N10 锁定），同样是「真话」
-      tokenUsage: { input: 0, output: 0, total: 0, contextWindow: INITIAL_TOKEN_USAGE.contextWindow, contextTokens: 0 },
+      // live 形态窗口一并归未知（0）：此前写死 mock 的 128000，屏幕上的假 `0% / 128k`
+      // 就出在这里；模型清单真值由 ComposerContextRing 经 resolveContextWindow 补上。
+      // mock 形态（transport 为 null）沿用设计稿演示值，验收 2-13/2-14 零回归。
+      tokenUsage: transport
+        ? { ...EMPTY_TOKEN_USAGE, contextTokens: 0 }
+        : { ...EMPTY_TOKEN_USAGE, contextWindow: INITIAL_TOKEN_USAGE.contextWindow, contextTokens: 0 },
       // mock 形态本就恒 null，无条件清空即无行为差异；live 借此去掉侧栏旧会话高亮
       liveSessionId: null,
     });
@@ -743,6 +761,11 @@ if (typeof window !== "undefined") {
               sessionTitle: "新会话",
               streaming: false,
               newSessionDraft: true,
+              // 空清单启动直接进草稿态：用量必须显式归零（D9）。
+              // 此前这一分支**没设 tokenUsage**，于是沿用 store 初值 —— live 下初值
+              // 已是 EMPTY_TOKEN_USAGE，但把这条纪律显式写出来，避免以后有人改初值
+              // 时又漏掉这条路径（窗口真值批次：假 128k 正是这么漏出来的）。
+              tokenUsage: { ...EMPTY_TOKEN_USAGE, contextTokens: 0 },
               sessionSummaries: sessions,
               liveCwd: cwd,
               fsVersion: state.fsVersion + 1,

@@ -2,12 +2,13 @@ import { useState } from "react";
 import { cn } from "@/lib/cn";
 import {
   contextTone,
-  formatCompact,
   formatContextPercent,
   type ContextTone,
 } from "@/lib/format";
 import { CONTEXT_RING_SIZE, CONTEXT_RING_STROKE } from "@/lib/layout";
 import { useChatStore } from "@/store/chat-store";
+import { useModelsStore } from "@/store/models-store";
+import { resolveContextWindow } from "@/lib/context-window";
 import { ComposerTokenPopover } from "@/components/chat/ComposerTokenPopover";
 
 /**
@@ -25,9 +26,10 @@ import { ComposerTokenPopover } from "@/components/chat/ComposerTokenPopover";
  * 与 svg 的 currentColor 上，验收（m2 2-15）按探针元素比对**计算色值**，所以必须真的
  * 用 text-* 类，绝不能自己调亮度凑。
  *
- * 降级态（规格决策 5）：live 下 `contextTokens` 缺省（契约「仅当两侧都未知才缺省」，
- * 如刚压缩完的下一次回复前）→ 中性满环 + 数值显示窗口大小，浮框上下文行百分比位
- * 显示「—」（ComposerTokenPopover 上下文行降级）。
+ * 降级态（规格决策 5 + 2026-10-01 上下文环真值批次）：live 下 `contextTokens` 缺省
+ * （契约「仅当两侧都未知才缺省」，如刚压缩完的下一次回复前）或**窗口未知**（usage
+ * 事件未到且模型清单没有该字段）→ 中性满环 + 数值显示「—」，浮框上下文行显示「— / —」。
+ * 窗口真值来源见 `lib/context-window.ts`（usage 事件 → 模型清单 → 未知）。
  */
 
 const TONE_CLASS: Record<ContextTone, string> = {
@@ -42,18 +44,31 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 export function ComposerContextRing() {
   const usage = useChatStore((state) => state.tokenUsage);
+  /*
+   * 窗口分母 = 真值（2026-10-01 上下文环真值批次）：此前直接取 `usage.contextWindow`，
+   * 而它在首屏/草稿态是 mock 演示值 128000 ⇒ 屏幕上那个假的 `0% / 128k`。
+   * 现在走 `resolveContextWindow`：usage 事件带了真值就用它（最新、与请求同一模型），
+   * 否则用 `GET /models` 当前模型的 contextWindow 补上"事件未到"的空窗期，都没有 → 0。
+   */
+  const modelsPayload = useModelsStore((state) => state.payload);
+  const contextWindow = resolveContextWindow(usage.contextWindow, modelsPayload);
   // 悬停开合（task-context-ring-token-popover.md 决策 7）：即显即隐、无定时器。
   // 面板是本 wrapper 的 DOM 后裔 → 指针在环与面板间移动不会触发 mouseleave
   // （位置容器用 padding 而非 margin 留缝，见 ComposerTokenPopover 文件头）。
   const [hoverOpen, setHoverOpen] = useState(false);
 
-  const { contextTokens, contextWindow } = usage;
+  const { contextTokens } = usage;
   const known = contextTokens !== undefined && contextWindow > 0;
   // 未知态按 0% 计：contextTone(0)=neutral、弧长 0，恰好就是降级态想要的形状
   // （满环由下方 known 分支显式给 100，不经 percent）
   const percent = known ? (contextTokens / contextWindow) * 100 : 0;
   const tone = contextTone(percent);
-  const valueText = known ? formatContextPercent(percent) : formatCompact(contextWindow);
+  /*
+   * 数值位（规格决策 5 的降级态）：窗口/占用未知时显示「—」而非窗口大小。
+   * 原先这里显示 `formatCompact(contextWindow)`，在草稿态就是那个假的 `128k`；
+   * 窗口未知时显示 `0` 同样是假事实（"窗口为零"没人信）。未知就说未知。
+   */
+  const valueText = known ? formatContextPercent(percent) : "—";
 
   return (
     <div
@@ -100,7 +115,7 @@ export function ComposerContextRing() {
         {valueText}
       </span>
 
-      {hoverOpen ? <ComposerTokenPopover usage={usage} /> : null}
+      {hoverOpen ? <ComposerTokenPopover usage={usage} contextWindow={contextWindow} /> : null}
     </div>
   );
 }

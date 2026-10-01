@@ -17,6 +17,9 @@ import type { TokenUsage } from "@/mock/types";
  *   缓存全 0 隐藏；
  * - 缓存写入行参考图上没有，但 cacheWriteSum>0 时必须补——否则各行加总对不上总计
  *   （total = Σ totalTokens = Σ 四分量，实测 jsonl 样本吻合）。
+ * - 上下文行：窗口未知（`contextWindow === 0`，本批次新增口径）或占用未知 → 整行显示
+ *   「— / —」。此前窗口未知时仍会显示 `formatCompact(0)` 产出的 `0`，那是假事实
+ *   （2026-10-01 上下文环真值批次）。
  *
  * 定位与 hover 桥（容器在 ComposerContextRing）：absolute bottom-full 向上弹，落在
  * 消息流区域内（同 ChipMenu 论证，不被 WorkspaceArea overflow-hidden 裁切）。
@@ -35,7 +38,14 @@ function Row({ testId, label, value }: { testId: string; label: string; value: s
   );
 }
 
-export function ComposerTokenPopover({ usage }: { usage: TokenUsage }) {
+export function ComposerTokenPopover({
+  usage,
+  contextWindow,
+}: {
+  usage: TokenUsage;
+  /** 已解析的窗口真值（`resolveContextWindow` 的结果）；0 = 未知 ⇒ 本行显示「— / —」 */
+  contextWindow: number;
+}) {
   // 累计口径优先，回退最近一次（决策 2）；cache 两项缺省按 0 参与命中率分母
   const input = usage.inputSum ?? usage.input;
   const output = usage.outputSum ?? usage.output;
@@ -45,9 +55,12 @@ export function ComposerTokenPopover({ usage }: { usage: TokenUsage }) {
   const hitDenominator = input + cacheRead + cacheWrite;
   const hitRate = cacheRead > 0 && hitDenominator > 0 ? (cacheRead / hitDenominator) * 100 : null;
   // 上下文行降级（决策 6：原 title 的「占用未知」说明由本行承担）：占用未知 → 百分比位显示 —
+  // 窗口本身未知（本批次新增：usage 事件未到且模型清单没有该字段）→ 整个「X / Y」都显示 —
   const contextTokens = usage.contextTokens;
-  const knownContext = contextTokens !== undefined && usage.contextWindow > 0;
-  const contextText = `${knownContext ? formatContextPercent((contextTokens / usage.contextWindow) * 100) : "—"} / ${formatCompact(usage.contextWindow)}`;
+  const knownContext = contextTokens !== undefined && contextWindow > 0;
+  const contextText = knownContext
+    ? `${formatContextPercent((contextTokens / contextWindow) * 100)} / ${formatCompact(contextWindow)}`
+    : `— / —`;
 
   return (
     /* 位置容器：pb-2 = 面板与环的视觉间距 + hover 桥（见文件头注释，勿改 margin） */
