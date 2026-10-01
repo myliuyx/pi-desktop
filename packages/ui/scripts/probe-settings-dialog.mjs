@@ -109,7 +109,7 @@ await withBrowser({ port: 9345, evidencePath: "_settings-evidence.json" }, async
     }) ? 0 : 1;
   }
 
-  /* ================================================== P2 常规 Tab 四组顺序（D3 修订） */
+  /* ================================================== P2 常规 Tab 五组顺序（D3 修订 + task-trust-policy-switch 加 trust 组） */
   await cdp.eval(`(() => { window.__S.q('[data-testid="settings-tab-general"]').click(); return true; })()`);
   await sleep(300);
   {
@@ -117,22 +117,58 @@ await withBrowser({ port: 9345, evidencePath: "_settings-evidence.json" }, async
       const groups = window.__S.qa('[data-testid="settings-group"]').map(g => g.dataset.group);
       return {
         groups,
-        orderCorrect: JSON.stringify(groups) === JSON.stringify(['thinking','session','appearance','working-dir']),
+        orderCorrect: JSON.stringify(groups) === JSON.stringify(['thinking','session','appearance','working-dir','trust']),
         modelGroupGone: !groups.includes('model'),
         thinkingOptions: window.__S.qa('[data-testid="settings-thinking-option"]').length,
         sessionSwitches: window.__S.qa('[data-testid="settings-switch"]').length,
         themeOptions: window.__S.qa('[data-testid="settings-theme-option"]').length,
         workingDirVisible: !!window.__S.q('[data-testid="settings-working-dir"]'),
+        /* task-trust-policy-switch：信任组与它的独立开关（testid 刻意不复用 settings-switch，
+           否则上面 sessionSwitches 的 === 2 计数断言会被顶到 3） */
+        trustGroupPresent: groups.includes('trust'),
+        trustSwitchVisible: !!window.__S.q('[data-testid="settings-trust-switch"]'),
+        trustSwitchField: (() => {
+          const el = window.__S.q('[data-testid="settings-trust-switch"]');
+          return el ? el.dataset.field : null;
+        })(),
       };
     })()`);
-    ctx.record("P2_常规Tab四组", r);
-    failures += ctx.assert("P2 常规 Tab：思考强度/会话/外观/工作目录四组且顺序正确，无模型组", {
-      四组顺序正确: r.orderCorrect === true,
+    ctx.record("P2_常规Tab五组", r);
+    failures += ctx.assert("P2 常规 Tab：思考强度/会话/外观/工作目录/项目扩展信任五组且顺序正确，无模型组", {
+      五组顺序正确: r.orderCorrect === true,
       模型组已删除: r.modelGroupGone === true,
       思考档位存在: r.thinkingOptions > 0,
       会话开关两个: r.sessionSwitches === 2,
       主题三段存在: r.themeOptions === 3,
       工作目录在: r.workingDirVisible === true,
+      信任组在: r.trustGroupPresent === true,
+      信任开关存在: r.trustSwitchVisible === true,
+      信任开关字段标注正确: r.trustSwitchField === "defaultProjectTrust",
+    }) ? 0 : 1;
+  }
+
+  /* ================================================== P2b 信任开关可切换（mock 走 ui-store 持久化） */
+  {
+    const read = () => cdp.eval(`(() => {
+      const el = window.__S.q('[data-testid="settings-trust-switch"]');
+      return { enabled: el ? el.dataset.enabled : null, disabled: el ? el.disabled : null };
+    })()`);
+    const click = () => cdp.eval(`(() => { window.__S.q('[data-testid="settings-trust-switch"]').click(); return true; })()`);
+
+    const before = await read();
+    await click();
+    await sleep(200);
+    const toggled = await read();
+    // 必须复位：mock 下该开关持久化到 localStorage，不复位会污染下一次探针运行的初始态
+    await click();
+    await sleep(200);
+    const restored = await read();
+
+    ctx.record("P2b_信任开关可切换", { before, toggled, restored });
+    failures += ctx.assert("P2b 项目扩展授权询问开关：未禁用、可切换、可切回原值", {
+      开关未禁用: before.disabled === false,
+      切换后取反: toggled.enabled === String(before.enabled !== "true"),
+      已复位: restored.enabled === before.enabled,
     }) ? 0 : 1;
   }
 

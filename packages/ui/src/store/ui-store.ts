@@ -43,6 +43,12 @@ const TOOL_STORAGE_PREFIX = "tool-enabled:";
 const SESSION_SWITCH_STORAGE_PREFIX = "setting:";
 /** 05 屏工作目录 */
 const WORKING_DIR_STORAGE_KEY = "working-dir";
+/**
+ * 常规 Tab「项目扩展授权询问」开关（task-trust-policy-switch）。
+ * **复用 `SESSION_SWITCH_STORAGE_PREFIX`，key = `setting:defaultProjectTrust`**
+ * —— 与同族设置项（`setting:autoCompact` 等）同一命名空间，便于整体清理与排查。
+ */
+const TRUST_POLICY_STORAGE_KEY = `${SESSION_SWITCH_STORAGE_PREFIX}defaultProjectTrust`;
 
 function readStoredTheme(): Theme | null {
   if (typeof window === "undefined") return null;
@@ -272,6 +278,19 @@ interface UiState {
   toggleSessionSwitch: (field: SessionSwitchField) => void;
 
   /**
+   * 「项目扩展授权询问」开关（对齐 Pi 的 `SettingsManager.defaultProjectTrust`，
+   * task-trust-policy-switch）。
+   *
+   * `false`（默认）= 落盘 `always`：自动信任并直接加载执行，不询问；
+   * `true` = 落盘 `ask`：每次进入含项目本地扩展的目录都询问。
+   *
+   * ⚠️ 它**表达不了** Pi 的第三态 `never`（不询问**且**不加载）—— live 下那种情况由
+   * core 下发的 `policy === "never"` 判定，UI 把开关**禁用**而非用它表示（见 `SettingsGeneralTab`）。
+   */
+  trustPolicyAsk: boolean;
+  setTrustPolicyAsk: (ask: boolean) => void;
+
+  /**
    * 偏好工作目录（对齐 Pi 的 AgentOptions.cwd）。
    *
    * `null` = **未设置偏好**（「使用默认目录」清成这个状态）：live 下次启动不带
@@ -453,6 +472,21 @@ export const useUiStore = create<UiState>((set, get) => ({
     set((state) => ({ sessionSwitches: { ...state.sessionSwitches, [field]: value } }));
   },
 
+  /*
+   * task-trust-policy-switch · 「项目扩展授权询问」开关。
+   *
+   * ★ 与 sessionSwitches **同规**（都在 store、都持久化）—— 刻意不用 useState：
+   *   那样 mock 下刷新即回默认，与 live 行为分叉，探针也无法断言「刷新后仍保持」。
+   * ★ **只在 mock 形态下作为数据源**：live 下真值来自 core（`GET /trust-policy`），
+   *   本字段仅用于「core 尚未应答时」的首帧占位（默认 `false` = 关，与出厂默认一致）。
+   */
+  trustPolicyAsk: readStoredSwitch(TRUST_POLICY_STORAGE_KEY, false),
+
+  setTrustPolicyAsk: (ask) => {
+    persistFlag(TRUST_POLICY_STORAGE_KEY, ask);
+    set({ trustPolicyAsk: ask });
+  },
+
   workingDir: readStoredWorkingDir(),
 
   setWorkingDir: (dir) => {
@@ -525,6 +559,7 @@ export function initTheme(): void {
     // M4：工具开关 / 设置字段同样在首帧前确定，避免"先渲染默认值再跳变"
     enabledTools: readEnabledTools(),
     sessionSwitches: readSessionSwitches(),
+    trustPolicyAsk: readStoredSwitch(TRUST_POLICY_STORAGE_KEY, false),
     workingDir: readStoredWorkingDir(),
     // 最近目录同属「首帧前确定」：否则侧栏首帧会先画空菜单再跳出入选项
     recentDirs: readRecentDirsForStore(),

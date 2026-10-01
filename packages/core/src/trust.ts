@@ -25,6 +25,18 @@
  *
  * 「默认配置下，未经用户确认的项目本地扩展**不得执行**」→ 因此：
  * 提问**超时**、**无人应答**、**任何异常**，一律按**不信任**收尾。
+ *
+ * ## ⚠️ 安全基线的有意翻转（task-trust-policy-switch，2026-10-01 用户裁决）
+ *
+ * 上一节那句「默认配置下未经确认不得执行」**已被产品裁决翻转**：
+ * 出厂默认不再是 `ask`，而是 **`always`（自动信任并直接加载执行，不询问）**
+ * —— 见 `readTrustPolicy` 的归一化口径。用户想要回旧行为，到设置页「常规」打开
+ * 「项目扩展授权询问」开关即可（落盘 `defaultProjectTrust = "ask"`）。
+ *
+ * **翻转的边界**（改这里之前务必读全）：
+ * ① 只翻**默认值**，不翻**安全兜底** —— `ask` 态下超时/无人应答/异常仍一律按不信任收尾；
+ * ② `never`（不询问**且**不加载）仍被尊重，不会被本开关覆写（见 `setTrustPolicy` 的写保护）；
+ * ③ 开关的说明文案必须**如实写明**「关闭时自动信任并直接加载执行」的后果（UI 侧责任）。
  */
 
 import {
@@ -85,10 +97,52 @@ export interface ResolveProjectTrustOptions {
 	timeoutMs?: number;
 }
 
+/**
+ * 归一化后的信任策略（task-trust-policy-switch）。
+ *
+ * - `policy`：**三态原样**（`ask` / `always` / `never`），UI 靠它区分「关」的两种含义
+ *   —— `always` 的关是「自动信任」，`never` 的关是「不询问**且**不加载」，二者文案必须分开。
+ * - `ask`：设置页开关的布尔投影（`policy === "ask"`）。
+ */
+export interface TrustPolicy {
+	ask: boolean;
+	policy: DefaultProjectTrust;
+}
+
+/**
+ * 读信任策略 —— **归一化的唯一实现**（`resolveProjectTrust` 与 `GET /trust-policy` 共用）。
+ *
+ * ## 为什么是 `getGlobalSettings()` 而不是 `getSettings()`（关键，别改回去）
+ *
+ * `getSettings()` = global **merge project**（`settings-manager.js:305-307`，`this.settings` 由
+ * `deepMergeSettings(globalSettings, projectSettings)` 得来，`:196`/`:451`）；而
+ * `defaultProjectTrust` 在 Pi 里是**全局字段** —— setter 只写 `this.globalSettings`（`:746-748`）。
+ * 用 `getSettings()` 读 ⇒ 读写 scope 不对称。
+ *
+ * 危害不是理论：`SettingsManager.create(dir, agentDir)` 走 `fromStorageWithPaths` 时
+ * `projectTrusted = options.projectTrusted ?? true`（`:214`），即**项目 settings 在首建时是被加载的**
+ * （本项目正是在 `loader.reload({resolveProjectTrust})` 回调里才补裁决 —— 见本文件头部的归因）。
+ * 于是项目目录 `.pi/settings.json` 写一行 `{"defaultProjectTrust":"always"}` 就能让归一化读出
+ * `always`、**静默绕过询问**；而 `.pi/settings.json` 本身就是触发信任门的资源之一
+ * （`trust-manager.js` 的 `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES` 含 `"settings.json"`）
+ * ⇒ **被裁决对象反过来决定裁决规则**（信任自举漏洞）。
+ *
+ * ## 为什么不是 `getDefaultProjectTrust()`
+ *
+ * 它的方向是对的（读 global + 回落 `"ask"`，`:743-745`），但**无法区分「未配置」与「显式 ask」**
+ * —— 本开关要求「未配置」按 `always` 收尾，所以要自己读原始值再回落。
+ */
+export function readTrustPolicy(settingsManager: SettingsManager): TrustPolicy {
+	const policy = settingsManager.getGlobalSettings().defaultProjectTrust ?? "always";
+	return { ask: policy === "ask", policy };
+}
+
 export async function resolveProjectTrust(options: ResolveProjectTrustOptions): Promise<TrustDecision> {
 	const startedAt = Date.now();
 	const { cwd, settingsManager } = options;
-	const defaultProjectTrust = settingsManager.getDefaultProjectTrust();
+	// 记录**归一化后**的值（日志/`/health` 复核口径不变）
+	const { policy } = readTrustPolicy(settingsManager);
+	const defaultProjectTrust = policy;
 
 	const done = (trusted: boolean, reason: TrustReason, extra: Partial<TrustDecision> = {}): TrustDecision => {
 		// 裁决结论交给 SettingsManager：后续 `packageManager.resolve()` 按它决定
@@ -105,9 +159,12 @@ export async function resolveProjectTrust(options: ResolveProjectTrustOptions): 
 		};
 	};
 
-	// 无项目本地资源 ⇒ 没什么可信任的，不必打扰用户（裁决单 A·2 指定谓词）
+	// ⚠️ 不变量（task-trust-policy-switch D4）：**无项目资源优先于 policy 判定**。
+	// 无项目本地资源 ⇒ 没什么可信任的，不必打扰用户（裁决单 A·2 指定谓词）。
+	// 这一句必须排在下面 policy 分派**之前** —— 无项目资源的目录不该因 `never` 而报「不信任」。
 	if (!hasTrustRequiringProjectResources(cwd)) return done(true, "no-project-resources");
 
+	// 归一化后的三态分派（`policy`：未配置按 `always` 收尾，见 `readTrustPolicy`）
 	if (defaultProjectTrust === "always") return done(true, "always");
 	if (defaultProjectTrust === "never") return done(false, "never");
 

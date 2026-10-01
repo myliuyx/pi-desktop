@@ -1,7 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { FolderOpen, Moon, Sun } from "lucide-react";
 import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
+import type { TrustPolicyPayload } from "@/services/agent-transport";
 import { SETTINGS_GROUP_HEADER_MIN_HEIGHT, SETTINGS_LABEL_WIDTH, SCREEN_SECTION_GAP } from "@/lib/layout";
 import { Icon } from "@/components/common/icons";
 import { Chip } from "@/components/primitives";
@@ -29,8 +30,11 @@ import { pickActiveThinking } from "@/lib/thinking";
  * 内容整体平移自旧 05 屏 `SettingsScreen` 的 `<ScreenBody>`（D3：原样搬进弹窗
  * 「常规」Tab，内部实现、testid 全部保留，只换容器）。
  *
- * 分组顺序（验收 4-5 口径迁移到此）：思考强度 → 会话 → 外观 → 工作目录。
+ * 分组顺序（验收 4-5 口径迁移到此）：思考强度 → 会话 → 外观 → 工作目录 → **项目扩展信任**。
  * （原「模型」组已删 —— 2026-09-23 用户裁决：模型管理走「模型」Tab，选用走工具条菜单。）
+ *
+ * ⚠️ 改分组顺序必须**同步两处脚本**的硬编码期望数组：`probe-settings-dialog.mjs:120`
+ * 与 `m4-acceptance.mjs:447`（别只改其一 —— 它们是两份同款断言）。
  *
  * ★ 外观分组必须复用 store 的 `setTheme` / `syncSystemTheme` / `useSystemTheme`，
  *   **不得直接改 `document.documentElement.dataset.theme`** —— 那会绕过 ui-store 的
@@ -199,6 +203,154 @@ export function SettingsGeneralTab() {
           <WorkingDirectoryMenu variant="settings" menuTestId="settings-working-dir-menu" />
         </div>
       </SettingsGroup>
+
+      {/* ⑤ 项目扩展信任 —— 对齐 SettingsManager.defaultProjectTrust（task-trust-policy-switch） */}
+      <SettingsGroup
+        group="trust"
+        title="项目扩展信任"
+        note={`对齐 Pi 的 ${PI_FIELD_NAMES.defaultProjectTrust} · 仅目录信任门，不影响单次工具授权`}
+      >
+        <TrustPolicyRow />
+      </SettingsGroup>
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * 项目扩展授权询问开关（task-trust-policy-switch）
+ *
+ * 语义（两态开关）：
+ * - **关（默认）** ⇒ core 侧归一化 `policy="always"`：自动信任并直接加载执行，不询问；
+ * - **开** ⇒ 落盘 `defaultProjectTrust="ask"`：每次进入含项目本地扩展的目录都询问。
+ *
+ * ★ 为什么 testid 是独立的 `settings-trust-switch` 而**不是** `settings-switch`：
+ *   既有两处脚本按**数量**断言「会话开关 === 2」（`m4-acceptance.mjs:450,462`、
+ *   `probe-settings-dialog.mjs:123,133`），沿用同一 testid 会让计数变 3、两处假红。
+ *   且那两个断言的语义本就是「**会话组**的开关数」，混入信任开关只会让语义变模糊。
+ *
+ * ★ 为什么 `never` 态必须**禁用**而不是用「关」表示：
+ *   两态开关里 `ask=false` 同时代表 `always` 与 `never`，用户碰一次就会把手工配置的
+ *   `never`（不询问**且**不加载）静默覆写成 `ask`/`always`、**永久丢失**。
+ *   语义上二者也不是同一个轴 —— `never` 是「不加载」，与「要不要询问」无关。
+ * ------------------------------------------------------------------------- */
+
+const TRUST_DESC =
+  "开启后，进入含项目本地扩展（.pi/）的目录会先询问是否加载执行；关闭时自动信任并直接加载执行，不再询问。";
+
+function TrustPolicyRow() {
+  const live = isLiveEnabled();
+  const mockAsk = useUiStore((state) => state.trustPolicyAsk);
+  const setMockAsk = useUiStore((state) => state.setTrustPolicyAsk);
+  const [livePolicy, setLivePolicy] = useState<TrustPolicyPayload | null>(null);
+
+  useEffect(() => {
+    if (!live) return;
+    const transport = getLiveTransport();
+    if (!transport) return;
+    let cancelled = false;
+    void transport
+      .getTrustPolicy()
+      .then((p) => {
+        if (!cancelled) setLivePolicy(p);
+      })
+      .catch((e) => {
+        console.error("[live] getTrustPolicy 失败:", e);
+        notifyFailure("读取「项目扩展授权询问」状态失败", e);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [live]);
+
+  /*
+   * live 下真值未到时不假装有值：`ready=false` ⇒ 开关禁用（显示为首帧占位「关」），
+   * **不回落 ui-store 的本地 demo 值** —— 那会把 mock 的偏好当成 core 的真实策略展示。
+   */
+  const ready = !live || livePolicy !== null;
+  const checked = live ? (livePolicy?.ask ?? false) : mockAsk;
+  const policy = live ? livePolicy?.policy : undefined;
+  const never = live && policy === "never";
+  const disabled = live && (!ready || never);
+
+  const toggle = () => {
+    const next = !checked;
+    if (!live) {
+      setMockAsk(next);
+      return;
+    }
+    const prev = livePolicy;
+    if (!prev) return;
+    const transport = getLiveTransport();
+    if (!transport) return;
+    // 乐观更新（check 立刻响应），失败再回拉/回滚
+    setLivePolicy({ ask: next, policy: next ? "ask" : "always" });
+    void transport
+      .setTrustPolicy(next)
+      .then(setLivePolicy)
+      .catch((e) => {
+        console.error("[live] setTrustPolicy 失败:", e);
+        notifyFailure("「项目扩展授权询问」切换失败", e);
+        // 先回滚到已知真值，再向 core 复读一次（防「显示与磁盘不一致」）
+        setLivePolicy(prev);
+        void transport.getTrustPolicy().then(setLivePolicy).catch(() => {});
+      });
+  };
+
+  return (
+    <div data-testid="settings-trust-policy" className="min-w-0">
+      <ul className="min-w-0 overflow-hidden rounded-lg border border-border-subtle bg-bg-surface">
+        <li className="flex min-w-0 items-center gap-3 px-3 py-2.5">
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <span className="text-sm font-medium text-text-primary">项目扩展授权询问</span>
+              {/* 对齐的 Pi 字段名必须可读（验收 4-6），取自 PI_FIELD_NAMES 单点 */}
+              <code className="font-mono text-xs text-text-tertiary">
+                {PI_FIELD_NAMES.defaultProjectTrust}
+              </code>
+            </span>
+            <span className="mt-0.5 block text-xs text-text-secondary">{TRUST_DESC}</span>
+          </span>
+          <Switch
+            checked={checked}
+            label="项目扩展授权询问"
+            onToggle={toggle}
+            disabled={disabled}
+            data-testid="settings-trust-switch"
+            data-field="defaultProjectTrust"
+            aria-checked={checked}
+          />
+        </li>
+      </ul>
+
+      {/* 持久化策略原值（照 thinking 组「持久化档位」样式）—— `never` 等手工配置可见 */}
+      {live ? (
+        <p data-testid="settings-trust-state" className="mt-2 text-xs text-text-tertiary">
+          {ready ? (
+            <>
+              持久化策略：<code className="ml-1 font-mono">{policy}</code>
+              {` · ${policy === "ask" ? "每次询问" : policy === "never" ? "不询问且不加载" : "自动信任并直接加载"}`}
+            </>
+          ) : (
+            "正在读取持久化策略…"
+          )}
+        </p>
+      ) : null}
+
+      {/*
+       * `never` 的出路必须写出来 —— 否则用户看到「关且禁用」会以为坏了。
+       * 这个态表达的是「不询问**且**不加载」，正是**最安全**的一档，不能误导成「自动信任」。
+       */}
+      {never ? (
+        <p className="mt-2 text-xs text-text-secondary">
+          已由 <code className="font-mono">settings.json</code> 手工设为{" "}
+          <code className="font-mono">never</code>（不询问<span className="font-medium">且</span>不加载项目本地扩展），
+          本开关无法表达该状态，故已禁用 —— 这也意味着当前<span className="font-medium">不会</span>自动信任。
+          如需改回可切换，请编辑 <code className="font-mono">settings.json</code>，
+          把 <code className="font-mono">defaultProjectTrust</code> 改为{" "}
+          <code className="font-mono">&quot;always&quot;</code> /{" "}
+          <code className="font-mono">&quot;ask&quot;</code> 或删除该键。
+        </p>
+      ) : null}
     </div>
   );
 }

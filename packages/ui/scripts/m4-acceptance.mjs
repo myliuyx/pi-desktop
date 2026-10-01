@@ -444,24 +444,30 @@ await withBrowser(
         const groups = window.__T4.qa('[data-testid="settings-group"]').map(g => g.dataset.group);
         return {
           groups,
-          orderCorrect: JSON.stringify(groups) === JSON.stringify(['thinking','session','appearance','working-dir']),
+          orderCorrect: JSON.stringify(groups) === JSON.stringify(['thinking','session','appearance','working-dir','trust']),
           modelGroupGone: !groups.includes('model'),
           thinkingOptions: window.__T4.qa('[data-testid="settings-thinking-option"]').length,
           sessionSwitches: window.__T4.qa('[data-testid="settings-switch"]').length,
           themeOptions: window.__T4.qa('[data-testid="settings-theme-option"]').length,
           workingDirCode: (window.__T4.q('[data-testid="settings-working-dir"] code') || {}).textContent || null,
+          /* task-trust-policy-switch：信任组 + 独立 testid 的开关（不复用 settings-switch，
+             否则上面的会话开关计数会从 2 变 3） */
+          trustGroupPresent: groups.includes('trust'),
+          trustSwitchVisible: !!window.__T4.q('[data-testid="settings-trust-switch"]'),
         };
       })()`);
       ctx.record("4-5_设置弹窗分组", { ...r, ...r2 });
-      ctx.assert("4-5 设置弹窗：默认「模型」Tab；常规 Tab 四组齐全且顺序正确（无模型组）", {
+      ctx.assert("4-5 设置弹窗：默认「模型」Tab；常规 Tab 五组齐全且顺序正确（无模型组）", {
         弹窗打开: r.dialogOpen === true,
         默认模型Tab: r.defaultTabModels === true,
-        四组齐全: r2.orderCorrect === true,
+        五组齐全: r2.orderCorrect === true,
         模型组已删: r2.modelGroupGone === true,
         思考强度档位存在: r2.thinkingOptions > 0,
         会话开关存在: r2.sessionSwitches === 2,
         主题三段存在: r2.themeOptions === 3,
         工作目录路径可见: !!r2.workingDirCode && r2.workingDirCode.includes("/"),
+        信任组齐全: r2.trustGroupPresent === true,
+        信任开关存在: r2.trustSwitchVisible === true,
       });
     }
 
@@ -477,6 +483,8 @@ await withBrowser(
           autoCompact: /SettingsManager\\.autoCompact/.test(text),
           autoRetry: /SettingsManager\\.autoRetry/.test(text),
           cwd: /AgentOptions\\.cwd/.test(text),
+          /* task-trust-policy-switch：项目扩展授权询问对齐 SettingsManager.defaultProjectTrust */
+          defaultProjectTrust: /SettingsManager\\.defaultProjectTrust/.test(text),
           modelFieldNameGone: !/AgentOptions\\.model/.test(text),
         };
       })()`);
@@ -486,6 +494,7 @@ await withBrowser(
         autoCompact对齐: r.autoCompact === true,
         autoRetry对齐: r.autoRetry === true,
         cwd对齐: r.cwd === true,
+        defaultProjectTrust对齐: r.defaultProjectTrust === true,
         旧模型字段名未回流: r.modelFieldNameGone === true,
       });
     }
