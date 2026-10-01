@@ -135,6 +135,9 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
   const composerDraft = useUiStore((state) => state.composerDraft);
   const setComposerDraft = useUiStore((state) => state.setComposerDraft);
   const composerInsertRequest = useUiStore((state) => state.composerInsertRequest);
+  // 发送即回底（2026-10-01 批次）：成功提交后发一次请求，MessageList 消费后拽到底部。
+  // 「成功提交」= 过了下面 handleSend 的空/停两道门 —— 不成立就不发（无滚动副作用）。
+  const requestComposerScrollToBottom = useUiStore((state) => state.requestComposerScrollToBottom);
   // 粘图批次：待发图区（同在 ui-store，与草稿同生命周期）
   const pendingImages = useUiStore((state) => state.pendingComposerImages);
   const addComposerImage = useUiStore((state) => state.addComposerImage);
@@ -244,6 +247,12 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     // at-file ②：全文 @token 作为 fileRefs 透传（core 展开；读不到的引用经 skippedFiles 弹通知）
     // 粘图批次：待发图随 sendMessage 透传（chat-store 剥 base64 进 /prompt body + 快照进回显）
     sendMessage(text, extractAtRefs(text), pendingImages);
+    // 发送即回底：用户主动提交 = 明确表达了「我要看最新回复」，此时把视口从
+    // 历史拽回底部是**响应而非打扰**（与 2-5c 守的「被动收到增量不得拽走」划清界限：
+    // 那是用户没主动操作时的打扰，本处是用户自己点的发送）。
+    // 位置要紧跟 sendMessage 同批发出：早于它则 messages 增量到达时视口还在顶部
+    // （atBottomRef 仍 false），晚于它则可能错过本轮的自动滚底触发时机。
+    requestComposerScrollToBottom();
     setComposerDraft("");
     clearComposerImages();
     setAtState(null);

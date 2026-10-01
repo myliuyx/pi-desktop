@@ -336,6 +336,31 @@ interface UiState {
   composerInsertRequest: { text: string; seq: number } | null;
   insertComposerText: (text: string) => void;
 
+  /**
+   * 「回到底部」请求（2026-10-01 发送即回底批次）：Composer **成功提交**一条消息后
+   * 自增 seq 发一次请求，MessageList 消费后把视口拽到底部。载荷只有 seq ——
+   * 这是纯动作信号，没有需要传递的数据。
+   *
+   * ## 为什么必须有它（否则用户提的核心需求做不出来）
+   *
+   * 自动滚底的老逻辑只看「贴底状态」：用户上滚后 `atBottomRef` 变 false，
+   * **本轮及之后所有增量都不再自动贴底**（m2 验收 2-5c 的反例契约，刻意设计）。
+   * 于是「上滚回看历史 → 打字重新提问 → 视口回不到最新位置」成为必然结果 ——
+   * 老逻辑没有任何路径能区分「被动收到增量」与「用户主动重新提问」。
+   * 这个请求位就是那条缺失的区分信号。
+   *
+   * ## 为什么是 store 请求位而不是 CustomEvent / props 回调
+   *
+   * 与同文件的 `composerInsertRequest`（文件树「@ 引用」→ Composer）完全同形状：
+   * 一次性动作 + 自增 seq（zustand 对同值对象不通知，seq 是天然的「第 N 次」标记）。
+   * Composer 与 MessageList 是 WorkspaceArea 下的**兄弟**节点，store 是它们
+   * 唯一现成的握手面；全仓无 CustomEvent 用例，不为这一个需求新造一套 IPC。
+   *
+   * 非持久化：动作信号跨启动还原无意义（同 composerDraft 待遇）。
+   */
+  composerScrollToBottomRequest: { seq: number } | null;
+  requestComposerScrollToBottom: () => void;
+
   /* -------------------------------------------------------------------------
    * 粘贴图片批次（task-composer-paste-image.md §5.2）：待发图片附件区。
    *
@@ -489,6 +514,11 @@ export const useUiStore = create<UiState>((set, get) => ({
   composerInsertRequest: null,
   insertComposerText: (text) =>
     set((s) => ({ composerInsertRequest: { text, seq: (s.composerInsertRequest?.seq ?? 0) + 1 } })),
+
+  /* --------------------------------------------------- 发送即回底 · 请求位 */
+  composerScrollToBottomRequest: null,
+  requestComposerScrollToBottom: () =>
+    set((s) => ({ composerScrollToBottomRequest: { seq: (s.composerScrollToBottomRequest?.seq ?? 0) + 1 } })),
 
   /* --------------------------------------------------- 粘贴图片 · 待发区 */
   pendingComposerImages: [],

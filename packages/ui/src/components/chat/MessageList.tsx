@@ -27,6 +27,7 @@ import {
 import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { COMPOSER_MODELS } from "@/mock/composer";
 import { useModelsStore } from "@/store/models-store";
+import { useUiStore } from "@/store/ui-store";
 import { formatMessageTime, speedTone, type SpeedTone } from "@/lib/format";
 import { buildTurnIndex, type TurnMembership } from "@/lib/turns";
 import {
@@ -398,6 +399,41 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
       requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
     }
   }, [messages, scrollToBottom]);
+
+  /*
+   * 发送即回底（2026-10-01 批次）：消费 ui-store 的回底请求。
+   *
+   * ## 为什么必须有这个分支
+   *
+   * 上面那个 effect 的开关是 `atBottomRef.current` —— 用户上滚后它变 false，
+   * 于是「本轮及之后所有增量都不再自动贴底」（2-5c 反例契约，**刻意保留**）。
+   * 但它也意味着：用户上滚回看历史后重新提问，视口永远回不到最新位置。
+   * 老逻辑没有区分「被动收到增量」与「用户主动重新提问」的能力，这个请求位
+   * 就是那条缺失的信号（发起点见 Composer.handleSend）。
+   *
+   * ## 为什么只调既有 scrollToBottom 就够（零新增滚动逻辑）
+   *
+   * scrollToBottom 自己会：置 `pinningRef = true` → 双 rAF 补滚（消化动态测量的
+   * 高度增长）→ 末帧实测 atBottom 回写。**atBottomRef 一旦被置回 true，
+   * 后续整轮流式增量就由上面那个既有 effect 自然持续贴底**（正是 2-5e 的路径），
+   * 无需在本处重复实现一遍跟随逻辑。
+   *
+   * 为什么还要显式再置一次 pinningRef：scrollToBottom 内部会置，但它是
+   * useCallback(闭包)，本 effect 若在它执行前就依赖 pinning 语义，顺序不稳；
+   * 显式前置一次保证「进入补滚前不退出自动贴底」。
+   *
+   * 双 rAF 与既有两条路径同节奏（等 React 提交完新消息行、且 virtualizer 完成
+   * 一轮测量），避免滚到底后又被测量误差顶回。
+   *
+   * 挂载时机天然安全：草稿态（NewSessionHero 顶替 MessageList）下本组件不挂载，
+   * 请求无人消费 —— 但那本来就没有消息列表可滚，无副作用（不做特判，YAGNI）。
+   */
+  const composerScrollToBottomRequest = useUiStore((s) => s.composerScrollToBottomRequest);
+  useEffect(() => {
+    if (!composerScrollToBottomRequest) return;
+    pinningRef.current = true;
+    requestAnimationFrame(() => requestAnimationFrame(scrollToBottom));
+  }, [composerScrollToBottomRequest, scrollToBottom]);
 
   // 合并外部 ref 与内部 parentRef（外部通常不传 ref，这里仅保证契约完整）
   const setScrollRef = useCallback(

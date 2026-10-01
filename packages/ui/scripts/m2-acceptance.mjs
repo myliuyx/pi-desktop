@@ -669,15 +669,32 @@ await withBrowser(
         回底按钮出现: b.hasScrollToBottom === true,
       });
 
-      // 上滚状态下发消息：新消息到达**不得**把视口拽回底部（这是 2-5 的关键反例）
+      /*
+       * 2-5c 上滚后**被动**收到新消息不拽走（关键反例）。
+       *
+       * ⚠️ 2026-10-01 语义拆分（发送即回底批次）：原 2-5c 是「上滚状态下**发消息**，
+       * 新消息到达不得拽走视口」—— 该语义被「发送即回底」需求**明确推翻**
+       * （用户主动重新提问 ⇒ 视口必须回最新位置），改写前先把两个场景切开：
+       *   · 2-5c = 被动接收（流式增量 / 工具事件）→ 不得拽走（**契约不变**）
+       *   · 2-5f = 主动发送（用户点了发送）→ 必须回底（**新增契约**）
+       * 为让断言只测「视口反应」而不掺流式时序，本步用 store 直接注入一条
+       * user 消息模拟「新消息到达」，再把真实发送留给 2-5f。
+       */
+      const c0 = await cdp.eval(`(() => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        const s = window.__T.scroll(list);
+        return { dataAtBottom: list.dataset.atBottom, scrollTop: s.top, dist: s.dist, totalCount: +list.dataset.totalCount };
+      })()`);
       await cdp.eval(`(() => {
-        const input = window.__T.q('[data-testid="composer-input"]');
-        window.__T.setText(input, '上滚状态下的测试消息');
+        // window.__chatStore 是 zustand store **实例**（chat-store 底部 DEV 挂载），
+        // setState 在实例上而非 getState() 快照上 —— 探针别写成 st.messages 后调 setState。
+        const store = window.__chatStore;
+        const now = Date.now();
+        const extra = { id: 'probe-passive', role: 'user', timestamp: now, blocks: [{ type: 'text', content: '被动到达的测试消息' }] };
+        store.setState({ messages: [...store.getState().messages, extra] });
         return true;
       })()`);
-      await sleep(200);
-      await cdp.eval("window.__T.q('[data-testid=\"composer-send\"]').click(); true");
-      await sleep(2800);
+      await sleep(600);
       const c = await cdp.eval(`(() => {
         const list = window.__T.q('[data-testid="message-list"]');
         const s = window.__T.scroll(list);
@@ -688,9 +705,10 @@ await withBrowser(
           hasScrollToBottom: !!window.__T.q('[data-testid="scroll-to-bottom"]'),
         };
       })()`);
-      ctx.record("2-5_上滚时收到新消息", c);
-      ctx.assert("2-5c 上滚状态下新消息到达不强制滚底（反例）", {
-        消息数已增加: c.totalCount > 7,
+      ctx.record("2-5_上滚时被动收到新消息", { 注入前: c0, 注入后: c });
+      ctx.assert("2-5c 上滚状态下被动收到新消息不强制滚底（反例）", {
+        消息数已增加: c.totalCount > c0.totalCount,
+        距底因新内容变大: c.dist > c0.dist,
         仍在顶部未被拽走: c.scrollTop <= 40,
         距底远超阈值: c.dist > 32,
         状态仍为false: c.dataAtBottom === "false",
@@ -710,6 +728,53 @@ await withBrowser(
         回到底部: d.dist <= 32,
         状态变true: d.dataAtBottom === "true",
         按钮消失: d.hasScrollToBottom === false,
+      });
+
+      /*
+       * 2-5f 上滚状态下**主动发送** → 视口必须回到底部（2026-10-01 新增契约）。
+       *
+       * 与 2-5c 成对，二者共同定义「主动发起 vs 被动接收」的语义边界：
+       * 用户自己点发送 = 明确表达了「我要看最新回复」⇒ 拽到底部是响应而非打扰；
+       * 而回看历史时陆续到达的流式增量 = 打扰，仍须守住 2-5c。
+       *
+       * 断言两段：① 发送后**立刻**（不等流式结束）就该回底 —— 这是本需求的
+       *    核心体感（点完发送视口就跳，不该让人盯着顶部猜发出没发出去）；
+       * ② 之后整轮流式期间持续贴底（末态 dist ≤ 阈值），验证增量自动贴底接管。
+       */
+      await cdp.eval(`(() => { const list = window.__T.q('[data-testid="message-list"]'); list.scrollTop = 0; return true; })()`);
+      await sleep(400);
+      const f0 = await cdp.eval(`(() => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        const s = window.__T.scroll(list);
+        return { scrollTop: s.top, dist: s.dist, dataAtBottom: list.dataset.atBottom, totalCount: +list.dataset.totalCount };
+      })()`);
+      await cdp.eval(`(() => {
+        const input = window.__T.q('[data-testid="composer-input"]');
+        window.__T.setText(input, '上滚状态下主动发送的测试消息');
+        return true;
+      })()`);
+      await sleep(200);
+      await cdp.eval("window.__T.q('[data-testid=\"composer-send\"]').click(); true");
+      await sleep(260);
+      const f1 = await cdp.eval(`(() => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        const s = window.__T.scroll(list);
+        return { scrollTop: s.top, dist: s.dist, dataAtBottom: list.dataset.atBottom };
+      })()`);
+      await sleep(2800);
+      const f2 = await cdp.eval(`(() => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        const s = window.__T.scroll(list);
+        return { scrollTop: s.top, dist: s.dist, dataAtBottom: list.dataset.atBottom, totalCount: +list.dataset.totalCount };
+      })()`);
+      ctx.record("2-5_上滚后主动发送", { 发送前: f0, 发送后260ms: f1, 流式结束: f2 });
+      ctx.assert("2-5f 上滚状态下主动发送回到底部，且整轮流式持续贴底", {
+        发送前确实在顶部: f0.scrollTop <= 40 && f0.dataAtBottom === "false",
+        发送前距底远超阈值: f0.dist > 32,
+        发送后立刻回底: f1.dist <= 32,
+        发送后状态变true: f1.dataAtBottom === "true",
+        流式结束仍贴底: f2.dist <= 32,
+        流式期间消息数已增加: f2.totalCount > f0.totalCount,
       });
 
       // 贴底状态下发消息 → 应自动滚底
