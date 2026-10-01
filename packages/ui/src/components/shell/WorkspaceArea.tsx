@@ -35,6 +35,16 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
   // 处理详情折叠（task-process-collapse.md）：settled 标记与会话作用域同路下传
   const settledTurnKeys = useChatStore((state) => state.settledTurnKeys);
   const liveSessionId = useChatStore((state) => state.liveSessionId);
+  /*
+   * 首屏遮罩（2026-10-01 首屏跳变批次）完全由MessageList 内部自管：
+   * 它自己测「总高连续 N 帧不变」并渲染遮罩、自己兜底超时。
+   *
+   * 本层刻意不持有layoutSettled 状态，也不参与计时 ——
+   * ① 遮罩必须在消息列表**真实挂载**时才有意义（bootstrapping 期间 messages 为空，
+   *    走 isEmpty 分支不挂 virtualizer，此时由 hero 负责等待）；
+   * ② 本层再计一次时 = 双计时器「谁先到谁说话」，反而难排查；
+   * ③ 换会话复位由 key 重挂天然完成（MessageList 实例重建 ⇒ settledRef 归零）。
+   */
 
   return (
     <main
@@ -53,6 +63,15 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
        * 旧空态（`?empty=1` 的 `empty-state`，m5 5-7 锚）只服务非草稿空消息路径，不经这里。
        * 三分支（task-6，spec C3）：live 首帧 `bootstrapping` 为 true 时先占位，
        * 拿到真实数据（或 mock 下恒 false）后回落到原有的「草稿 / MessageList」二选一。
+       */}
+      {/*
+       * 首屏遮罩期（bootstrapping 或布局未稳）仍渲染 MessageList 真实内容
+       * —— 用户裁决「显示但半透明/不可交互」：遮罩在 MessageList 内部，
+       * 内容在底下完成测量，撤罩后不再跳动。
+       *
+       * ⚠️ bootstrapping 期间 messages 为空（live 首帧不得有 mock 数据），
+       * MessageList 走 isEmpty 空态分支、不挂 virtualizer ⇒ 此时不渲染遮罩
+       * （无内容可遮，遮了只是一块灰）；hero 仍负责这段「连内容都还没有」的等待。
        */}
       {bootstrapping ? (
         <NewSessionHero loading />

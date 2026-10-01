@@ -15,6 +15,9 @@ import { Icon } from "@/components/common/icons";
 import { ArrowDown, MessageSquare, Wrench } from "lucide-react";
 import {
   AUTO_SCROLL_THRESHOLD,
+  LAYOUT_SETTLE_OVERLAY_OPACITY,
+  LAYOUT_SETTLE_STABLE_FRAMES,
+  LAYOUT_SETTLE_TIMEOUT_MS,
   MESSAGE_GAP,
   MESSAGE_LIST_PADDING,
   MESSAGE_MAX_WIDTH,
@@ -76,9 +79,21 @@ export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   settledTurnKeys?: ReadonlySet<string>;
   /** 轮次键的会话作用域（liveSessionId ?? "draft"），展开态跨会话不串 */
   sessionScope?: string;
+  /**
+   * 首屏布局已稳定（总高不再变化且已贴底）的通知（2026-10-01 首屏跳变批次）。
+   *
+   * 触发时机：virtualizer 总高连续 LAYOUT_SETTLE_STABLE_FRAMES 帧不再变化。
+   * 仅**首屏**触发一次（settledRef 自锁），后续滚动不重复通知。
+   */
+  onLayoutSettled?: () => void;
+  /**
+   * 首屏稳定判定超时（ms）—— 超过则强制上报（兜底，防高度永不收敛时永久遮罩）。
+   * 默认 LAYOUT_SETTLE_TIMEOUT_MS（5s）；可传小值供验收脚本压缩等待。
+   */
+  layoutSettleTimeoutMs?: number;
 }
 
-/** settledTurnKeys 的缺省引用（模块级常量，保证默认值引用稳定） */
+  /** settledTurnKeys 的缺省引用（模块级常量，保证默认值引用稳定） */
 const EMPTY_SETTLED_KEYS: ReadonlySet<string> = new Set();
 
 /**
@@ -147,6 +162,8 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     pendingSince = null,
     settledTurnKeys = EMPTY_SETTLED_KEYS,
     sessionScope = "draft",
+    onLayoutSettled,
+    layoutSettleTimeoutMs = LAYOUT_SETTLE_TIMEOUT_MS,
     className,
     ...rest
   },
@@ -509,6 +526,98 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const isEmpty = messages.length === 0;
 
   /*
+   * 首屏布局稳定检测（2026-10-01 首屏跳变批次）。
+   *
+   * 缺陷实测（248 条真实会话）：首帧只有 ~34 行被估算，totalSize 是估算堆出来的；
+   * 随后测量回填使总高缩水，已写入的 scrollTop 被连带拽走 —— 实测内容出现后
+   * 194ms 内被拽 3876px（用户观感：内容出现 → 画面剧烈上跳 → 才稳定）。
+   *
+   * 判据 = **总高连续 N 帧不再变化**（LAYOUT_SETTLE_STABLE_FRAMES）。不用固定延迟：
+   * 消息数与机器速度差异极大（实测 5 条消息首帧即稳定、248 条要 ~200ms），
+   * 猜延迟要么慢要么漏。
+   *
+   * 触发后仅回调一次（settledRef 自锁）：遮罩撤除后不该因后续滚动再被遮挡。
+   * 超时兜底（LAYOUT_SETTLE_TIMEOUT_MS）：总高永不收敛时强制放行 ——
+   * 永久遮罩 = 永久不可用，比多等一会儿严重得多。
+   */
+  const settledRef = useRef(false);
+  /*
+   * 遮罩可见性用**三态**而非布尔：`detecting`（检测中，遮罩显示）/ `settled`（已稳定，撤罩）。
+   *
+   * ⚠️ 初值必须是「检测中」而不是 `false`（实测踩坑）：live 首屏 bootstrapping 转
+   * false 前渲染的是 hero，MessageList 是**那一刻才首次挂载**的—— 若初值写成
+   * 「已稳定」，遮罩从第一帧就不显示，实测 live 首屏 overlay 恒为 0，跳动照旧
+   * （t=2518 内容出现后被拽 3 次）。
+   */
+  const [settlePhase, setSettlePhase] = useState<"detecting" | "settled">("detecting");
+  const stableFrameRef = useRef(0);
+  const lastTotalRef = useRef(-1);
+
+  const reportSettled = useCallback(() => {
+    if (settledRef.current) return;
+    settledRef.current = true;
+    setSettlePhase("settled");
+    onLayoutSettled?.();
+  }, [onLayoutSettled]);
+
+  useEffect(() => {
+    // 遮罩自管 ⇒ 即便无人传 onLayoutSettled 也必须跑（它只是可选通知）
+    if (settlePhase === "settled" || isEmpty) return;
+    let raf = 0;
+    const started = performance.now();
+
+    const check = () => {
+      if (settledRef.current) return;
+      const total = virtualizer.getTotalSize();
+
+      /*
+       * 判据 = 「虚拟器已滚到列表末尾」**且**「总高连续 N 帧不变」。
+       *
+       * ⚠️ 两轮实测踩坑的教训：
+       * ① 只看「总高连续 N 帧不变」不够—— live 首屏 MessageList 挂载时 messages
+       *   已完整，estimateSizeOf 立即算出**最终**总高，首帧起就连续不变 ⇒ 第一帧
+       *    直接判过，遮罩零帧可见（实测 overlay 恒 false）。「总高不变」在这里
+       *   是**恒真条件**，不是收敛信号。
+       * ② 「末尾条件」用virtualItems 的 last.end 是对的：last.end ≥ scrollHeight − clientHeight
+       *    意味着末尾行已渲染并被 measureElement 测过；此时总高若仍不变，才说明
+       *    测量确实收敛。反之（还在往上滚的过程里）总高不变毫无意义。
+       *
+       * 末尾行正在视口外 ⇒ 说明还没测完，继续等（这正是 248 条会话要等 ~1s 的原因）。
+       */
+      const virtualItems = virtualizer.getVirtualItems();
+      const last = virtualItems[virtualItems.length - 1];
+      const el = parentRef.current;
+      const reachedEnd =
+        el !== null && last !== undefined && last.end >= el.scrollHeight - el.clientHeight - 1;
+
+      if (!reachedEnd) {
+        // 尚未覆盖到末尾：不论总高是否变化都不计稳定帧（正在测量中）
+        stableFrameRef.current = 0;
+        lastTotalRef.current = total;
+      } else if (total !== lastTotalRef.current) {
+        // 已到末尾但总高还在变（末尾行正在被测量回填）
+        lastTotalRef.current = total;
+        stableFrameRef.current = 0;
+      } else {
+        stableFrameRef.current += 1;
+      }
+
+      if (stableFrameRef.current >= LAYOUT_SETTLE_STABLE_FRAMES) {
+        reportSettled();
+        return;
+      }
+      // 判据 B：超时兜底（用户裁决 5s；永不收敛时强制放行 —— 永久遮罩更糟）
+      if (performance.now() - started >= layoutSettleTimeoutMs) {
+        reportSettled();
+        return;
+      }
+      raf = requestAnimationFrame(check);
+    };
+    raf = requestAnimationFrame(check);
+    return () => cancelAnimationFrame(raf);
+  }, [virtualizer, isEmpty, settlePhase, messages.length, reportSettled, layoutSettleTimeoutMs]);
+
+  /*
    * 图片大图预览（2026-10-01 图片预览批次 Task 7 Step 1b）。
    *
    * ⚠️ state 必须挂在 **MessageList 顶层**、弹层在这里条件渲染，绝不能下沉到
@@ -682,6 +791,37 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
           })}
         </div>
       </div>
+
+      {/*
+       * 首屏遮罩（2026-10-01 首屏跳变批次 · 用户裁决「显示但半透明/不可交互」）。
+       *
+       * 为什么需要：首帧只有可见的十几行被估算，totalSize 是估算堆出来的；随后的
+       * 测量回填使总高缩水、已写入的 scrollTop 被连带拽走（实测 248 条会话在内容
+       * 出现后 194ms 内被拽 3876px）。遮罩期间真实内容在底下完成全部测量。
+       *
+       * 为什么是「半透明 + 不可交互」而不是完全不显示：完全不显示会让等待期的
+       * 画面从空白直接跳到内容（用户明确要求保留内容可见、只压住跳动）。
+       *
+       * pointer-events: none + 半透明 = 看得到内容形状、但吃不到滚轮/点击，
+       * 既挡住「边抖边操作」的怪异手感，又不用等全部测完才有画面。
+       * 罩在滚动容器**内部**的兄弟层（absolute inset-0），不跨到 Composer ——
+       * 输入框不该被首屏遮罩挡住。
+       */}
+      {settlePhase === "detecting" ? (
+        <div
+          data-testid="layout-settling"
+          aria-hidden="true"
+          className="absolute inset-0 z-[5] cursor-progress"
+          // 显式吞掉 wheel/touch/click：纯遮罩层挡不住滚轮（滚轮照常传给底下的
+          // 滚动容器）—— 用户不该在布局未稳时误触。
+          onWheel={(e) => e.preventDefault()}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            touchAction: "none",
+            backgroundColor: `rgb(0 0 0 / ${LAYOUT_SETTLE_OVERLAY_OPACITY})`,
+          }}
+        />
+      ) : null}
 
       {!atBottom ? (
         <button

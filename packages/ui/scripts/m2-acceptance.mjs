@@ -936,6 +936,66 @@ await withBrowser(
       await sleep(400);
     }
 
+    /* ---------------------------------------------------------------- 2-8 首屏布局稳定（无开场跳变） */
+    /*
+     * 首屏不得出现「内容出现 → 画面剧烈上跳 → 才稳定」（2026-10-01 新增）。
+     *
+     * 缺陷实测（248 条真实会话）：首帧只有 ~34 行被估算，totalSize 是估算堆出来的；
+     * 随后测量回填使总高缩水、已写入的 scrollTop 被连带拽走 —— 实测内容出现后
+     * 194ms 内被拽 3877px。遮罩撤除前测量已完成，撤除后不该再有跳动。
+     *
+     * 测法：在文档创建前注入 rAF 采样器（早于 React 挂载），逐帧记录 scrollTop；
+     * 遮罩存在期间的滚动属于「未就绪」不计，遮罩消失后的**任意**跳动即失败。
+     */
+    {
+      await cdp.send("Page.addScriptToEvaluateOnNewDocument", {
+        source: `
+          window.__boot = { started: performance.now(), frames: [], sawList: false, overlaySeen: false, overlayOffAt: null };
+          (function loop() {
+            const list = document.querySelector('[data-testid="message-list"]');
+            const overlay = document.querySelector('[data-testid="layout-settling"]');
+            if (overlay) window.__boot.overlaySeen = true;
+            if (list) {
+              window.__boot.sawList = true;
+              if (!overlay && window.__boot.overlayOffAt === null) window.__boot.overlayOffAt = performance.now();
+              window.__boot.frames.push({
+                t: Math.round(performance.now() - window.__boot.started),
+                top: Math.round(list.scrollTop),
+                h: list.scrollHeight,
+                settled: !overlay,
+              });
+            }
+            if (performance.now() - window.__boot.started < 9000) requestAnimationFrame(loop);
+          })();
+        `,
+      });
+      await ctx.open("/?stress=600");
+      await sleep(9500);
+      const boot = await cdp.eval("window.__boot");
+      const afterSettled = boot.frames.filter((f) => f.settled);
+      // 遮罩撤除后的跳动（真正会伤害观感的）
+      const postJumps = [];
+      for (let i = 1; i < afterSettled.length; i++) {
+        const d = afterSettled[i].top - afterSettled[i - 1].top;
+        if (Math.abs(d) > 1) postJumps.push({ t: afterSettled[i].t, d, h: afterSettled[i].h });
+      }
+      const settledFrames = afterSettled.length;
+      ctx.record("2-8_首屏布局稳定", {
+        见到遮罩: boot.overlaySeen,
+        遮罩撤除时刻: boot.overlayOffAt,
+        撤除后采样帧数: settledFrames,
+        撤除后跳动: postJumps.slice(0, 6),
+      });
+      ctx.assert("2-8 首屏遮罩存在且撤除后无跳动", {
+        "首屏出现遮罩": boot.overlaySeen === true,
+        "遮罩已撤除": boot.overlayOffAt !== null,
+        "撤除后有采样帧": settledFrames > 0,
+        "撤除后无跳动": postJumps.length === 0,
+      });
+      await ctx.open("/");
+      await sleep(900);
+    }
+
     /* ---------------------------------------------------------------- G7 键盘可达 */
     {
       const r = await cdp.eval(`(() => {
