@@ -91,6 +91,11 @@ export interface ChatState {
   pendingApprovals: ApprovalRequestEvent[];
   tokenUsage: TokenUsage;
   sessionTitle: string;
+  /**
+   * 上下文压缩进行中（斜杠命令批次）：compaction_start 置 true，compaction_end 清 false。
+   * 用于禁用/提示 builtin 命令；mock 恒 false。
+   */
+  compacting: boolean;
 
   /**
    * 发送一条用户消息，并触发一次 mock 助手的流式回复（≤2s）。
@@ -179,6 +184,8 @@ let streamMsgId: string | null = null;
  * 实例由 `services/live-transport.ts` 统一持有（04/05 屏也要用同一条 SSE）。
  * ------------------------------------------------------------------------- */
 let liveDraft: DraftState = createDraft();
+/** 压缩进行中的常驻 toast id（compaction_end 时撤掉；非 store 状态） */
+let compactionNoticeId: string | null = null;
 
 function ensureLive(): void {
   const transport = getLiveTransport();
@@ -211,6 +218,28 @@ function ensureLive(): void {
   });
   // 订阅生命周期与应用一致：只要还有监听器就保持 SSE 连接（见 transport 内部引用计数）
   transport.subscribe((event: AgentEvent) => {
+    // 斜杠命令批次：压缩进度。开始用常驻 info toast（timeoutMs=0）表达进行中，
+    // 结束撤掉并给结果 toast（D2 = toast 反馈，不渲染内联摘要卡）。
+    if (event.type === "compaction_start") {
+      compactionNoticeId = useNoticeStore.getState().notify({ tone: "info", text: "正在压缩上下文…", timeoutMs: 0 });
+      useChatStore.setState({ compacting: true });
+      return;
+    }
+    if (event.type === "compaction_end") {
+      if (compactionNoticeId) {
+        useNoticeStore.getState().dismiss(compactionNoticeId);
+        compactionNoticeId = null;
+      }
+      useChatStore.setState({ compacting: false });
+      if (event.errorMessage) {
+        useNoticeStore.getState().notify({ tone: "danger", text: `上下文压缩失败：${event.errorMessage}` });
+      } else if (event.aborted) {
+        useNoticeStore.getState().notify({ tone: "warning", text: "上下文压缩已中止" });
+      } else {
+        useNoticeStore.getState().notify({ tone: "success", text: "上下文已压缩" });
+      }
+      return;
+    }
     /*
      * usage 事件是 core 算好的真实用量快照（输入/输出/消耗/已用上下文），
      * 与消息树无关 —— 不进 reducer，直接写 store，让 TokenStats 联动。
@@ -378,6 +407,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   pendingSince: null,
   settledTurnKeys: new Set<string>(),
 pendingApprovals: [],
+  compacting: false,
   // mock 形态保留设计稿演示值（验收 2-13/2-14 的 14.5% / 128k 就锁在这个值上）；
   // live 形态给“未知”（0）—— 首屏还没有任何真实 usage，沿用 mock 的 128000 会让
   // 上下文环一上来就显示假的窗口分母（2026-10-01 上下文环真值批次）。
@@ -436,6 +466,14 @@ pendingApprovals: [],
           ...(sendImages.payload ? { images: sendImages.payload } : {}),
         })
         .then((r) => {
+          // 斜杠命令批次：命令被 core/pi 消费（无消息产生）⇒ 撤回乐观回显，否则留下假用户消息
+          if (r.disposition === "handled") {
+            const messages = get().messages.filter((m) => m.id !== userMsg.id);
+            liveDraft = createDraft(messages);
+            useChatStore.setState({ messages, streaming: false, awaitingModel: false, pendingSince: null });
+            useNoticeStore.getState().notify({ tone: "info", text: "命令已执行" });
+            return;
+          }
           // @引用不可读时提前告知：内容已不注入（模型自己 read），但路径读不到会让模型
           // 拿到报错再来问用户——先说清楚能省一轮往返（诚实告知，不让引用静默失效）
           if (r.skippedFiles.length > 0) {
