@@ -18,7 +18,10 @@ export interface BootCoreEnvInput {
   runDir: string;
   /** 同源托管前端产物 → CORE_UI_DIST */
   uiDist: string;
-  /** agent 目录 → CORE_AGENT_DIR（桌面壳在 userData 下的固定位置，**不由宿主 env 决定**） */
+  /**
+   * agent 目录 → CORE_AGENT_DIR。桌面壳取值 = Pi 约定位置 `~/.pi/agent`（与 CLI / 自托管 core
+   * 共用同一份 models.json、settings.json 与会话）；**仍不由宿主 env 决定** —— 见下方 CR-072/CR-074。
+   */
   agentDir: string;
   /** 监听端口 → CORE_PORT */
   port: string;
@@ -47,8 +50,13 @@ export interface BootCoreEnvResult {
  * 3. 桌面壳显式钉死一组**合法** `CORE_*`，含安全收敛的固定值：
  *    - `CORE_HOST:"127.0.0.1"`：桌面 core 仅绑回环，绝不因宿主 `CORE_HOST` 暴露内网；
  *    - `CORE_ALLOWED_HOSTS:""`：清空追加白名单，Host 校验收紧；
- *    - `CORE_AGENT_DIR`：指向桌面壳在 userData 下的固定位置，**不由宿主 env 决定**（否则会
- *      静默读写非预期 agentDir，见 CR-072 / CR-074）；
+ *    - `CORE_AGENT_DIR`：指向 Pi 约定位置 `~/.pi/agent`。CR-074 确立了「桌面壳自己算、
+ *      **不由宿主 env 决定**」这条约束 —— 若随宿主 `CORE_AGENT_DIR` 漂移，会静默读写非预期
+ *      agentDir（表现就是「设置页存的 Provider 下次启动不见了」）。本条把落点从
+ *      `<userData>/agent` 换成了 `~/.pi/agent`（意在三种形态共用同一份数据），但
+ *      **「钉死 + 白名单丢弃宿主值」这条安全性质原样保留**，CR-072/CR-074 的结论未被削弱。
+ *      注意此目录现由桌面壳、CLI pi、自托管 core 共同读写：**桌面壳假定自己是唯一写者**，
+ *      并发运行三者不在保证范围内（models.json 是原子写，但 skills/ 与会话目录无跨进程锁）。
  *    - `CORE_TOKEN`：此处**删除**（见下方注释，不能设成空串）。
  *
  * 与 README 自托管口径的冲突前提（CR-072 注释锚定）：README 教用户给自托管 core 设
