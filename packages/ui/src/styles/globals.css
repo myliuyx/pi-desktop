@@ -38,6 +38,10 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
 
+  /* diff 行底色（工具卡 edit 展开区，task-tool-diff-preview.md） */
+  --color-diff-add: var(--diff-add-bg);
+  --color-diff-del: var(--diff-del-bg);
+
   /* 弹窗遮罩 */
   --color-overlay: var(--overlay);
 

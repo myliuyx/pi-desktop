@@ -5,6 +5,9 @@ import { Check, ChevronDown, Loader2, TriangleAlert, Wrench } from "lucide-react
 import type { TerminalBlock, ToolCallBlock } from "@/mock/types";
 import { TERMINAL_MAX_LINES } from "@/lib/layout";
 import { truncateLines } from "@/lib/format";
+import { toolArgsPreview } from "@/lib/tool-preview";
+import { ToolDiffView } from "./ToolDiffView";
+import { ToolWritePreview } from "./ToolWritePreview";
 
 export interface ToolCallCardProps {
   call: ToolCallBlock;
@@ -23,6 +26,9 @@ export interface ToolCallCardProps {
  *   扫一眼定位失败命令全靠它（原 TerminalCard 的 running 态会被误标「成功」，这里顺手修正）；
  * - 展开区截断口径与 TerminalCard 完全同款（TERMINAL_MAX_LINES + 查看完整内容），
  *   TerminalCard 本体一行不动（mock 会话 / 03 屏验收面零影响）；
+ * - 展开区按工具分派（task-tool-diff-preview.md）：edit → ToolDiffView（上游
+ *   details.diff 的红绿 diff）、write → ToolWritePreview（args.content 带行号高亮预览）；
+ *   分派不命中回落命令 + 输出文本，bash 等其余工具行为不变；
  * - 配对逻辑在 MessageList（同消息 + 同 toolCallId），配不上的块仍走老组件。
  */
 export function ToolCallCard({ call, terminal }: ToolCallCardProps) {
@@ -30,17 +36,35 @@ export function ToolCallCard({ call, terminal }: ToolCallCardProps) {
   const [fullOutput, setFullOutput] = useState(false);
 
   const command = terminal?.command ?? (typeof call.args.command === "string" ? call.args.command : "");
-  const argsPreview =
-    "command" in call.args
-      ? String(call.args.command)
-      : Object.entries(call.args)
-          .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
-          .join(" ");
+  // D3（task-tool-diff-preview.md）：edit/write 用面向人的短摘要，其余工具维持通用兜底
+  const argsPreview = toolArgsPreview(call.toolName, call.args);
   const status = terminal?.status ?? "running";
   const isError = status === "error";
   const truncatedNow = terminal?.truncated === true && !fullOutput;
   const { visible } = truncateLines(terminal?.output ?? "", TERMINAL_MAX_LINES);
   const shownOutput = truncatedNow ? visible : (terminal?.output ?? "");
+
+  /*
+   * 展开区分派（D1/D2）：edit 且上游 details.diff 就位 → DiffView（红绿行级 diff）；
+   * write 且 args.content 就位 → 写入内容预览（带行号 + shiki 高亮）。
+   * 两者取不到（旧会话无 details / 裸事件 / 形状异常）都回落现状的命令 + 输出文本，
+   * 不本地重算 diff（诚实展示：没有就说没有）。
+   */
+  const editDiff =
+    call.toolName === "edit" && terminal?.details && typeof terminal.details.diff === "string"
+      ? terminal.details.diff
+      : undefined;
+  const editPath = call.toolName === "edit" && typeof call.args.path === "string" ? call.args.path : "";
+  const editCount = call.toolName === "edit" && Array.isArray(call.args.edits) ? call.args.edits.length : undefined;
+  const writeContent =
+    call.toolName === "write" && typeof call.args.content === "string" ? call.args.content : undefined;
+  const writePath = call.toolName === "write" && typeof call.args.path === "string" ? call.args.path : "";
+  const customView =
+    editDiff ? (
+      <ToolDiffView path={editPath} diff={editDiff} editsCount={editCount} />
+    ) : writeContent !== undefined ? (
+      <ToolWritePreview path={writePath} content={writeContent} />
+    ) : null;
 
   return (
     <div data-testid="tool-call-card" className="min-w-0 rounded-lg border border-border-subtle bg-bg-subtle">
@@ -93,39 +117,44 @@ export function ToolCallCard({ call, terminal }: ToolCallCardProps) {
       </button>
 
       {open ? (
-        <>
-          {command ? (
-            <div
-              data-testid="terminal-command"
-              className="border-t border-border-subtle px-3 py-1.5 font-mono text-xs text-text-secondary"
-            >
-              <span className="select-none text-text-tertiary">$ </span>
-              {command}
-            </div>
-          ) : null}
-          {terminal ? (
-            <div
-              data-testid="terminal-output"
-              data-truncated={truncatedNow}
-              className={cn(
-                "overflow-auto border-t border-border-subtle bg-bg-surface px-3 py-2 font-mono text-xs leading-relaxed",
-                isError ? "text-danger" : "text-text-primary",
-              )}
-              style={{ maxHeight: fullOutput || !terminal.truncated ? 220 : undefined }}
-            >
-              <pre className="m-0 whitespace-pre-wrap break-words">{shownOutput}</pre>
-              {truncatedNow ? (
-                <button
-                  type="button"
-                  onClick={() => setFullOutput(true)}
-                  className="mt-1 text-left text-accent underline underline-offset-2"
-                >
-                  查看完整内容（还有 {terminal.hiddenLineCount ?? 0} 行）
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </>
+        customView ? (
+          /* 分派命中：diff / 内容预览整体替换命令 + 输出区（路径与统计已在头行） */
+          customView
+        ) : (
+          <>
+            {command ? (
+              <div
+                data-testid="terminal-command"
+                className="border-t border-border-subtle px-3 py-1.5 font-mono text-xs text-text-secondary"
+              >
+                <span className="select-none text-text-tertiary">$ </span>
+                {command}
+              </div>
+            ) : null}
+            {terminal ? (
+              <div
+                data-testid="terminal-output"
+                data-truncated={truncatedNow}
+                className={cn(
+                  "overflow-auto border-t border-border-subtle bg-bg-surface px-3 py-2 font-mono text-xs leading-relaxed",
+                  isError ? "text-danger" : "text-text-primary",
+                )}
+                style={{ maxHeight: fullOutput || !terminal.truncated ? 220 : undefined }}
+              >
+                <pre className="m-0 whitespace-pre-wrap break-words">{shownOutput}</pre>
+                {truncatedNow ? (
+                  <button
+                    type="button"
+                    onClick={() => setFullOutput(true)}
+                    className="mt-1 text-left text-accent underline underline-offset-2"
+                  >
+                    查看完整内容（还有 {terminal.hiddenLineCount ?? 0} 行）
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </>
+        )
       ) : null}
     </div>
   );

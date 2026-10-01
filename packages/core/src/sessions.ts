@@ -351,6 +351,9 @@ export function entriesToMessages(
           status: message.isError === true ? "error" : "success",
           // 历史会话里的终端同样默认收起，与实时口径一致
           collapsed: true,
+          // details 与实时通道同口径透传（task-tool-diff-preview.md）：edit 的
+          // 展示用 diff 在 ToolResultMessage.details 里随会话 jsonl 落盘；无则不写键
+          ...(isRecord(message.details) ? { details: message.details } : {}),
         };
         const owner = callOwner.get(toolCallId);
         if (owner !== undefined) {

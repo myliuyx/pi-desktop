@@ -123,14 +123,20 @@ export function toAgentEvent(raw: unknown): AgentEvent | null {
 				toolCallId: raw.toolCallId,
 				output: textOfContent(isRecord(raw.partialResult) ? raw.partialResult.content : undefined),
 			};
-		case "tool_execution_end":
+		case "tool_execution_end": {
 			if (typeof raw.toolCallId !== "string") return null;
+			const result = isRecord(raw.result) ? raw.result : undefined;
+			const details = isRecord(result?.details) ? result.details : undefined;
 			return {
 				type: "tool_execution_end",
 				toolCallId: raw.toolCallId,
-				output: textOfContent(isRecord(raw.result) ? raw.result.content : undefined),
+				output: textOfContent(result?.content),
 				isError: raw.isError === true,
+				// details 扁平透传（task-tool-diff-preview.md：edit 的展示用 diff 走这里）。
+				// 无则**不写键** —— adapter-check 对无 details 事件做精确形状断言。
+				...(details ? { details } : {}),
 			};
+		}
 		case "turn_start":
 		case "turn_end":
 		case "agent_start":

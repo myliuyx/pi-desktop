@@ -73,6 +73,35 @@ function normalizeLang(raw: string): string {
   return "plaintext";
 }
 
+/** 文件扩展名 → shiki 语言标识（write 内容预览用，task-tool-diff-preview.md D2） */
+const EXT_LANG: Record<string, string> = {
+  ts: "ts",
+  mts: "ts",
+  cts: "ts",
+  tsx: "tsx",
+  js: "js",
+  mjs: "js",
+  cjs: "js",
+  jsx: "jsx",
+  json: "json",
+  sh: "bash",
+  bash: "bash",
+  zsh: "bash",
+  css: "css",
+  html: "html",
+  htm: "html",
+  md: "md",
+  markdown: "md",
+  yml: "yaml",
+  yaml: "yaml",
+};
+
+/** 按文件路径推断高亮语言；无扩展名 / 不在清单里回 plaintext（normalizeLang 兜底） */
+export function extToLang(path: string): string {
+  const ext = path.includes(".") ? (path.split(".").pop() ?? "").toLowerCase() : "";
+  return EXT_LANG[ext] ?? "plaintext";
+}
+
 /**
  * 高亮一段代码，返回带 shiki 变量的 HTML 字符串。
  * 失败（主题/语言异常）时退回纯文本 pre，保证 UI 不崩。

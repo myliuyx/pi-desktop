@@ -68,6 +68,12 @@
   --info: #1a6bbd; /* on --info-soft = 4.72:1 */
   --info-soft: #e6f1fb;
 
+  /* diff 行底色（task-tool-diff-preview.md）：工具卡 diff 的整行红绿染色。
+     与 soft 徽章语义分开、可独立调档；透明度叠在 bg-surface 上，
+     与行内语义色文字（text-success / text-danger）保持 G3 衬度 */
+  --diff-add-bg: rgba(15, 122, 88, 0.09); /* --success 的 9% */
+  --diff-del-bg: rgba(192, 57, 43, 0.09); /* --danger 的 9% */
+
   /* 圆角 */
   --radius-sm: 4px;
   --radius-md: 6px;
@@ -130,6 +136,10 @@
   --danger-soft: #3d1f1f;
   --info: #85b7eb;
   --info-soft: #16293d;
+
+  /* 深色下透明度升档补足与深底的衬度（同 --selection-bg 手法） */
+  --diff-add-bg: rgba(93, 202, 165, 0.16); /* --success 的 16% */
+  --diff-del-bg: rgba(240, 149, 149, 0.16); /* --danger 的 16% */
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
