@@ -80,7 +80,7 @@ import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
 import { installSkillFromGitHub, SkillInstallError } from "./skills-install.ts";
 import { searchSkillsSh } from "./skills-search.ts";
 import { continueRecentSession, findSessionPath, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
-import { buildSlashCommandsPayload, matchBuiltinCommand, scopeOfSource } from "./slash-commands.ts";
+import { buildSlashCommandsPayload, builtinExecutionError, matchBuiltinCommand, scopeOfSource } from "./slash-commands.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, readTrustPolicy, resolveProjectTrust, type TrustDecision, type TrustPolicy } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
 import { getToolsState, setToolsState } from "./tools.ts";
@@ -1003,16 +1003,17 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			if (hit) {
 				await hit.command.run(
 					{
-						// 与 GET /slash-commands 的 available 口径一致：手打命令绕过 UI 置灰，
-						// reload() 自身不拒流式（pi agent-session 会当场 teardown/重建扩展运行时），
-						// 因此这里必须补护栏；compact() 内部先 abort() 当前生成，流式**允许**。
+						// 与 GET /slash-commands 的 available 口径**不同**：手打命令走执行护栏，
+						// reload() 自身不拒流式/压缩（pi agent-session 会当场 teardown/重建扩展运行时），
+						// 因此必须补护栏；compact() 内部先 abort() 当前生成，流式**允许**。
 						reload: async () => {
-							if (s.isStreaming) throw new Error("会话正在生成回复，请先停止再重新加载会话");
-							if (s.isCompacting) throw new Error("会话正在压缩，请稍候再重新加载");
+							const reason = builtinExecutionError("reload", { isStreaming: s.isStreaming, isCompacting: s.isCompacting });
+							if (reason) throw new Error(reason);
 							await s.reload();
 						},
 						compact: async (instructions) => {
-							if (s.isCompacting) throw new Error("会话正在压缩，请稍候");
+							const reason = builtinExecutionError("compact", { isStreaming: s.isStreaming, isCompacting: s.isCompacting });
+							if (reason) throw new Error(reason);
 							await s.compact(instructions);
 						},
 					},

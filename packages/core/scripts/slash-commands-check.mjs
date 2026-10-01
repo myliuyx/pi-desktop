@@ -7,6 +7,8 @@
 import {
 	BUILTIN_SLASH_COMMANDS,
 	buildSlashCommandsPayload,
+	builtinExecutionError,
+	builtinMenuUnavailableReason,
 	matchBuiltinCommand,
 	scopeOfSource,
 } from "../src/slash-commands.ts";
@@ -75,6 +77,42 @@ check("流式中扩展仍 available=true", streaming.commands.find((c) => c.sour
 const compacting = buildSlashCommandsPayload({ ...base, isCompacting: true });
 check("压缩中 builtinAvailable=false", compacting.builtinAvailable, false);
 
+/* ---------------- 菜单不可执行原因 / 执行护栏 ---------------- */
+const streamBuiltin = (name) => streaming.commands.find((c) => c.name === name && c.source === "builtin");
+check(
+	"流式中 reload 的 unavailableReason",
+	streamBuiltin("reload").unavailableReason,
+	"会话正在生成回复，请先停止再重新加载会话",
+);
+check("流式中 compact 的 unavailableReason", streamBuiltin("compact").unavailableReason, "会先停止当前生成");
+
+const compactBuiltin = (name) => compacting.commands.find((c) => c.name === name && c.source === "builtin");
+check("压缩中 reload 的 unavailableReason", compactBuiltin("reload").unavailableReason, "会话正在压缩，请稍候");
+check("压缩中 compact 的 unavailableReason", compactBuiltin("compact").unavailableReason, "会话正在压缩，请稍候");
+
+check(
+	"可执行 builtin 项不写 unavailableReason 键",
+	p.commands.filter((c) => c.source === "builtin").every((c) => "unavailableReason" in c === false),
+	true,
+);
+check("菜单原因纯函数：可执行返 null", builtinMenuUnavailableReason("reload", { isStreaming: false, isCompacting: false }), null);
+
+check(
+	"执行护栏：流式中 compact 允许（null）",
+	builtinExecutionError("compact", { isStreaming: true, isCompacting: false }),
+	null,
+);
+check(
+	"执行护栏：流式中 reload 禁止",
+	builtinExecutionError("reload", { isStreaming: true, isCompacting: false }) !== null,
+	true,
+);
+check(
+	"执行护栏：压缩中 compact 禁止",
+	builtinExecutionError("compact", { isStreaming: false, isCompacting: true }) !== null,
+	true,
+);
+
 check("注册表恰为 reload+compact", BUILTIN_SLASH_COMMANDS.map((c) => c.name), ["reload", "compact"]);
 
 /* ---------------- adapt：compaction 翻译 ---------------- */
@@ -111,7 +149,17 @@ check("compaction_end → 错误/中止透传", endErr, {
 	errorMessage: "boom",
 });
 
+check("compaction_start threshold → 契约事件", toAgentEvent({ type: "compaction_start", reason: "threshold" }), {
+	type: "compaction_start",
+	reason: "threshold",
+});
+check("compaction_start overflow → 契约事件", toAgentEvent({ type: "compaction_start", reason: "overflow" }), {
+	type: "compaction_start",
+	reason: "overflow",
+});
+
 check("未知 reason 丢弃", toAgentEvent({ type: "compaction_start", reason: "weird" }), null);
+check("compaction_end 未知 reason 丢弃", toAgentEvent({ type: "compaction_end", reason: "weird" }), null);
 
 const failed = checks.filter((ok) => !ok).length;
 console.log(failed === 0 ? `\n全部通过（${checks.length} 项）` : `\n失败 ${failed}/${checks.length}`);

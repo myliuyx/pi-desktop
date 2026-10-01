@@ -452,7 +452,7 @@ export type AgentEvent =
   | {
       type: "compaction_end";
       reason: CompactionReason;
-      /** 压缩摘要（成功且有 result 时写；UI 本轮只用它做 toast 文案，不渲染长文本） */
+      /** 压缩摘要（成功且有 result 时写；UI 本轮不消费（压缩结果用固定文案 toast），仅预留） */
       summary?: string;
       aborted: boolean;
       willRetry: boolean;
@@ -1045,13 +1045,15 @@ export interface SlashCommandItem {
   argumentHint?: string;
   /** 当前是否可执行：builtin 在流式/压缩中为 false；扩展/技能恒 true */
   available: boolean;
-  /** 资源归属（扩展/技能专用，供 UI 打来源标签） */
+  /** 资源归属（扩展/技能专用，预留（UI 本轮未渲染来源标签）） */
   scope?: SlashCommandScope;
+  /** 仅 builtin 且 available=false：不可执行原因（UI 作 tooltip；如 /compact「会先停止当前生成」） */
+  unavailableReason?: string;
 }
 
 export interface SlashCommandsPayload {
   /** 分组由 UI 按 source 归并；空组不渲染 */
   commands: SlashCommandItem[];
-  /** 会话是否可执行 builtin（= 无流式且无压缩） */
+  /** 会话是否可执行 builtin（= 无流式且无压缩）；UI 本轮按每项 available 渲染，未消费此聚合位（预留） */
   builtinAvailable: boolean;
 }

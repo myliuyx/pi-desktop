@@ -72,6 +72,39 @@ export function scopeOfSource(
   return undefined;
 }
 
+/**
+ * 菜单项不可执行原因（UI 作为 tooltip）；null = 可执行。
+ * 与执行护栏口径**不同**：菜单里流式中的 `/compact` 也置灰（spec §6.5 要求提示会先停生成），
+ * 但手打执行时 `/compact` 在流式中是允许的（见 builtinExecutionError）。
+ */
+export function builtinMenuUnavailableReason(
+  name: string,
+  a: { isStreaming: boolean; isCompacting: boolean },
+): string | null {
+  if (a.isCompacting) return "会话正在压缩，请稍候";
+  if (a.isStreaming) {
+    if (name === "reload") return "会话正在生成回复，请先停止再重新加载会话";
+    if (name === "compact") return "会先停止当前生成";
+  }
+  return null;
+}
+
+/**
+ * 执行护栏（手打命令也走这里）：返回不可执行原因；null = 可执行。
+ * `/reload` 流式/压缩中禁止；`/compact` 仅压缩中禁止（流式中内部先 abort，pi 既定语义）。
+ */
+export function builtinExecutionError(
+  name: string,
+  a: { isStreaming: boolean; isCompacting: boolean },
+): string | null {
+  if (name === "compact") return a.isCompacting ? "会话正在压缩，请稍候" : null;
+  if (name === "reload") {
+    if (a.isStreaming) return "会话正在生成回复，请先停止再重新加载会话";
+    if (a.isCompacting) return "会话正在压缩，请稍候再重新加载";
+  }
+  return null;
+}
+
 /** 纯数据输入（不依赖 pi）：由 session 层从公开 getter 采集后传入 */
 export interface SlashCommandSourceInput {
   isStreaming: boolean;
@@ -88,11 +121,13 @@ export function buildSlashCommandsPayload(input: SlashCommandSourceInput): Slash
 
   const builtinNames = new Set(BUILTIN_SLASH_COMMANDS.map((c) => c.name));
   for (const c of BUILTIN_SLASH_COMMANDS) {
+    const reason = builtinMenuUnavailableReason(c.name, input);
     commands.push({
       name: c.name,
       description: c.description,
       source: "builtin",
-      available: builtinAvailable,
+      available: reason === null,
+      ...(reason ? { unavailableReason: reason } : {}),
       ...(c.argumentHint ? { argumentHint: c.argumentHint } : {}),
     });
   }
