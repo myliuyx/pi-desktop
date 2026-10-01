@@ -22,6 +22,9 @@ import {
   ComposerAtMenu,
   type ComposerAtMenuHandle,
 } from "@/components/chat/ComposerAtMenu";
+import { ComposerSlashMenu, type ComposerSlashMenuHandle } from "@/components/chat/ComposerSlashMenu";
+import { computeSlashState, type SlashTokenState } from "@/lib/slash";
+import type { SlashCommandItem } from "@/mock/types";
 import { ComposerContextRing } from "@/components/chat/ComposerContextRing";
 import { ComposerToolbar } from "@/components/chat/ComposerToolbar";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
@@ -130,6 +133,7 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
   /** 弹层定位锚：composer 根盒（forwardRef 的外部 ref 可能不传，锚用内部 ref 独立持有） */
   const anchorRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<ComposerAtMenuHandle>(null);
+  const slashMenuRef = useRef<ComposerSlashMenuHandle>(null);
 
   // at-file ①：草稿提升——value 的唯一真相在 ui-store（冻结契约不变，见文件头）
   const composerDraft = useUiStore((state) => state.composerDraft);
@@ -145,6 +149,8 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
   const clearComposerImages = useUiStore((state) => state.clearComposerImages);
   /** @ 弹层状态：null = 关闭；非 null = 光标停在 @token 内 */
   const [atState, setAtState] = useState<AtTokenState | null>(null);
+  /** 斜杠命令弹层状态：null = 关闭；非 null = 光标停在 /token 内 */
+  const [slashState, setSlashState] = useState<SlashTokenState | null>(null);
   /*
    * 图片大图预览（2026-10-01 图片预览批次 Task 7 Step 4）：待发缩略图点击后的大图。
    * state 挂 Composer 顶层（与 MessageList 同款纪律：预览弹层只有一份），
@@ -225,11 +231,16 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     });
   }, [composerInsertRequest, setComposerDraft]);
 
-  /** onChange / onSelect 共用：按当前光标重算 @ 弹层开关与查询词 */
-  const syncAtState = () => {
+  /** onChange / onSelect 共用：按当前光标重算 @ 与 / 两个弹层开关与查询词 */
+  const syncOverlays = () => {
     const el = taRef.current;
     if (!el) return;
-    setAtState(computeAtState(el.value, el.selectionStart ?? el.value.length));
+    const caret = el.selectionStart ?? el.value.length;
+    setAtState(computeAtState(el.value, caret));
+    // mock 形态不出现斜杠弹层（诚实于形态）：组件内部虽返回 null，但 isOpen() 恒 true，
+    // 若仍设置 slashState，Enter 会被这个不可见空菜单吞掉一次。直接在源头不设状态，
+    // 让 mock 下 `/` 与普通文本完全一致。
+    setSlashState(live ? computeSlashState(el.value, caret) : null);
   };
 
   // 停止态：整轮进行中（流式或轮间等待，F4）按钮可点（中止）；空闲且空：禁用（验收要求无内容禁用）。
@@ -256,6 +267,7 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     setComposerDraft("");
     clearComposerImages();
     setAtState(null);
+    setSlashState(null);
   }
 
   /**
@@ -295,6 +307,8 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    // 斜杠命令弹层开着时按键先给它（与 @ 弹层同款，Enter 被消费就不会发送）
+    if (slashMenuRef.current?.isOpen() && slashMenuRef.current.handleKey(e.nativeEvent)) return;
     // at-file ②：弹层开着时按键先给弹层（↑↓ 移动、Enter/Tab 选中、Esc 关闭；
     // Enter 被消费就不会落到底下的「发送」）
     if (menuRef.current?.isOpen() && menuRef.current.handleKey(e.nativeEvent)) return;
@@ -320,6 +334,21 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     });
   }
 
+  /** 斜杠命令选中：把 /token 区间原地替换为 `/<name> `，光标落在插入尾 */
+  function handleSlashPick(item: SlashCommandItem) {
+    if (!slashState) return;
+    const snippet = `/${item.name} `;
+    const next = composerDraft.slice(0, slashState.start) + snippet + composerDraft.slice(slashState.end);
+    setComposerDraft(next);
+    setSlashState(null);
+    const caret = slashState.start + snippet.length;
+    const el = taRef.current;
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    });
+  }
+
   /**
    * 底行「+」按钮（task-composer-inline-toolbar.md 决策 6）：在光标处插入 `@` 并
    * 激活文件搜索弹层——与文件树 @ 按钮、手打 @ 同一条通路（插入→光标落 @ 后→
@@ -337,6 +366,7 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
     const caret = pos + 1;
     setComposerDraft(next);
     setAtState(computeAtState(next, caret));
+    setSlashState(null);
     requestAnimationFrame(() => {
       el.focus();
       el.setSelectionRange(caret, caret);
@@ -427,12 +457,15 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
         value={composerDraft}
         onChange={(e) => {
           setComposerDraft(e.target.value);
-          syncAtState();
+          syncOverlays();
         }}
-        onSelect={syncAtState}
+        onSelect={syncOverlays}
         onKeyDown={onKeyDown}
         onPaste={handlePaste}
-        onBlur={() => setAtState(null)}
+        onBlur={() => {
+          setAtState(null);
+          setSlashState(null);
+        }}
         // ⚠️ 默认 placeholder 文案被 probe-new-session.mjs 的 DEFAULT_PLACEHOLDER 断言锁定，
         // 改文案须先改探针（「@ 引用文件」的提示已由 NewSessionHero 提示行承担）
         placeholder={placeholder ?? "给 Pi 下达任务…（Enter 发送，Shift+Enter 换行）"}
@@ -542,6 +575,17 @@ export const Composer = forwardRef<HTMLDivElement, ComposerProps>(function Compo
           </span>
         )}
       </button>
+
+      {/* 斜杠命令弹层（portal 到 body；mock/SSR 下组件内部返回 null，键盘路由短路） */}
+      {slashState ? (
+        <ComposerSlashMenu
+          ref={slashMenuRef}
+          query={slashState.query}
+          anchorEl={anchorRef.current}
+          onPick={handleSlashPick}
+          onClose={() => setSlashState(null)}
+        />
+      ) : null}
 
       {/* @ 文件搜索弹层（portal 到 body；mock/SSR 下组件内部返回 null，键盘路由短路） */}
       {atState ? (
