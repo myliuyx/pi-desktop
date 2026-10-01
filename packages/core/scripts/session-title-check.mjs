@@ -7,7 +7,7 @@
  * `titleFallbackFromFirstMessage` —— 剥块取正文，纯引用无正文用引用名占位。
  *
  * 覆盖：
- *   T1  真实展开形态（expandFileRefs 产块 + 正文）⇒ 标题 = 正文（展开⇄拆解同源闭环）；
+ *   T1  历史块形态（手写 `<file>` 前置块 + 正文）⇒ 标题 = 正文（解拆同源闭环）；
  *   T2  文件块 + 目录块混合 ⇒ 全剥；
  *   T3  纯引用单文件（win 反斜杠绝对路径）⇒ basename 占位；
  *   T4  纯引用多名 ⇒ 「首名 等 N 个引用」；
@@ -24,7 +24,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expandFileRefs, fileRefNames, stripFileRefBlocks } from "../src/prompt-files.ts";
+import { fileRefNames, stripFileRefBlocks } from "../src/prompt-files.ts";
 import { titleFallbackFromFirstMessage, toSessionSummary } from "../src/sessions.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -44,10 +44,21 @@ const check = (name, pass, detail) => {
 const summaryOf = (first, name = "") =>
   toSessionSummary({ id: "s1", name, firstMessage: first, modified: "2026-09-28T10:00:00.000Z", messageCount: 3 });
 
-/* ===== T1：真实展开形态 ⇒ 剥块留正文（同源闭环） ===== */
+/*
+ * ★ 2026-10-02：@引用已停止注入（expandFileRefs 下线），但**旧 session 已把`<file>`
+ * 块持久化进正文**，故本文件的场景全部存活（历史会话仍需正确拆解）。
+ * 夹具改为**手写历史块字符串**（不再调产口）——格式即旧产口的真实产物：
+ *   文本：<file name="绝对路径">\n{内容}\n</file>\n
+ *   目录：<file name="绝对路径" type="directory">\n{清单}\n</file>\n
+ */
+const winPath = "F:\\DevelopWork\\pi-desktop\\packages\\core\\note.txt";
+const posixPath = path.join(tmpRoot, "note.txt");
+const fileBlock = (name, body) => `<file name="${name}">\n${body}\n</file>\n`;
+const dirBlock = (name, body) => `<file name="${name}" type="directory">\n${body}\n</file>\n`;
+
+/* ===== T1：历史块形态 ⇒ 剥块留正文（同源闭环） ===== */
 {
-  const expanded = expandFileRefs(["note.txt"], tmpRoot);
-  const raw = expanded.promptText + "@note.txt 帮我看看这个文件";
+  const raw = fileBlock(posixPath, "正文内容\n") + "@note.txt 帮我看看这个文件";
   check("T1 块前置 + 正文 ⇒ 标题 = 正文", titleFallbackFromFirstMessage(raw) === "@note.txt 帮我看看这个文件", {
     raw: raw.slice(0, 120),
     got: titleFallbackFromFirstMessage(raw),
@@ -57,10 +68,10 @@ const summaryOf = (first, name = "") =>
 
 /* ===== T2：文件块 + 目录块混合 ⇒ 全剥 ===== */
 {
-  fs.mkdirSync(path.join(tmpRoot, "sub"), { recursive: true });
-  fs.writeFileSync(path.join(tmpRoot, "sub", "inner.txt"), "x", "utf8");
-  const expanded = expandFileRefs(["note.txt", "sub"], tmpRoot);
-  const raw = expanded.promptText + "看看这两个";
+  const dir = path.join(tmpRoot, "sub");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "inner.txt"), "x", "utf8");
+  const raw = fileBlock(posixPath, "正文内容\n") + dirBlock(dir, "inner.txt\n（仅一层，共 1 项）") + "看看这两个";
   check(
     "T2 文件块 + directory 块混合 ⇒ 全剥留正文",
     titleFallbackFromFirstMessage(raw) === "看看这两个" && raw.includes('type="directory"'),

@@ -159,7 +159,11 @@ export interface FsSearchResult {
 
 /** `POST /prompt` 的返回（at-file 批次 §4.2）：无 skippedFiles 时恒空数组 */
 export interface PromptSendResult {
-  /** 被跳过的 @file 引用（用户输入原样 + 括注原因），UI 据此弹通知 */
+  /**
+   * 当前读不到的 @引用（用户输入原样 + 括注原因），UI 据此弹通知。
+   * ★ 2026-10-02：@引用不再注入模型上下文（内容交给模型自己 read/ls），
+   * 本字段只作「路径不可读」的提前提示，不再代表「内容被丢弃」。
+   */
   skippedFiles: string[];
   /** 被跳过的贴图（图片N + 括注原因；粘图批次 2026-09-30），UI 据此弹通知 */
   skippedImages: string[];

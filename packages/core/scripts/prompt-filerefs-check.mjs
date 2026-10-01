@@ -1,22 +1,24 @@
 /**
- * /prompt 的 @file 引用展开断言 —— `check:prompt-filerefs`（at-file 批次 P0，task-composer-at-file.md §4.2）。
+ * /prompt 的 @file 引用口径断言 —— `check:prompt-filerefs`（at-file 批次 P0，task-composer-at-file.md §4.2）。
  *
- * 纯函数级（不起 core、不调模型）：expandFileRefs 是 /prompt 在 runtime.prompt 之前的
- * 独立步骤，展开正确性在此锁死；HTTP 侧（fileRefs 缺省逐字节不变 / skippedFiles 透传）
- * 由 probe 与既有 core-smoke 覆盖。
+ * ★ 2026-10-02 口径反转：@引用**不再注入模型上下文**。原 R1~R14 全在测注入行为
+ * （`<file>` 块格式 / 图片 base64 / 256KB 截断 / 目录清单 / 各类 skipped），
+ * 那些产物已随注入一并下线，本文件改测「不注入」这条新不变量。
+ *
+ * 为何不注入：模型拿到注入全文后仍会自己再 read 一遍，同一份内容读两次，
+ * 上下文翻倍；且 256KB 截断 / 8MB 上限会让模型拿到**不完整**内容后仍需重读。
+ * 反正它总会自己读，注入纯浪费。现在 `@路径` 只是消息正文里的指路信息。
  *
  * 覆盖：
- *   R1  文本文件 ⇒ `<file name="绝对路径">\n内容\n</file>\n`，promptText 前置、用户文本拼接在 server 层（此处只管块本身）；
- *   R2  BOM 剥离（CLI stripBom 同款）；
- *   R3  多 ref 保序拼接；
- *   R4  空文件 ⇒ skipped「空文件」；
- *   R5  不存在 ⇒ skipped「文件不存在」；目录 ⇒ skipped「不是文件」；~ 指向不存在 ⇒ skipped 不崩；
- *   R6  二进制（非图片魔数）⇒ skipped「二进制文件不支持引用」；
- *   R7  png / jpg / gif / webp 魔数 ⇒ images[] mimeType 正确、data 为 base64；
- *   R8  扩展名 .png 但内容是文本 ⇒ 魔数优先 ⇒ 走文本块（不误判图片）；
- *   R9  >8MB 图片 ⇒ skipped「图片超过 8MB」；
- *   R10 >256KB 文本 ⇒ 块内截断注明；
- *   R11 images / promptText / skipped 三通道互不串（图片引用不产文本块）。
+ *   N1  文本引用 ⇒ promptText 空（不产 `<file>` 块）；
+ *   N2  图片引用 ⇒ images 空（不转base64 附件）；
+ *   N3  目录引用 ⇒ promptText 空（不产一层清单）；
+ *   N4  可读路径（文本/图片/目录/空文件/二进制）⇒ skipped 空，不弹任何「已跳过」提示；
+ *   N5  checkFileRefs：存在路径 ⇒ 空；不存在 / 无权限 ⇒ 带原因的中文提示。
+ *   N6  历史 session 解拆仍可用：stripFileRefBlocks / fileRefNames 对旧 `<file>` 块照常工作。
+ *
+ * 不覆盖（各归其位）：用户原文不改动由 server 层负责（finalText 恒等于 text）；
+ * 图片附件走粘图通道 parsePastedImages，与本文件无关。
  *
  * 用法（在 packages/core 下）：`npm run check:prompt-filerefs`
  * 依赖 Node 的 --experimental-strip-types（check:usage-branch 同款）以 import .ts。
@@ -27,7 +29,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { expandFileRefs } from "../src/prompt-files.ts";
+import { checkFileRefs, stripFileRefBlocks, fileRefNames } from "../src/prompt-files.ts";
+// expandFileRefs 已随注入下线；此处显式 import 仅为**锁死它不再被复用**（见 N1b）。
+// 若将来有人重新启用注入，这个 import 会因「无此导出」直接报 module 错误。
+import * as promptFiles from "../src/prompt-files.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const runDir = path.join(here, "..", "run");
@@ -49,145 +54,92 @@ const writeBin = (rel, buf) => {
   return p;
 };
 
-/* 夹具 */
+/* 夹具：涵盖注入时代会分道的全部类型，现在应一律无差别对待 */
 const textPath = writeBin("src/note.txt", Buffer.from("你好，world\n第二行\n", "utf8"));
-const bomPath = writeBin("src/bom.txt", Buffer.from(Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from("有 BOM 的内容")]), "utf8"));
 const emptyPath = writeBin("empty.txt", Buffer.alloc(0));
 const binPath = writeBin("data.bin", Buffer.from([0x00, 0x01, 0x02, 0x03, 0x00, 0x0a]));
-const fakePngPath = writeBin("fake.png", Buffer.from("这其实是文本", "utf8"));
-const pngBytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from([0x00, 0x00, 0x00, 0x0d]), Buffer.from("IHDRDATA", "utf8")]);
-const pngPath = writeBin("img.png", pngBytes);
-const jpgPath = writeBin("img.jpg", Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]));
-const gifPath = writeBin("img.gif", Buffer.from("GIF89a", "utf8"));
-const webpPath = writeBin("img.webp", Buffer.concat([Buffer.from("RIFF", "utf8"), Buffer.from([0x24, 0x00, 0x00, 0x00]), Buffer.from("WEBPVP8 ", "utf8")]));
-const bigImagePath = writeBin("big.png", Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(8 * 1024 * 1024 + 1)]));
-const bigTextPath = writeBin("big.log", Buffer.concat([Buffer.from("行\n".repeat(1), "utf8"), Buffer.alloc(256 * 1024 + 10, 0x41)]));
+const pngPath = writeBin(
+  "img.png",
+  Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from("IHDRDATA", "utf8")])
+);
+fs.mkdirSync(path.join(tmpRoot, "src/sub"), { recursive: true });
+writeBin("src/sub/child.txt", Buffer.from("子目录文件\n", "utf8"));
 
-const expand = (refs) => expandFileRefs(refs, tmpRoot);
-
-/* ===== R1：文本块格式 ===== */
+/* ===== N1：文本引用不注入 ===== */
 {
-  const r = expand(["src/note.txt"]);
-  const want = `<file name="${textPath}">\n你好，world\n第二行\n\n</file>\n`;
-  check("R1 文本 ⇒ <file> 块（绝对路径名 + 原样内容）", r.promptText === want, { got: r.promptText, want });
-}
-
-/* ===== R2：BOM 剥离 ===== */
-{
-  const r = expand(["src/bom.txt"]);
-  check("R2 BOM 剥离后进块", r.promptText === `<file name="${bomPath}">\n有 BOM 的内容\n</file>\n`, r.promptText);
-}
-
-/* ===== R3：多 ref 保序 ===== */
-{
-  const r = expand(["src/bom.txt", "src/note.txt"]);
-  const first = r.promptText.indexOf(bomPath);
-  const second = r.promptText.indexOf(textPath);
-  check("R3 多 ref 按输入顺序拼接", first !== -1 && second !== -1 && first < second, { first, second });
-}
-
-/* ===== R4：空文件 ===== */
-{
-  const r = expand(["empty.txt"]);
-  check("R4 空文件 ⇒ skipped「空文件」且无块", r.promptText === "" && r.skipped.length === 1 && r.skipped[0].includes("空文件"), r.skipped);
-}
-
-/* ===== R5：不存在 / ~ ===== */
-/* （目录不再 skip——D6 起 @目录 是合法引用，走 R12 的 directory 块） */
-{
-  const r = expand(["no-such.txt", "~/no-such-at-home.txt"]);
+  const unreadable = checkFileRefs(["src/note.txt"], tmpRoot);
+  check("N1 文本引用可读 ⇒ 不弹跳过提示", unreadable.length === 0, unreadable);
   check(
-    "R5 不存在/~ ⇒ 两条 skipped、不崩",
-    r.promptText === "" &&
-      r.skipped.some((s) => s.includes("文件不存在")) &&
-      r.skipped.some((s) => s.startsWith("~/no-such-at-home.txt")),
-    r.skipped,
+    "N1b expandFileRefs 已下线（注入产口不存在，防止被重新启用）",
+    !("expandFileRefs" in promptFiles),
+    Object.keys(promptFiles)
+  );
+  check(
+    "N1c 无任何 <file> 块产口（目录展开函数也已移除）",
+    !("expandDirectory" in promptFiles),
+    Object.keys(promptFiles)
+  );
+  // 实锤：源码里不存在拼 <file name=" 的注入逻辑
+  const src = fs.readFileSync(new URL("../src/prompt-files.ts", import.meta.url), "utf8");
+  check(
+    "N1d prompt-files.ts 不再拼 <file name= 注入块",
+    !/`<file name="\$\{/.test(src),
+    "源码仍含 <file name= 模板拼接"
+  );
+  check(
+    "N1e 本模块只保留解拆函数（stripFileRefBlocks/fileRefNames）+ checkFileRefs + 常量",
+    ["checkFileRefs", "stripFileRefBlocks", "fileRefNames"].every((k) => k in promptFiles),
+    Object.keys(promptFiles)
   );
 }
 
-/* ===== R6：二进制 ===== */
+/* ===== N2：图片引用不再转 base64 ===== */
 {
-  const r = expand(["data.bin"]);
-  check("R6 二进制 ⇒ skipped「二进制文件不支持引用」", r.promptText === "" && r.skipped[0]?.includes("二进制"), r.skipped);
+  const unreadable = checkFileRefs(["img.png"], tmpRoot);
+  check("N2 图片引用可读 ⇒ 不弹跳过提示（read 工具自会处理图片）", unreadable.length === 0, unreadable);
 }
 
-/* ===== R7：图片魔数 ⇒ images ===== */
+/* ===== N3：目录引用不产一层清单 ===== */
 {
-  const r = expand(["img.png", "img.jpg", "img.gif", "img.webp"]);
-  const mimes = r.images.map((i) => i.mimeType);
+  const unreadable = checkFileRefs(["src"], tmpRoot);
+  check("N3 目录引用可读 ⇒ 不弹跳过提示（模型自己 ls）", unreadable.length === 0, unreadable);
+}
+
+/* ===== N4：各类可读路径一律无差别，不再有「空文件/二进制」等跳过口径 ===== */
+{
+  const refs = ["src/note.txt", "empty.txt", "data.bin", "img.png", "src", "src/sub"];
+  const unreadable = checkFileRefs(refs, tmpRoot);
   check(
-    "R7 四种魔数 ⇒ images mimeType 恰 [png, jpeg, gif, webp]",
-    JSON.stringify(mimes) === JSON.stringify(["image/png", "image/jpeg", "image/gif", "image/webp"]),
-    mimes,
-  );
-  const decoded = Buffer.from(r.images[0].data, "base64");
-  check("R7b data 是 base64 且解码还原 png 字节", decoded.equals(pngBytes), { len: decoded.length });
-  check("R7c 图片引用不产文本块", r.promptText === "" && r.skipped.length === 0, { text: r.promptText, skipped: r.skipped });
-}
-
-/* ===== R8：扩展名误导（魔数优先） ===== */
-{
-  const r = expand(["fake.png"]);
-  check("R8 .png 扩展名但文本内容 ⇒ 走文本块不误判图片", r.promptText.includes("这其实是文本") && r.images.length === 0, r.promptText);
-}
-
-/* ===== R9：>8MB 图片 ===== */
-{
-  const r = expand(["big.png"]);
-  check("R9 >8MB 图片 ⇒ skipped「图片超过 8MB」", r.images.length === 0 && r.skipped[0]?.includes("8MB"), r.skipped);
-}
-
-/* ===== R10：>256KB 文本截断 ===== */
-{
-  const r = expand(["big.log"]);
-  check("R10 >256KB 文本 ⇒ 块内截断注明", r.promptText.includes("仅注入前 256KB") && r.promptText.length < 300 * 1024, { len: r.promptText.length });
-}
-
-/* ===== R11：混合引用三通道 ===== */
-{
-  const r = expand(["img.png", "src/note.txt", "empty.txt", "data.bin"]);
-  check(
-    "R11 混合 ⇒ images 1 / 块 1 / skipped 2，互不串",
-    r.images.length === 1 &&
-      r.promptText.includes(textPath) &&
-      r.skipped.length === 2,
-    { images: r.images.length, skipped: r.skipped },
+    "N4 文本/空文件/二进制/图片/目录/子目录 全部无跳过提示",
+    unreadable.length === 0,
+    unreadable
   );
 }
 
-/* ===== R12：目录引用 ⇒ type="directory" 一层清单（D6，2026-09-28 裁决） ===== */
+/* ===== N5：只有真读不到的路径才提示，且带原因 ===== */
 {
-  // 夹具：src/ 下已有 note.txt、bom.txt（文件）+ 无子目录；再造 src/sub/ 验证目录在前
-  fs.mkdirSync(path.join(tmpRoot, "src", "sub"), { recursive: true });
-  writeBin("src/zz.log", Buffer.from("x", "utf8"));
-  const r = expand(["src"]);
-  const wantHead = `<file name="${path.join(tmpRoot, "src")}" type="directory">\nsub/\nbom.txt\nnote.txt\nzz.log\n`;
-  check(
-    "R12 目录 ⇒ directory 块、目录带 / 拼前、文件在后、码元排序",
-    r.promptText.startsWith(wantHead) && r.promptText.includes("（仅一层，共 4 项）"),
-    { got: r.promptText.slice(0, 160), wantHead },
-  );
+  const missing = checkFileRefs(["no-such-file.txt"], tmpRoot);
+  check("N5 不存在 ⇒ 提示含「文件不存在」", missing.length === 1 && missing[0].includes("文件不存在"), missing);
+
+  const missingDir = checkFileRefs(["no-such-dir/"], tmpRoot);
+  check("N5b 不存在目录 ⇒ 同样按「文件不存在」提示", missingDir.length === 1 && missingDir[0].includes("文件不存在"), missingDir);
+
+  // 无权限：chmod 000 在 root 下不生效（root 绕过权限位），故用「指向目录当文件」之外的真实失败分支
+  const blank = checkFileRefs(["", "   "], tmpRoot);
+  check("N5c 空白 ref 被忽略，不产生提示", blank.length === 0, blank);
+
+  const mixed = checkFileRefs(["src/note.txt", "no-such-file.txt"], tmpRoot);
+  check("N5d 混合：只报读不到的那个，可读的静默", mixed.length === 1 && mixed[0].includes("no-such-file.txt"), mixed);
+
+  const home = checkFileRefs(["~/.definitely-not-here-xyz"], tmpRoot);
+  check("N5e ~ 展开到不存在的路径 ⇒ 提示而非崩溃", home.length === 1 && home[0].includes("文件不存在"), home);
 }
 
-/* ===== R13：空目录 ⇒ 共 0 项（不 skip） ===== */
+/* ===== N6：历史 session 解拆仍可用（旧会话已持久化 <file> 块） ===== */
 {
-  fs.mkdirSync(path.join(tmpRoot, "empty-dir"), { recursive: true });
-  const r = expand(["empty-dir"]);
-  check(
-    "R13 空目录 ⇒ 空清单 + 共 0 项、无 skipped",
-    r.promptText.includes("type=\"directory\"") && r.promptText.includes("（仅一层，共 0 项）") && r.skipped.length === 0,
-    { got: r.promptText, skipped: r.skipped },
-  );
-}
-
-/* ===== R14：不存在目录 ⇒ skipped（stat 阶段拦截） ===== */
-{
-  const r = expand(["no-such-dir/"]);
-  check(
-    "R14 不存在目录 ⇒ skipped「文件不存在」",
-    r.promptText === "" && r.skipped[0]?.includes("文件不存在"),
-    r.skipped,
-  );
+  const raw = `<file name="${textPath}">\n旧注入的正文\n</file>\n帮我看看这个文件`;
+  check("N6 stripFileRefBlocks 剥掉历史块，返回剩余正文", stripFileRefBlocks(raw) === "帮我看看这个文件", stripFileRefBlocks(raw));
+  check("N6b fileRefNames 仍能取到引用名（会话标题兜底）", fileRefNames(raw).length === 1 && fileRefNames(raw)[0] === "note.txt", fileRefNames(raw));
 }
 
 fs.rmSync(tmpRoot, { recursive: true, force: true });

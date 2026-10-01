@@ -436,11 +436,12 @@ pendingApprovals: [],
           ...(sendImages.payload ? { images: sendImages.payload } : {}),
         })
         .then((r) => {
-          // at-file：core 读不到的引用被跳过（消息照发）——诚实告知，不让引用静默失效
+          // @引用不可读时提前告知：内容已不注入（模型自己 read），但路径读不到会让模型
+          // 拿到报错再来问用户——先说清楚能省一轮往返（诚实告知，不让引用静默失效）
           if (r.skippedFiles.length > 0) {
             useNoticeStore
               .getState()
-              .notify({ tone: "warning", text: `@引用已跳过：${r.skippedFiles.join("、")}` });
+              .notify({ tone: "warning", text: `@引用当前读不到：${r.skippedFiles.join("、")}` });
           }
           // 粘图批次：core 超限/非法的贴图被跳过（消息照发），同款诚实告知
           if (r.skippedImages.length > 0) {

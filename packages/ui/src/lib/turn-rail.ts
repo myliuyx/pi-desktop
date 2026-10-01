@@ -68,8 +68,8 @@ export function layoutTickTops(n: number, railHeight: number, pitch: number): nu
 }
 
 /**
- * 匹配 core expandFileRefs 的注入文件块。
- * ⚠️ 口径必须与 MessageBubble.tsx 的 INJECTED_FILE_BLOCK_RE 同步（同一份上游格式，
+ * 匹配历史 core 注入文件块（★ 2026-10-02 起新消息不再产生，此处仅为解旧 session）。
+ * ⚠️ 口径必须与 MessageBubble.tsx 的 INJECTED_FILE_BLOCK_RE 同步（同一份历史格式，
  * 两处各自消费：气泡折叠条 / 本预览）—— 改动时两处一起改。
  */
 const INJECTED_FILE_BLOCK_RE = /<file name="([^"]+)"[^>]*>\n?([\s\S]*?)\n?<\/file>\n?/g;

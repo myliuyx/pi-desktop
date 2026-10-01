@@ -34,8 +34,9 @@ export interface FsSearchEntry {
 	/** 相对搜索根的 POSIX 风格路径（@引用的展示与插入口径，core 端按自身 cwd 反解） */
 	relPath: string;
 	/**
-	 * 条目类型。目录也可引用（2026-09-28 用户裁决 D6）：@目录 = 给模型一层目录清单
-	 * （expandFileRefs 的 type="directory" 块），所以搜索候选**文件与目录同榜**。
+	 * 条目类型。目录也可引用，所以搜索候选**文件与目录同榜**——
+	 * @引用的内容一律由模型自己 read/ls 取（★ 2026-10-02 起不再注入），
+	 * 目录只是与文件同等的「可被指路目标」。
 	 */
 	kind: "dir" | "file";
 }

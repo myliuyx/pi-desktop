@@ -22,7 +22,7 @@ import type { AgentEvent, ModelTestRequest, ProviderModelsRequest, PutProvidersR
 import { DirListError, listDirectories } from "./fs-list.ts";
 import { FsSearchError, searchFiles } from "./fs-search.ts";
 import { FileReadError, readTextFile } from "./fs-read.ts";
-import { expandFileRefs, IMAGE_MAX_BYTES, type PromptImage } from "./prompt-files.ts";
+import { checkFileRefs, IMAGE_MAX_BYTES, type PromptImage } from "./prompt-files.ts";
 
 /** 单条消息贴图数量上限（D6；UI 侧 lib/image-attach.ts 的 MAX_IMAGES_PER_MESSAGE 同口径） */
 const MAX_PASTED_IMAGES = 8;
@@ -475,30 +475,21 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				? body.fileRefs.filter((r): r is string => typeof r === "string" && r.trim().length > 0)
 				: [];
 			try {
-				// 粘图批次：贴图先行解析（超限/非法计 skippedImages，不阻塞发送）
+				/*
+				 * 粘图批次：贴图先行解析（超限/非法计 skippedImages，不阻塞发送）。
+				 * ★ 2026-10-02：@引用不再注入上下文——`fileRefs` 仅用于「这个路径当前读不到」
+				 * 的提前提示（skippedFiles），内容一律交给模型自己read/ls 取（见
+				 * prompt-files.ts 文件头）。因此 finalText 恒等于用户原文。
+				 */
 				const pasted = parsePastedImages(body.images);
-				let finalText = text;
-				let images;
-				let skippedFiles: string[] = [];
-				if (refs.length > 0) {
-					const expanded = expandFileRefs(refs, runtime.getCwd());
-					// file 块前置直拼（CLI buildInitialMessage 同序 join("")；块自带尾随换行）
-					finalText = expanded.promptText + text;
-					// 贴图在前、@引用展开的图在后（同入 PromptOptions.images，上游统一 normalize）
-					const merged = [...pasted.images, ...expanded.images];
-					if (merged.length > 0) images = merged;
-					skippedFiles = expanded.skipped;
-				} else if (pasted.images.length > 0) {
-					images = pasted.images;
-				}
+				const unreadable = refs.length > 0 ? checkFileRefs(refs, runtime.getCwd()) : [];
+				const images = pasted.images.length > 0 ? pasted.images : undefined;
 				// 纯图无文本兜底：Anthropic 对 content 里的空 text 块直接 400，补一行占位
 				//（与上游 anthropic-messages.ts 纯图时插的 "(see attached image)" 同措辞）
-				if (images && images.length > 0 && !finalText.trim()) {
-					finalText = "(see attached image)";
-				}
+				const finalText = images && !text.trim() ? "(see attached image)" : text;
 				await runtime.prompt(finalText, images);
 				const resp: { ok: boolean; skippedFiles?: string[]; skippedImages?: string[] } = { ok: true };
-				if (skippedFiles.length > 0) resp.skippedFiles = skippedFiles;
+				if (unreadable.length > 0) resp.skippedFiles = unreadable;
 				if (pasted.skipped.length > 0) resp.skippedImages = pasted.skipped;
 				return json(200, resp);
 			} catch (e) {

@@ -19,15 +19,20 @@ export interface MessageBubbleProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /* -------------------------------------------------------------------------
- * 注入文件块解析（at-file 批次 · D5 2026-09-28 用户裁决：渲染层折叠）
+ * 注入文件块解析（at-file 批次 · D5 2026-09-28 渲染层折叠）
  *
- * 背景：core 把 @引用展开成 `<file name="绝对路径">内容</file>` 前置块后整体交给
+ * 背景：历史上core 把 @引用展开成 `<file name="绝对路径">内容</file>` 前置块后整体交给
  * pi（PromptOptions 没有「正文之外的文本上下文通道」），pi 原样记录进 session ——
  * 于是**发送瞬间**气泡显示本地原文，**刷新后**（/sessions/load 回放）气泡变成
- * 一大段 file 块（用户实测报告「一次看还好，刷新一下页面就变了」）。
+ * 一大段file 块（用户实测报告「一次看还好，刷新一下页面就变了」）。
  * 上游限制动不了，在渲染层统一：user 消息正文里的 file 块折叠成「📎 文件名」
  * 折叠条，其余文本照常 —— 两条路径的显示从此一致，内容仍可展开查看。
  * assistant 消息不做此解析（其正文的 `<file>` 字面量是内容，不是注入）。
+ *
+ * ★ 2026-10-02：@引用**已停止注入**（模型自己read/ls，避免同一份内容读两遍）。
+ * 本折叠条**仅为历史 session 解拆而保留**——旧会话已把块持久化进正文，不拆则刷新后
+ * 漏出机器文本。故文案已从「已注入模型上下文」改为中性的「历史注入内容」，
+ * 避免让用户误以为当前仍在注入。新会话不再产生file 块，自然不出现此条。
  * ------------------------------------------------------------------------- */
 
 interface InjectedFileSegment {
@@ -41,7 +46,7 @@ interface TextSegment {
 }
 type ContentSegment = TextSegment | InjectedFileSegment;
 
-/** 匹配 core expandFileRefs 的块格式：属性段捕获 type="directory" 等扩展（不参与展示） */
+/** 匹配历史 core 注入块格式（自 2026-10-02 起新消息不再产生，仅解旧session） */
 const INJECTED_FILE_BLOCK_RE = /<file name="([^"]+)"[^>]*>\n?([\s\S]*?)\n?<\/file>\n?/g;
 
 /** 把 content 拆成 [text | file] 序列；无 file 块时返回单个 text 段 */
@@ -57,7 +62,7 @@ export function splitInjectedFileBlocks(content: string): ContentSegment[] {
   return segments;
 }
 
-/** user 气泡里的注入文件折叠条：默认折叠，点击展开内容（session 里的真实正文） */
+/** 历史注入文件折叠条：默认折叠，点击展开内容（session 里的真实正文） */
 function FileBlockChip({ name, body }: { name: string; body: string }) {
   const [open, setOpen] = useState(false);
   // testid 按文件名安全化而非序号——多条消息各带一个 chip 时裸 index 必重复
@@ -79,7 +84,7 @@ function FileBlockChip({ name, body }: { name: string; body: string }) {
       >
         <Icon icon={Paperclip} size={12} className="shrink-0 text-text-tertiary" />
         <span className="min-w-0 truncate font-mono">{name.split(/[\\/]/).pop()}</span>
-        <span className="shrink-0 text-text-tertiary">已注入模型上下文</span>
+        <span className="shrink-0 text-text-tertiary">历史注入内容</span>
         <Icon
           icon={ChevronDown}
           size={11}
@@ -112,7 +117,7 @@ export const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(func
   // 粘图批次豁免：纯图消息正文为空但有附件，气泡（及其附件行）必须照常出现。
   if (!block.content.trim() && !(role === "user" && attachments && attachments.length > 0)) return null;
 
-  // at-file D5：user 消息按「text + 注入文件块」拆段渲染；assistant 不拆（见上方注释）
+  // 历史 session 解拆（at-file D5）：user 消息按「text + file 块」拆段渲染；assistant 不拆（见上方注释）
   const segments = role === "user" ? splitInjectedFileBlocks(block.content) : null;
 
   return (
