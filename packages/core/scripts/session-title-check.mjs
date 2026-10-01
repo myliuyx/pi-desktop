@@ -51,7 +51,7 @@ const summaryOf = (first, name = "") =>
  *   文本：<file name="绝对路径">\n{内容}\n</file>\n
  *   目录：<file name="绝对路径" type="directory">\n{清单}\n</file>\n
  */
-const winPath = "F:\\DevelopWork\\pi-desktop\\packages\\core\\note.txt";
+const winPath = "F:\\DevelopWork\\pi-workbench\\packages\\core\\note.txt";
 const posixPath = path.join(tmpRoot, "note.txt");
 const fileBlock = (name, body) => `<file name="${name}">\n${body}\n</file>\n`;
 const dirBlock = (name, body) => `<file name="${name}" type="directory">\n${body}\n</file>\n`;

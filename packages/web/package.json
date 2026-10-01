@@ -1,16 +1,16 @@
 {
-  "name": "@myliuyx/pi-web",
-  "version": "0.1.5",
+  "name": "@myliuyx/pi-workbench",
+  "version": "0.2.0",
   "license": "MIT",
   "type": "module",
-  "description": "Pi-Desktop 自托管 web 形态 —— 一条命令起 Coding Agent 工作台（core HTTP/SSE 服务 + 同源托管 Web UI，浏览器随处访问）",
-  "homepage": "https://github.com/myliuyx/pi-desktop",
+  "description": "Pi Workbench 自托管 web 形态 —— 一条命令起 Coding Agent 工作台（core HTTP/SSE 服务 + 同源托管 Web UI，浏览器随处访问）",
+  "homepage": "https://github.com/myliuyx/pi-workbench",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/myliuyx/pi-desktop.git",
+    "url": "git+https://github.com/myliuyx/pi-workbench.git",
     "directory": "packages/web"
   },
-  "bugs": "https://github.com/myliuyx/pi-desktop/issues",
+  "bugs": "https://github.com/myliuyx/pi-workbench/issues",
   "keywords": [
     "pi",
     "coding-agent",

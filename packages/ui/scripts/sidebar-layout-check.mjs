@@ -64,7 +64,7 @@ try {
   const html = renderToStaticMarkup(
     createElement(Sidebar, {
       activeSessionId: "session-0",
-      workingDirectory: "/tmp/pi-desktop-contract-check",
+      workingDirectory: "/tmp/pi-workbench-contract-check",
       footer: createElement("footer", { "data-testid": "sidebar-check-footer" }),
     }),
   );

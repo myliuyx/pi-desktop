@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * pi-web CLI 入口 —— 一条命令起 Pi-Desktop 的自托管 web 形态。
+ * pi-web CLI 入口 —— 一条命令起 Pi Workbench 的自托管 web 形态。
  *
  * 装配形态：tarball 里 dist/ = packages/core 的 tsc 产物，ui/ = packages/ui 的
  * vite 产物（发布前由 scripts/assemble.mjs 组装，见 build.yml 的 publish job）。

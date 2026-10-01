@@ -1,4 +1,4 @@
-# Pi-Desktop
+# Pi Workbench
 
 基于 [Pi](https://github.com/earendil-works/pi)（npm 包 `@earendil-works/pi-coding-agent`）的桌面级 Coding Agent 工作台。
 
@@ -10,7 +10,7 @@
 | 形态 | 适合场景 | 说明 |
 |---|---|---|
 | **桌面版** | 本机日常使用 | Electron 壳内嵌 core 服务，**免装 Node**，安装即用（Windows / macOS / Linux） |
-| **自托管 web** | 内网 / 远程访问 | `npx @myliuyx/pi-web`（Node 22+）或 core 跑在服务器上，浏览器随处访问，见 [`packages/core/docs/deploy.md`](packages/core/docs/deploy.md) |
+| **自托管 web** | 内网 / 远程访问 | `npx @myliuyx/pi-workbench`（Node 22+）或 core 跑在服务器上，浏览器随处访问，见 [`packages/core/docs/deploy.md`](packages/core/docs/deploy.md) |
 | **本地开发** | 改代码 | mock 演示与真实链路双形态，见下文「快速开始」 |
 
 三种形态共用同一份前端构建产物（`packages/ui/dist`）：桌面版由 Electron 加载内嵌 core，自托管由 core 同源托管，mock 形态任意静态托管即可。
@@ -78,7 +78,7 @@ CORE_PORT=5190 npm run smoke        # PowerShell 用 $env:CORE_PORT="5190"
 **npm 安装**（Node 22+，推荐）：
 
 ```bash
-npx @myliuyx/pi-web            # 免安装直跑；或 npm i -g @myliuyx/pi-web && pi-web
+npx @myliuyx/pi-workbench         # 免安装直跑；或 npm i -g @myliuyx/pi-workbench && pi-web
 ```
 
 完整指南（TLS 反代 Caddy/nginx 样例、SSE 直通、token 管理、安全边界）：

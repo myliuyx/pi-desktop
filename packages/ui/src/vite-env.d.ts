@@ -8,7 +8,7 @@
  * 点击无操作，DOM 与几何与改造前一致。
  */
 interface Window {
-  piDesktop?: {
+  piWorkbench?: {
     minimize(): void;
     toggleMaximize(): void;
     close(): void;

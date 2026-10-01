@@ -1,15 +1,15 @@
-# @myliuyx/pi-web
+# @myliuyx/pi-workbench
 
-[Pi-Desktop](https://github.com/myliuyx/pi-desktop) 的**自托管 web 形态**：一条命令把 Coding Agent 工作台跑起来，浏览器随处访问（内网 / 服务器 / 本机皆可）。
+[Pi Workbench](https://github.com/myliuyx/pi-workbench) 的**自托管 web 形态**：一条命令把 Coding Agent 工作台跑起来，浏览器随处访问（内网 / 服务器 / 本机皆可）。
 
 ## 快速开始
 
 前置：Node 22+；一个 OpenAI-compatible 模型端点及 API Key（首启后进设置页配置，或写进 `~/.pi/agent/models.json`）。
 
 ```bash
-npx @myliuyx/pi-web            # 免安装直跑
+npx @myliuyx/pi-workbench            # 免安装直跑
 # 或
-npm i -g @myliuyx/pi-web && pi-web
+npm i -g @myliuyx/pi-workbench && pi-web
 ```
 
 启动后按提示打开 `http://127.0.0.1:<端口>`（token 自动写入运行时目录的 `core.json` 并注入页面，免拼）。
@@ -24,7 +24,7 @@ npm i -g @myliuyx/pi-web && pi-web
 | `CORE_RUN_DIR` | `~/.pi-web` | 运行时文件目录（`core.json` / `events.jsonl`） |
 | `CORE_CWD` | 当前目录 | agent 工作目录（决定可读写范围与信任门）；界面里可热切换 |
 
-完整变量表、TLS 反代（Caddy/nginx）与 SSE 直通配置见[仓库部署指南](https://github.com/myliuyx/pi-desktop/blob/main/packages/core/docs/deploy.md)。
+完整变量表、TLS 反代（Caddy/nginx）与 SSE 直通配置见[仓库部署指南](https://github.com/myliuyx/pi-workbench/blob/main/packages/core/docs/deploy.md)。
 
 ## 安全
 

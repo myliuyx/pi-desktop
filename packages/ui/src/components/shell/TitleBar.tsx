@@ -33,14 +33,14 @@ const MAC_DOT_META = [
 /**
  * 窗口控制动作 —— 无边框桌面壳（frame:false）的最小化/最大化/关闭唯一出入口。
  *
- * 经 desktop preload 暴露的 `window.piDesktop` 走 IPC 到 BrowserWindow；
+ * 经 desktop preload 暴露的 `window.piWorkbench` 走 IPC 到 BrowserWindow；
  * web / mock 形态没有这个对象，控件退化为装饰件（点击无操作），
  * DOM 几何与改造前完全一致（10px 圆点 / 28px 按键、圆角与 hover 风格不变）。
  * `maximized` 供最大化控件在「最大化 / 还原」间切换图标与标签。
  */
 interface WindowActions {
   maximized: boolean;
-  /** 桌面 live = `window.piDesktop` 存在；web/mock 为 false，此时控件为惰性装饰件（不可聚焦、不进无障碍树） */
+  /** 桌面 live = `window.piWorkbench` 存在；web/mock 为 false，此时控件为惰性装饰件（不可聚焦、不进无障碍树） */
   available: boolean;
   minimize: () => void;
   toggleMaximize: () => void;
@@ -50,7 +50,7 @@ interface WindowActions {
 function useWindowActions(): WindowActions {
   const [maximized, setMaximized] = useState(false);
   useEffect(() => {
-    const api = window.piDesktop;
+    const api = window.piWorkbench;
     if (!api) return;
     let unsubscribe: (() => void) | undefined;
     api.isMaximized().then(setMaximized).catch(() => {});
@@ -59,11 +59,11 @@ function useWindowActions(): WindowActions {
   }, []);
   return {
     maximized,
-    // 与 effect 的守卫同源：window.piDesktop 存在即为桌面 live，否则 web/mock 退化为惰性装饰件
-    available: Boolean(window.piDesktop),
-    minimize: () => window.piDesktop?.minimize(),
-    toggleMaximize: () => window.piDesktop?.toggleMaximize(),
-    close: () => window.piDesktop?.close(),
+    // 与 effect 的守卫同源：window.piWorkbench 存在即为桌面 live，否则 web/mock 退化为惰性装饰件
+    available: Boolean(window.piWorkbench),
+    minimize: () => window.piWorkbench?.minimize(),
+    toggleMaximize: () => window.piWorkbench?.toggleMaximize(),
+    close: () => window.piWorkbench?.close(),
   };
 }
 

@@ -1,5 +1,5 @@
 /**
- * Pi-Desktop 预加载脚本 —— 无边框窗口的窗口控制通道。
+ * Pi Workbench 预加载脚本 —— 无边框窗口的窗口控制通道。
  *
  * 背景：主进程改 `frame: false` 后原生标题栏（最小化/最大化/关闭）消失，
  * 由 UI 自绘标题栏（packages/ui 的 TitleBar）承担。渲染层不能直接操作
@@ -12,7 +12,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 /** 窗口控制 API 的形状（UI 侧同构声明在 packages/ui/src/vite-env.d.ts） */
-export interface PiDesktopApi {
+export interface PiWorkbenchApi {
 	minimize(): void;
 	toggleMaximize(): void;
 	close(): void;
@@ -21,7 +21,7 @@ export interface PiDesktopApi {
 	onMaximizeChange(listener: (maximized: boolean) => void): () => void;
 }
 
-contextBridge.exposeInMainWorld("piDesktop", {
+contextBridge.exposeInMainWorld("piWorkbench", {
 	minimize: () => ipcRenderer.send("window:minimize"),
 	toggleMaximize: () => ipcRenderer.send("window:toggle-maximize"),
 	close: () => ipcRenderer.send("window:close"),
@@ -33,4 +33,4 @@ contextBridge.exposeInMainWorld("piDesktop", {
 			ipcRenderer.removeListener("window:maximize-change", handler);
 		};
 	},
-} satisfies PiDesktopApi);
+} satisfies PiWorkbenchApi);

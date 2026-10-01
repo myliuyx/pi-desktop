@@ -1,5 +1,5 @@
 /**
- * Pi-Desktop —— Electron 主进程（桌面壳，规格书 .plan/task-desktop-build.md P2）。
+ * Pi Workbench —— Electron 主进程（桌面壳，规格书 .plan/task-desktop-build.md P2）。
  *
  * 职责：起 core 子进程（D3：ELECTRON_RUN_AS_NODE + process.execPath，用户机器免装 Node）
  * → 轮询读 <userData>/run/core.json 拿 port+token（core 的既有稳定契约，core 在
@@ -30,12 +30,46 @@ const SMOKE = process.argv.includes("--smoke");
 /** core.json 轮询上限。首启要初始化 agentDir/模型清单，给足余量 */
 const READINESS_TIMEOUT_MS = 90_000;
 
-app.setName("Pi-Desktop");
+app.setName("Pi Workbench");
 // dev 与安装版分开 userData：互不抢单实例锁，运行时文件（run/）也隔离
-app.setPath(
-	"userData",
-	path.join(app.getPath("appData"), app.isPackaged ? "Pi-Desktop" : "Pi-Desktop-dev"),
+const userDataDir = path.join(
+	app.getPath("appData"),
+	app.isPackaged ? "Pi Workbench" : "Pi Workbench-dev",
 );
+/**
+ * 旧版 userData 目录名（产品曾名为 Pi-Desktop）→ 新目录的一次性搬迁，避免重装像「配置全丢」。
+ *
+ * 为什么要搬：userData 里除 Electron 缓存外还有 run/last-run.json（**跨启动记忆**）。
+ * 它一丢，下次启动就是随机端口 → origin 变动 → localStorage 里的 recent-dirs / theme
+ * 等偏好分裂成新孤岛（多 origin 各存一份的旧问题）。搬一下成本极低。
+ *
+ * 只搬**同形态**的旧目录（安装版找 Pi-Desktop，dev 找 Pi-Desktop-dev）：两形态的 run/
+ * 互相独立、刻意不共享，把对方的目录吞进来会串味。
+ *
+ * 纪律同 readLastRun：新目录已存在就不覆盖、旧目录一律保留（不擅自删用户数据），
+ * 任何异常吞掉按无旧数据启动，绝不阻断。
+ */
+const legacyUserDir = app.isPackaged ? "Pi-Desktop" : "Pi-Desktop-dev";
+{
+	const from = path.join(app.getPath("appData"), legacyUserDir);
+	if (fs.existsSync(from)) {
+		try {
+			if (!fs.existsSync(userDataDir)) {
+				fs.renameSync(from, userDataDir);
+				console.log(
+					`[desktop] 已把旧用户数据目录 ${legacyUserDir} 迁移为 ${path.basename(userDataDir)}`,
+				);
+			} else {
+				console.log(
+					`[desktop] 跳过旧用户数据目录 ${legacyUserDir} 的迁移：新目录已存在（旧目录保留，未删除）`,
+				);
+			}
+		} catch (err) {
+			console.warn(`[desktop] 旧用户数据目录 ${legacyUserDir} 迁移失败（忽略，按新目录空启动）：${err}`);
+		}
+	}
+}
+app.setPath("userData", userDataDir);
 
 const coreEntry = app.isPackaged
 	? path.join(process.resourcesPath, "core", "dist", "main.js")
@@ -159,10 +193,10 @@ function assertCoreDistFresh(): boolean {
 	if (srcNewest <= distNewest) return true;
 	const fmt = (ms: number) => (ms ? new Date(ms).toLocaleString() : "（无）");
 	failLoudly(
-		"Pi-Desktop",
+		"Pi Workbench",
 		`core 编译产物已过期（core/src 的改动晚于 core/dist）：\n` +
 			`  最新源码：${fmt(srcNewest)}\n  现有产物：${fmt(distNewest)}\n\n` +
-			`请先在 packages/core 下执行 npm run build，再启动 Pi-Desktop。`,
+			`请先在 packages/core 下执行 npm run build，再启动 Pi Workbench。`,
 	);
 	return false;
 }
@@ -190,14 +224,14 @@ function bootCore(
 	fs.rmSync(path.join(runDir, "core.json"), { force: true });
 	if (!fs.existsSync(coreEntry)) {
 		failLoudly(
-			"Pi-Desktop",
+			"Pi Workbench",
 			`找不到 core 入口：\n${coreEntry}\n\n请先在 packages/core 下执行 npm run build`,
 		);
 		app.exit(1);
 	}
 	if (!fs.existsSync(path.join(uiDistDir, "index.html"))) {
 		failLoudly(
-			"Pi-Desktop",
+			"Pi Workbench",
 			`找不到前端构建产物：\n${uiDistDir}\n\n请先在 packages/ui 下执行 npm run build`,
 		);
 		app.exit(1);
@@ -384,11 +418,11 @@ function createWindow(url: string): void {
 	 * 主题配色 —— 应用内切深色后顶部会剩一条白色标题栏（2026-09-28 用户反馈；
 	 * web 端无 OS chrome 所以没这个问题）。窗口 chrome 改由 UI 自绘标题栏
 	 * （packages/ui 的 TitleBar）承担：拖拽走 -webkit-app-region，窗口控件经
-	 * preload 的 window.piDesktop 走 IPC 回到下面的 registerWindowIpc。
+	 * preload 的 window.piWorkbench 走 IPC 回到下面的 registerWindowIpc。
 	 */
 	if (!fs.existsSync(preloadEntry)) {
 		failLoudly(
-			"Pi-Desktop",
+			"Pi Workbench",
 			`找不到预加载脚本：\n${preloadEntry}\n\n请先在 packages/desktop 下执行 npm run build`,
 		);
 		app.exit(1);
@@ -397,7 +431,7 @@ function createWindow(url: string): void {
 	mainWindow = new BrowserWindow({
 		width: 1360,
 		height: 860,
-		title: "Pi-Desktop",
+		title: "Pi Workbench",
 		autoHideMenuBar: true,
 		backgroundColor: "#111114",
 		frame: false,

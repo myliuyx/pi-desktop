@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-web.sh —— 一键「构建 + 重启」Pi-Desktop 的自托管 web 形态。
+# run-web.sh —— 一键「构建 + 重启」Pi Workbench 的自托管 web 形态。
 #
 # 解决的问题：验收正门 http://<内网IP>:5190/?live=1 每次换分支/改代码后，
 # 都得先想一遍「停旧进程 → 重建产物 → 带对环境变量重启」，漏一步就是旧代码在服务
