@@ -335,7 +335,7 @@ export function SkillsSettingsTab() {
 						</Button>
 					</div>
 
-					{/* scope 行：分段切换 + 目标目录预览（随 scope 变化；口径=0.87.1 发现路径） */}
+					{/* scope 行：分段切换 + 目标目录预览（随 scope 变化；口径=0.99.2 发现路径） */}
 					<div className="flex min-w-0 flex-wrap items-center gap-2">
 						<ScopeToggle
 							value={addScope}

@@ -15,7 +15,7 @@
  * - 底部统计条 totals = resolve() 四类的**启用**计数（参考图2「2 ext · 14 skills · …」
  *   的「当前生效」口径）。
  *
- * ## 写路径（0.87.1 已核实）
+ * ## 写路径（0.99.2 已核实）
  *
  * - 开关 = 对象形 PackageSource：禁用 = `{source, autoload:false}`（autoload:false
  *   时该包资源整体不加载，applyPackageDeltaFilter 语义）；启用 = 去掉 autoload:false

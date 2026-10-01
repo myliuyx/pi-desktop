@@ -449,7 +449,7 @@ export type AgentEvent =
 /* ---------------------------------------------------------------------------
  * C6 · 04 屏工具开关（`GET /tools/active` / `POST /tools/active {names}`）
  *
- * API 依据（@earendil-works/pi-coding-agent@0.87.1，`core/agent-session.d.ts`）：
+ * API 依据（@earendil-works/pi-coding-agent@0.99.2，`core/agent-session.d.ts`）：
  * - 读取：`getActiveToolNames(): string[]`（d.ts:337，当前启用清单的 getter）；
  * - 写入：`setActiveToolsByName(toolNames: string[]): void`（d.ts:349，0.86→0.87 未改名；
  *   "Changes take effect on the next agent turn" —— 下一个 agent 轮次生效）；
@@ -753,7 +753,7 @@ export interface ModelTestResult {
  * 口径：**不是** `GET /resources` 的已加载子集（那是 04 屏「技能与工具」的清单），
  * 而是包管理器 `resolve()` 的**全量**解析结果 —— 已被禁用的技能也在列
  * （enabled:false），否则开关一关条目就从清单里消失、再也打不开
- * （0.87.1 的 resolve 内部跑 addAutoDiscoveredResources，每条自带 enabled 标志）。
+ * （0.99.2 的 resolve 内部跑 addAutoDiscoveredResources，每条自带 enabled 标志）。
  * ------------------------------------------------------------------------- */
 
 /** 单条技能清单项 */
@@ -873,7 +873,7 @@ export interface SkillProgressEvent {
  * 数据源：`DefaultPackageManager.listConfiguredPackages()`（settings `packages`
  * 数组的 user+project 全量，含 installedPath）× `resolve()`（按 metadata.source
  * 归属到包的资源明细）× 安装目录 package.json（name/version/description）。
- * 开关语义 = 0.87.1 对象形 PackageSource：`{source, autoload:false}` = 整包禁用。
+ * 开关语义 = 0.99.2 对象形 PackageSource：`{source, autoload:false}` = 整包禁用。
  * ------------------------------------------------------------------------- */
 
 /** 包贡献的单条资源（extensions/skills/prompts/themes 通用形状） */
@@ -960,7 +960,7 @@ export interface PackageInstallResult {
   packages: PackagesPayload;
 }
 
-/** 可更新项（0.87.1 PackageUpdate：npm=registry 有新版 / git=远端有新提交；本地包不参与） */
+/** 可更新项（0.99.2 PackageUpdate：npm=registry 有新版 / git=远端有新提交；本地包不参与） */
 export interface PackageUpdateEntry {
   source: string;
   displayName: string;
