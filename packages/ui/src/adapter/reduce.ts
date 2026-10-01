@@ -397,7 +397,7 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 	case "compaction_start":
 	case "compaction_end":
 		/*
-		 * 斜杠命令批次：压缩进度由 chat-store 的 SSE 订阅层消费（常驻 toast + compacting 标志），
+		 * 斜杠命令批次：压缩进度由 chat-store 的 SSE 订阅层消费（常驻 toast），
 		 * 不进消息树。此 reducer 对 AgentEvent 无 default —— 新成员必须显式列出，否则
 		 * switch 非穷尽（TS2366）且运行时返回 undefined 会让调用方读 `.messages` 崩溃。
 		 */

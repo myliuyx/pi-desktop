@@ -91,11 +91,6 @@ export interface ChatState {
   pendingApprovals: ApprovalRequestEvent[];
   tokenUsage: TokenUsage;
   sessionTitle: string;
-  /**
-   * 上下文压缩进行中（斜杠命令批次）：compaction_start 置 true，compaction_end 清 false。
-   * 用于禁用/提示 builtin 命令；mock 恒 false。
-   */
-  compacting: boolean;
 
   /**
    * 发送一条用户消息，并触发一次 mock 助手的流式回复（≤2s）。
@@ -195,6 +190,11 @@ function ensureLive(): void {
   transport.setHooks({
     onConnectionError: (message) => {
       outageNoticeId = useNoticeStore.getState().notify({ tone: "danger", text: message });
+      // 断线后收不到 compaction_end，常驻的「正在压缩…」toast 会永久残留——一并撤掉。
+      if (compactionNoticeId) {
+        useNoticeStore.getState().dismiss(compactionNoticeId);
+        compactionNoticeId = null;
+      }
       // 断线后收不到后续事件，若仍在 streaming 会永久卡在「停止生成」——主动复位，
       // 用户可继续发送（重连成功后新消息照常回流）。
       useChatStore.setState({ streaming: false, awaitingModel: false, pendingSince: null });
@@ -221,8 +221,9 @@ function ensureLive(): void {
     // 斜杠命令批次：压缩进度。开始用常驻 info toast（timeoutMs=0）表达进行中，
     // 结束撤掉并给结果 toast（D2 = toast 反馈，不渲染内联摘要卡）。
     if (event.type === "compaction_start") {
+      // 连续 start（如自动压缩重试）不得残留旧常驻 toast：先撤旧的再 notify 新的。
+      if (compactionNoticeId) useNoticeStore.getState().dismiss(compactionNoticeId);
       compactionNoticeId = useNoticeStore.getState().notify({ tone: "info", text: "正在压缩上下文…", timeoutMs: 0 });
-      useChatStore.setState({ compacting: true });
       return;
     }
     if (event.type === "compaction_end") {
@@ -230,7 +231,6 @@ function ensureLive(): void {
         useNoticeStore.getState().dismiss(compactionNoticeId);
         compactionNoticeId = null;
       }
-      useChatStore.setState({ compacting: false });
       if (event.errorMessage) {
         useNoticeStore.getState().notify({ tone: "danger", text: `上下文压缩失败：${event.errorMessage}` });
       } else if (event.aborted) {
@@ -407,7 +407,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
   pendingSince: null,
   settledTurnKeys: new Set<string>(),
 pendingApprovals: [],
-  compacting: false,
   // mock 形态保留设计稿演示值（验收 2-13/2-14 的 14.5% / 128k 就锁在这个值上）；
   // live 形态给“未知”（0）—— 首屏还没有任何真实 usage，沿用 mock 的 128000 会让
   // 上下文环一上来就显示假的窗口分母（2026-10-01 上下文环真值批次）。
@@ -758,6 +757,11 @@ pendingApprovals: [],
   newSessionDraft: false,
 
   startNewSession: () => {
+    // 常驻的「正在压缩…」toast 不随会话切换消失，会误导成新会话仍在压缩——主动撤掉。
+    if (compactionNoticeId) {
+      useNoticeStore.getState().dismiss(compactionNoticeId);
+      compactionNoticeId = null;
+    }
     // 流式中先中止（与 loadSessionById 同口径）：mock 停模拟流，live 打 /abort
     if (activeStream) {
       activeStream.abort();

@@ -150,7 +150,7 @@ export const ComposerSlashMenu = forwardRef<ComposerSlashMenuHandle, ComposerSla
         }}
       >
         <div className="flex items-center justify-between px-2 py-1 text-xs text-text-tertiary">
-          <span>斜杠命令 · {state.commands.length} 个命令</span>
+          <span>斜杠命令 · {flat.length} 个命令</span>
           <span>Tab / Enter</span>
         </div>
         <div ref={listRef} className="max-h-80 min-w-0 overflow-y-auto p-1">
@@ -189,7 +189,7 @@ export const ComposerSlashMenu = forwardRef<ComposerSlashMenuHandle, ComposerSla
                         data-name={item.name}
                         data-source={item.source}
                         data-index={index}
-                        title={item.available ? undefined : "当前不可执行"}
+                        title={item.available ? undefined : (item.unavailableReason ?? "当前不可执行")}
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => onPick(item)}
                         onMouseMove={() => setActiveIndex(index)}
@@ -202,7 +202,10 @@ export const ComposerSlashMenu = forwardRef<ComposerSlashMenuHandle, ComposerSla
                           !item.available && "cursor-not-allowed opacity-50",
                         )}
                       >
-                        <span className="w-full truncate font-mono text-xs text-text-primary">/{item.name}</span>
+                        <span className="w-full truncate font-mono text-xs text-text-primary">
+                          /{item.name}
+                          {item.argumentHint ? <span className="text-text-tertiary"> {item.argumentHint}</span> : null}
+                        </span>
                         {item.description ? (
                           <span className="w-full truncate text-xs text-text-tertiary">{item.description}</span>
                         ) : null}
