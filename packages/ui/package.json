@@ -26,6 +26,7 @@
     "check:image-preview-size": "node --experimental-strip-types scripts/image-preview-size-check.mjs",
     "check:turn-rail": "node --experimental-strip-types scripts/turn-rail-check.mjs",
     "check:skill-search-state": "node --experimental-strip-types scripts/skill-search-state-check.mjs",
+    "check:approval-overlay": "node --experimental-strip-types scripts/approval-overlay-check.mjs",
     "accept:m1": "node scripts/m1-acceptance.mjs",
     "accept:m2": "node scripts/m2-acceptance.mjs",
     "accept:m3": "node scripts/m3-acceptance.mjs",
@@ -51,7 +52,7 @@
     "probe:tool-diff": "node scripts/probe-tool-diff.mjs",
     "probe:turn-files": "node scripts/probe-turn-files.mjs",
     "shots:m1": "node scripts/m1-shots.mjs",
-    "test:ci": "npm run typecheck && npm run check:format && npm run check:providers-source && npm run check:turns && npm run check:cn && npm run check:tool-diff && npm run check:turn-files && npm run check:sidebar-layout && npm run check:adapter && npm run check:contract && npm run check:image-src && npm run check:image-preview-size && npm run check:turn-rail && npm run build"
+    "test:ci": "npm run typecheck && npm run check:format && npm run check:providers-source && npm run check:turns && npm run check:cn && npm run check:tool-diff && npm run check:turn-files && npm run check:sidebar-layout && npm run check:adapter && npm run check:contract && npm run check:image-src && npm run check:image-preview-size && npm run check:turn-rail && npm run check:approval-overlay && npm run build"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.13",

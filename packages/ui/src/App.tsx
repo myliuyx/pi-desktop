@@ -4,6 +4,7 @@ import { TokensScreen } from "@/screens/TokensScreen";
 import { RunDetailScreen } from "@/screens/RunDetailScreen";
 import { SkillsScreen } from "@/screens/SkillsScreen";
 import { SettingsDialog } from "@/screens/SettingsDialog";
+import { ApprovalOverlay } from "@/components/chat/ApprovalOverlay";
 import { NoticeStack } from "@/components/common/NoticeStack";
 import { ShellsScreen } from "@/screens/ShellsScreen";
 import { createStressSession, EMPTY_SESSION } from "@/mock/sessions";
@@ -175,6 +176,9 @@ export default function App() {
       {content}
       {/* 设置弹窗挂在 App 级，任意屏都能弹出（D1） */}
       <SettingsDialog />
+      {/* 无宿主授权请求的全局模态浮层（hostless-approval-overlay）：草稿态信任门等
+          消息树装不下的授权卡在这里渲染；无未决时条件渲染为零 DOM */}
+      <ApprovalOverlay />
       {/* 全局失败反馈（D4）：挂在 App 级，任意屏可见 */}
       <NoticeStack />
     </>
