@@ -963,6 +963,9 @@ await withBrowser(
                 top: Math.round(list.scrollTop),
                 h: list.scrollHeight,
                 settled: !overlay,
+                // 顺带采一次遮罩样式（必须趁它还挂着时采，卸载后就读不到了）
+                overlayBg: overlay ? getComputedStyle(overlay).backgroundColor : null,
+                overlayOpacity: overlay ? getComputedStyle(overlay).opacity : null,
               });
             }
             if (performance.now() - window.__boot.started < 9000) requestAnimationFrame(loop);
@@ -980,17 +983,28 @@ await withBrowser(
         if (Math.abs(d) > 1) postJumps.push({ t: afterSettled[i].t, d, h: afterSettled[i].h });
       }
       const settledFrames = afterSettled.length;
+      /*
+       * 防回归：遮罩不得是黑半透明（用户反馈「灰色一闪而过像 bug」）—— 必须是主题色不透明。
+       * 样式必须**趁遮罩还挂着时**采（卸载后读不到），所以在上面的 rAF 采样里顺带取。
+       */
+      const overlaySample = boot.frames.find((f) => f.overlayBg) ?? null;
+      const overlayBg = overlaySample ? { bg: overlaySample.overlayBg, opacity: overlaySample.overlayOpacity } : null;
       ctx.record("2-8_首屏布局稳定", {
         见到遮罩: boot.overlaySeen,
         遮罩撤除时刻: boot.overlayOffAt,
         撤除后采样帧数: settledFrames,
         撤除后跳动: postJumps.slice(0, 6),
+        遮罩背景: overlayBg,
       });
       ctx.assert("2-8 首屏遮罩存在且撤除后无跳动", {
         "首屏出现遮罩": boot.overlaySeen === true,
         "遮罩已撤除": boot.overlayOffAt !== null,
         "撤除后有采样帧": settledFrames > 0,
         "撤除后无跳动": postJumps.length === 0,
+      });
+      ctx.assert("2-8b 首屏遮罩为不透明主题色（防黑半透明回归）", {
+        "遮罩背景为不透明主题色": overlayBg !== null && !/^rgba\\(.*,\\s*0?\\.\\d+\\)$/.test(overlayBg.bg ?? "") && overlayBg.bg !== "transparent",
+        "遮罩初始不透明": overlayBg !== null && Number(overlayBg.opacity) === 1,
       });
       await ctx.open("/");
       await sleep(900);

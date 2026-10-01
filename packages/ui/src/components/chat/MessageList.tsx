@@ -12,10 +12,10 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
-import { ArrowDown, MessageSquare, Wrench } from "lucide-react";
+import { ArrowDown, Loader2, MessageSquare, Wrench } from "lucide-react";
 import {
   AUTO_SCROLL_THRESHOLD,
-  LAYOUT_SETTLE_OVERLAY_OPACITY,
+  LAYOUT_SETTLE_FADE_MS,
   LAYOUT_SETTLE_STABLE_FRAMES,
   LAYOUT_SETTLE_TIMEOUT_MS,
   MESSAGE_GAP,
@@ -542,27 +542,44 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
    */
   const settledRef = useRef(false);
   /*
-   * 遮罩可见性用**三态**而非布尔：`detecting`（检测中，遮罩显示）/ `settled`（已稳定，撤罩）。
+   * 遮罩状态机（三态）：`detecting`（检测中，spinner 可见）→ `fading`（150ms
+   * 淡出）→ `settled`（遮罩卸载）。
    *
-   * ⚠️ 初值必须是「检测中」而不是 `false`（实测踩坑）：live 首屏 bootstrapping 转
+   * ⚠️ 初值必须是「检测中」而不是「已稳定」（实测踩坑）：live 首屏 bootstrapping 转
    * false 前渲染的是 hero，MessageList 是**那一刻才首次挂载**的—— 若初值写成
-   * 「已稳定」，遮罩从第一帧就不显示，实测 live 首屏 overlay 恒为 0，跳动照旧
-   * （t=2518 内容出现后被拽 3 次）。
+   * 「已稳定」，遮罩从第一帧就不显示，实测 live 首屏遮罩零帧可见，跳动照旧。
    */
-  const [settlePhase, setSettlePhase] = useState<"detecting" | "settled">("detecting");
+  const [settlePhase, setSettlePhase] = useState<"detecting" | "fading" | "settled">("detecting");
   const stableFrameRef = useRef(0);
   const lastTotalRef = useRef(-1);
 
+  /**
+   * 布局已收敛：进入淡出态，LAYOUT_SETTLE_FADE_MS 后卸载遮罩。
+   *
+   * settledRef 在此刻上锁（而不是等遮罩真的卸载）——检测循环据此立即停止，
+   * 避免淡出期间又跑一轮无意义的 rAF。
+   *
+   * ⚠️ 卸载走 setTimeout 兜底而非 CSS `onTransitionEnd`：transitionend 在元素
+   * 没有实际视觉变化时**不触发**（prefers-reduced-motion 或背景色相同即触发不了），
+   * 遮罩会永久残留 —— 比原缺陷更糟。
+   */
   const reportSettled = useCallback(() => {
     if (settledRef.current) return;
     settledRef.current = true;
-    setSettlePhase("settled");
+    setSettlePhase("fading");
     onLayoutSettled?.();
   }, [onLayoutSettled]);
 
+  // 淡出定时器：fading → settled（卸载遮罩）。仅在 fading 态存在，卸载即清。
+  useEffect(() => {
+    if (settlePhase !== "fading") return;
+    const timer = window.setTimeout(() => setSettlePhase("settled"), LAYOUT_SETTLE_FADE_MS);
+    return () => window.clearTimeout(timer);
+  }, [settlePhase]);
+
   useEffect(() => {
     // 遮罩自管 ⇒ 即便无人传 onLayoutSettled 也必须跑（它只是可选通知）
-    if (settlePhase === "settled" || isEmpty) return;
+    if (settlePhase !== "detecting" || isEmpty) return;
     let raf = 0;
     const started = performance.now();
 
@@ -793,34 +810,60 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
       </div>
 
       {/*
-       * 首屏遮罩（2026-10-01 首屏跳变批次 · 用户裁决「显示但半透明/不可交互」）。
+       * 首屏 loading 遮罩（2026-10-01 首屏跳变批次 · 用户裁决「方案 A：标准 loading 态」）。
        *
-       * 为什么需要：首帧只有可见的十几行被估算，totalSize 是估算堆出来的；随后的
-       * 测量回填使总高缩水、已写入的 scrollTop 被连带拽走（实测 248 条会话在内容
-       * 出现后 194ms 内被拽 3876px）。遮罩期间真实内容在底下完成全部测量。
+       * ## 为什么需要它
        *
-       * 为什么是「半透明 + 不可交互」而不是完全不显示：完全不显示会让等待期的
-       * 画面从空白直接跳到内容（用户明确要求保留内容可见、只压住跳动）。
+       * 首帧只有可见的十几行被 overscan 带进来渲染，totalSize 是**估算堆出来的**；
+       * 随后的 measureElement 回填使总高缩水，已写入的 scrollTop 被连带拽走
+       * （实测 248 条会话在内容出现后 194ms 内被拽 3877px）。遮罩期间真实内容在
+       * 底下完成全部测量。
        *
-       * pointer-events: none + 半透明 = 看得到内容形状、但吃不到滚轮/点击，
-       * 既挡住「边抖边操作」的怪异手感，又不用等全部测完才有画面。
-       * 罩在滚动容器**内部**的兄弟层（absolute inset-0），不跨到 Composer ——
+       * ## 为什么是不透明而非半透明（用户反馈「灰色一闪而过像 bug」）
+       *
+       * 先前的实现是纯黑 45% 半透明，在浅色主题（--bg-app为白）下铺满内容区
+       * ⇒ **整块界面变灰**，视觉语言上等于「禁用 / 加载失败」，一闪而过尤其像崩溃。
+       *
+       * 而且半透明在这条路上是**逻辑死结**：要让跳动不可见就得不透明，不透明就等于
+       * 「不显示内容」。半透明两头不讨好 —— 既没挡住跳动，又引入了 bug 观感。
+       * 所以改为不透明遮罩 + 标准 loading 语言。
+       *
+       * ## 视觉口径
+       *
+       * - 背景 `bg-bg-app`：**主题色 token**，浅色/深色两套值自动跟随主题切换，
+       *   零硬编码调色板（G5 纪律，也避开了 G1「hex 只准在 tokens.css」的扫描）；
+       * - Loader2 + animate-spin：与 ToolCallCard / ComposerAtMenu / WorkingDirFileTree
+       *   同一套 loading 语言，用户已熟悉；
+       * - 文案「正在载入会话…」：与 NewSessionHero loading **逐字一致** ——
+       *   首次进应用与切会话两次等待说同一句话。
+       *
+       * ## 卸载时机
+       *
+       * `fading` 态淡出 LAYOUT_SETTLE_FADE_MS 后由 setTimeout 兜底卸载，
+       * **不依赖 CSS transitionend**（该事件在无实际视觉变化时不触发，
+       * 遮罩会永久残留 —— 比原缺陷更糟）。
+       *
+       * 罩在滚动容器的兄弟层（absolute inset-0），**不跨到 Composer** ——
        * 输入框不该被首屏遮罩挡住。
        */}
-      {settlePhase === "detecting" ? (
+      {settlePhase !== "settled" ? (
         <div
           data-testid="layout-settling"
+          data-phase={settlePhase}
           aria-hidden="true"
-          className="absolute inset-0 z-[5] cursor-progress"
-          // 显式吞掉 wheel/touch/click：纯遮罩层挡不住滚轮（滚轮照常传给底下的
-          // 滚动容器）—— 用户不该在布局未稳时误触。
-          onWheel={(e) => e.preventDefault()}
-          onClick={(e) => e.stopPropagation()}
+          className="absolute inset-0 z-[5] flex items-center justify-center bg-bg-app transition-opacity"
           style={{
-            touchAction: "none",
-            backgroundColor: `rgb(0 0 0 / ${LAYOUT_SETTLE_OVERLAY_OPACITY})`,
+            // fading 态降到 0，detecting 态保持 1；150ms 与 LAYOUT_SETTLE_FADE_MS 对齐
+            opacity: settlePhase === "fading" ? 0 : 1,
+            transitionDuration: `${LAYOUT_SETTLE_FADE_MS}ms`,
+            pointerEvents: settlePhase === "fading" ? "none" : "auto",
           }}
-        />
+        >
+          <div className="flex flex-col items-center gap-3" style={{ opacity: settlePhase === "fading" ? 0 : 1 }}>
+            <Icon icon={Loader2} size={20} className="animate-spin text-icon-neutral" />
+            <p className="text-sm text-text-secondary">正在载入会话…</p>
+          </div>
+        </div>
       ) : null}
 
       {!atBottom ? (

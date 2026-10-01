@@ -203,8 +203,16 @@ export const LAYOUT_SETTLE_STABLE_FRAMES = 3;
  */
 export const LAYOUT_SETTLE_TIMEOUT_MS = 5000;
 
-/** 首屏遮罩的不透明度（0~1）；用户裁决「显示但半透明/不可交互」 */
-export const LAYOUT_SETTLE_OVERLAY_OPACITY = 0.45;
+/**
+ * 首屏 loading 遮罩的淡出时长（ms）—— 稳定后遮罩淡出而非瞬切。
+ *
+ * ⚠️ 为什么必须淡出（2026-10-01 用户反馈「灰色一闪而过像 bug」）：瞬切会让遮罩
+ * 退场与内容入场发生在同一帧，视觉上仍是"闪一下"；150ms 过渡让两者自然衔接。
+ *
+ * 卸载由 setTimeout 兜底，**不依赖 CSS transitionend** —— 该事件在元素没有
+ * 实际发生视觉变化时不触发，遮罩会永久残留（比原缺陷更糟）。
+ */
+export const LAYOUT_SETTLE_FADE_MS = 150;
 
 /** 流式模拟的打字间隔（ms） */
 export const STREAM_TICK_MS = 24;
