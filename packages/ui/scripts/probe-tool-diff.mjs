@@ -408,6 +408,18 @@ try {
     const gutterW = await cdp.eval(`window.__TD.gutterWidthPx()`, true);
     ctx.record("C5 行号 gutter 宽", gutterW);
     A("C5 行号 gutter 存在", typeof gutterW === "number" && gutterW > 0);
+    // 行距回归守卫：shiki 行间 \n + .line block 化会把行距翻倍（shiki.css white-space 修复），
+    // 相邻行 top 差应 ≈ 1.6 × 12px ≈ 19.2px，翻倍则 ≈ 38px
+    const pitch = await cdp.eval(
+      `(() => {
+         const lines = [...document.querySelectorAll('[data-testid="tool-write-preview"] .preview-source .shiki .line')];
+         if (lines.length < 2) return null;
+         return lines[1].getBoundingClientRect().top - lines[0].getBoundingClientRect().top;
+       })()`,
+      true,
+    );
+    ctx.record("C5 相邻行距 px", pitch);
+    A("C5 行距紧凑未翻倍（<30px）", typeof pitch === "number" && pitch > 0 && pitch < 30);
 
     phase = "C6 write 截断口径";
     A("C6 展开全部可点", (await cdp.eval(`window.__TD.clickTruncateMore('write')`, true)) === true);
