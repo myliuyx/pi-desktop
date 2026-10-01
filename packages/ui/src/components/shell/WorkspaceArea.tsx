@@ -5,6 +5,7 @@ import { useChatStore } from "@/store/chat-store";
 import { Composer } from "@/components/chat/Composer";
 import { MessageList } from "@/components/chat/MessageList";
 import { NewSessionHero, NEW_SESSION_COMPOSER_PLACEHOLDER } from "@/components/chat/NewSessionHero";
+import { LayoutSettlingOverlay } from "@/components/chat/LayoutSettlingOverlay";
 
 export type WorkspaceAreaProps = HTMLAttributes<HTMLElement>;
 
@@ -65,16 +66,24 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
        * 拿到真实数据（或 mock 下恒 false）后回落到原有的「草稿 / MessageList」二选一。
        */}
       {/*
-       * 首屏遮罩期（bootstrapping 或布局未稳）仍渲染 MessageList 真实内容
-       * —— 用户裁决「显示但半透明/不可交互」：遮罩在 MessageList 内部，
-       * 内容在底下完成测量，撤罩后不再跳动。
+       * 首屏两段等待，**共用同一个 loading 形态**（2026-10-01 用户裁决B）。
        *
-       * ⚠️ bootstrapping 期间 messages 为空（live 首帧不得有 mock 数据），
-       * MessageList 走 isEmpty 空态分支、不挂 virtualizer ⇒ 此时不渲染遮罩
-       * （无内容可遮，遮了只是一块灰）；hero 仍负责这段「连内容都还没有」的等待。
+       * ① `bootstrapping`（chat-store 拉会话清单/最近会话期间，messages 为空、
+       *    MessageList 尚未挂载）⇒ 这里直接渲染共享遮罩；
+       * ② 数据到了但**布局未稳**（virtualizer 测量未收敛）⇒ MessageList 内部
+       *    渲染同一个共享遮罩，真实内容在底下测量。
+       *
+       * ⚠️ 为什么要共用：此前①用 `NewSessionHero loading`（Sparkles 图标块 +
+       * h1 大字）、②用遮罩里的 spinner 小字 —— 文案相同但视觉规格完全不同，
+       * 接力时观感突变（用户实测反馈「先大字后小字再出内容，看起来很奇怪」）。
+       *
+       * ① 这一段本来就没有内容可显示（live 首帧不得有 mock 数据），所以用遮罩
+       * 而非 hero 在语义上也更准：不是「没有会话」，而是「会话正在载入」。
        */}
       {bootstrapping ? (
-        <NewSessionHero loading />
+        <div className="relative flex min-h-0 min-w-0 flex-1">
+          <LayoutSettlingOverlay />
+        </div>
       ) : newSessionDraft ? (
         <NewSessionHero />
       ) : (

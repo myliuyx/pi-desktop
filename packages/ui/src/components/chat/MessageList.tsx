@@ -12,7 +12,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
-import { ArrowDown, Loader2, MessageSquare, Wrench } from "lucide-react";
+import { ArrowDown, MessageSquare, Wrench } from "lucide-react";
 import {
   AUTO_SCROLL_THRESHOLD,
   LAYOUT_SETTLE_FADE_MS,
@@ -51,6 +51,7 @@ import { ProcessGroupRow } from "./ProcessGroupRow";
 import { MessageErrorCard } from "./MessageErrorCard";
 import { TurnRail } from "./TurnRail";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
+import { LayoutSettlingOverlay } from "./LayoutSettlingOverlay";
 import { getLiveConfig } from "@/lib/feature-flags";
 import { imageThumbnailAlt, imageUrl } from "@/lib/image-src";
 import {
@@ -821,25 +822,17 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
        *
        * ## 为什么是不透明而非半透明（用户反馈「灰色一闪而过像 bug」）
        *
-       * 先前的实现是纯黑 45% 半透明，在浅色主题（--bg-app为白）下铺满内容区
-       * ⇒ **整块界面变灰**，视觉语言上等于「禁用 / 加载失败」，一闪而过尤其像崩溃。
+       * 先前是纯黑 45% 半透明，浅色主题下铺满内容区 ⇒ **整块界面变灰**，
+       * 视觉语言等于「禁用 / 加载失败」。而且半透明在这条路上是**逻辑死结**：
+       * 要让跳动不可见就得不透明，不透明就等于「不显示内容」。
        *
-       * 而且半透明在这条路上是**逻辑死结**：要让跳动不可见就得不透明，不透明就等于
-       * 「不显示内容」。半透明两头不讨好 —— 既没挡住跳动，又引入了 bug 观感。
-       * 所以改为不透明遮罩 + 标准 loading 语言。
+       * ## 为什么抽成共享组件
        *
-       * ## 视觉口径
+       * 首屏等待分两段，两段必须形态一致：① bootstrapping（WorkspaceArea 用）、
+       * ② 布局未稳（这里用）。此前两段各画各的（Sparkles 大字 vs spinner 小字），
+       * 接力时观感突变（用户反馈「先大字后小字」）。现共用 LayoutSettlingOverlay。
        *
-       * - 背景 `bg-bg-app`：**主题色 token**，浅色/深色两套值自动跟随主题切换，
-       *   零硬编码调色板（G5 纪律，也避开了 G1「hex 只准在 tokens.css」的扫描）；
-       * - Loader2 + animate-spin：与 ToolCallCard / ComposerAtMenu / WorkingDirFileTree
-       *   同一套 loading 语言，用户已熟悉；
-       * - 文案「正在载入会话…」：与 NewSessionHero loading **逐字一致** ——
-       *   首次进应用与切会话两次等待说同一句话。
-       *
-       * ## 卸载时机
-       *
-       * `fading` 态淡出 LAYOUT_SETTLE_FADE_MS 后由 setTimeout 兜底卸载，
+       * 卸载时机：fading 态淡出 LAYOUT_SETTLE_FADE_MS 后由 setTimeout 兜底卸载，
        * **不依赖 CSS transitionend**（该事件在无实际视觉变化时不触发，
        * 遮罩会永久残留 —— 比原缺陷更糟）。
        *
@@ -847,23 +840,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
        * 输入框不该被首屏遮罩挡住。
        */}
       {settlePhase !== "settled" ? (
-        <div
-          data-testid="layout-settling"
-          data-phase={settlePhase}
-          aria-hidden="true"
-          className="absolute inset-0 z-[5] flex items-center justify-center bg-bg-app transition-opacity"
-          style={{
-            // fading 态降到 0，detecting 态保持 1；150ms 与 LAYOUT_SETTLE_FADE_MS 对齐
-            opacity: settlePhase === "fading" ? 0 : 1,
-            transitionDuration: `${LAYOUT_SETTLE_FADE_MS}ms`,
-            pointerEvents: settlePhase === "fading" ? "none" : "auto",
-          }}
-        >
-          <div className="flex flex-col items-center gap-3" style={{ opacity: settlePhase === "fading" ? 0 : 1 }}>
-            <Icon icon={Loader2} size={20} className="animate-spin text-icon-neutral" />
-            <p className="text-sm text-text-secondary">正在载入会话…</p>
-          </div>
-        </div>
+        <LayoutSettlingOverlay fading={settlePhase === "fading"} />
       ) : null}
 
       {!atBottom ? (

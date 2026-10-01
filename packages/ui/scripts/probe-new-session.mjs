@@ -388,11 +388,14 @@ async function runLive() {
         source: `
       window.__bootTrace = [];
       window.__bootIv = setInterval(() => {
-        const hero = document.querySelector('[data-testid="new-session-hero"]');
+        // 2026-10-01：首屏 loading 统一走 LayoutSettlingOverlay（bootstrapping 段由
+        // WorkspaceArea 渲染、布局未稳段由 MessageList 渲染），hero 的 loading 变体已删。
+        // 这里探测共享遮罩的 testid，而不是已删除的 data-loading。
+        const overlay = document.querySelector('[data-testid="layout-settling"]');
         const s = window.__chatStore?.getState?.();
         window.__bootTrace.push({
           t: Math.round(performance.now()),
-          loading: hero?.getAttribute('data-loading') === 'true',
+          loading: !!overlay,
           title: s?.sessionTitle ?? null,
           messages: s?.messages?.length ?? -1,
           boot: s?.bootstrapping ?? null,

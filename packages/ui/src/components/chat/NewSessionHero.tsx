@@ -42,19 +42,7 @@ const SUGGESTION_CARDS: SuggestionCard[] = [
   },
 ];
 
-export interface NewSessionHeroProps extends HTMLAttributes<HTMLElement> {
-  /**
-   * live 首屏加载占位（spec 方案 C3）。
-   *
-   * 复用本组件的理由：它的定位本就是「消息区在**无可展示内容**时的占位」
-   * （见文件头「占据 MessageList 在 WorkspaceArea 里的位置」），而不是
-   * 「这里一定是新建会话」—— `newSessionDraft` 管业务语义、`loading` 管
-   * 「为什么空」，两个正交维度复用同一视图，不违反 mock/live 零特判纪律。
-   *
-   * loading 时**不渲染建议卡**：卡是纯展示内容，加载期显示等于假 affordance。
-   */
-  loading?: boolean;
-}
+export interface NewSessionHeroProps extends HTMLAttributes<HTMLElement> {}
 
 /**
  * 新建会话页（草稿态视图，task-new-session-page.md §4.1）。
@@ -72,14 +60,13 @@ export interface NewSessionHeroProps extends HTMLAttributes<HTMLElement> {
  * 不加 cursor-pointer / tabindex，不许做成「看着能点」的哑交互。
  */
 export const NewSessionHero = forwardRef<HTMLElement, NewSessionHeroProps>(function NewSessionHero(
-  { className, loading = false, ...rest },
+  { className, ...rest },
   ref,
 ) {
   return (
     <section
       ref={ref}
       data-testid="new-session-hero"
-      data-loading={loading}
       className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-bg-app", className)}
       {...rest}
     >
@@ -94,27 +81,23 @@ export const NewSessionHero = forwardRef<HTMLElement, NewSessionHeroProps>(funct
         </div>
 
         <h1 className="mt-4 text-xl font-semibold text-text-primary">
-          {loading ? "正在载入会话…" : "开始一个新会话"}
+          开始一个新会话
         </h1>
-        {!loading && (
-          <p className="mt-2.5 text-sm text-text-secondary">
-            描述你想完成的任务，Pi 会先给出执行计划，再动手改代码。
-          </p>
-        )}
+        <p className="mt-2.5 text-sm text-text-secondary">
+          描述你想完成的任务，Pi 会先给出执行计划，再动手改代码。
+        </p>
 
         {/*
          * 建议卡 2×2：列宽由 NEW_SESSION_COLUMN_WIDTH 封顶（lib/layout.ts，参照图两卡总宽）。
          * 卡片在 text-center 环境里必须显式 text-left（cn() 的 text-align 冲突组保证它生效，
          * 见 lib/cn.ts —— 历史教训：text-left 曾被吞掉回落 UA center）。
-         * loading 时不渲染：卡是可点的演示内容，加载期显示等于假 affordance。
          */}
-        {!loading && (
-          <div
-            data-testid="new-session-cards"
-            className="mt-10 grid w-full grid-cols-2 gap-3"
-            style={{ maxWidth: NEW_SESSION_COLUMN_WIDTH }}
-          >
-            {SUGGESTION_CARDS.map((card, index) => (
+        <div
+          data-testid="new-session-cards"
+          className="mt-10 grid w-full grid-cols-2 gap-3"
+          style={{ maxWidth: NEW_SESSION_COLUMN_WIDTH }}
+        >
+          {SUGGESTION_CARDS.map((card, index) => (
               <div
                 key={card.title}
                 data-testid={`new-session-card-${index}`}
@@ -133,14 +116,11 @@ export const NewSessionHero = forwardRef<HTMLElement, NewSessionHeroProps>(funct
               </div>
             ))}
           </div>
-        )}
 
-        {/* 提示行：/ 与 @ 是期货文案（2026-09-25 用户裁决 D4，功能后期实现）；loading 时一并隐藏 */}
-        {!loading && (
-          <p className="mt-7 text-xs text-text-tertiary">
-            Enter 发送 · Shift+Enter 换行 · / 唤起技能 · @ 引用文件
-          </p>
-        )}
+        {/* 提示行：/ 与 @ 是期货文案（2026-09-25 用户裁决 D4，功能后期实现） */}
+        <p className="mt-7 text-xs text-text-tertiary">
+          Enter 发送 · Shift+Enter 换行 · / 唤起技能 · @ 引用文件
+        </p>
       </div>
     </section>
   );
