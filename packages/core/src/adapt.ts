@@ -93,9 +93,14 @@ function asMessage(value: unknown): AgentMessage | null {
 	return message;
 }
 
+/** pi 的 compaction reason 白名单：非三者之一一律丢弃（不造未知态） */
+function compactionReason(value: unknown): "manual" | "threshold" | "overflow" | null {
+	return value === "manual" || value === "threshold" || value === "overflow" ? value : null;
+}
+
 /**
  * 把一条 Pi 原始事件翻译成我们的 `AgentEvent`。
- * 返回 null 表示「该事件与 UI 无关」，调用方直接跳过（例如 compaction_* 与 queue_update 等）。
+ * 返回 null 表示「该事件与 UI 无关」，调用方直接跳过（例如 queue_update 等）。
  */
 export function toAgentEvent(raw: unknown): AgentEvent | null {
 	if (!isRecord(raw) || typeof raw.type !== "string") return null;
@@ -135,6 +140,28 @@ export function toAgentEvent(raw: unknown): AgentEvent | null {
 				// details 扁平透传（task-tool-diff-preview.md：edit 的展示用 diff 走这里）。
 				// 无则**不写键** —— adapter-check 对无 details 事件做精确形状断言。
 				...(details ? { details } : {}),
+			};
+		}
+		case "compaction_start": {
+			const reason = compactionReason(raw.reason);
+			if (!reason) return null;
+			return { type: "compaction_start", reason };
+		}
+		case "compaction_end": {
+			const reason = compactionReason(raw.reason);
+			if (!reason) return null;
+			const result = isRecord(raw.result) ? raw.result : undefined;
+			const summary =
+				typeof result?.summary === "string" && result.summary.trim() ? result.summary : undefined;
+			const errorMessage =
+				typeof raw.errorMessage === "string" && raw.errorMessage.trim() ? raw.errorMessage : undefined;
+			return {
+				type: "compaction_end",
+				reason,
+				...(summary ? { summary } : {}),
+				aborted: raw.aborted === true,
+				willRetry: raw.willRetry === true,
+				...(errorMessage ? { errorMessage } : {}),
 			};
 		}
 		case "turn_start":

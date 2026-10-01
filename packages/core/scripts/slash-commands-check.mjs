@@ -10,6 +10,7 @@ import {
 	matchBuiltinCommand,
 	scopeOfSource,
 } from "../src/slash-commands.ts";
+import { toAgentEvent } from "../src/adapt.ts";
 
 const checks = [];
 const check = (name, actual, expected) => {
@@ -75,6 +76,42 @@ const compacting = buildSlashCommandsPayload({ ...base, isCompacting: true });
 check("压缩中 builtinAvailable=false", compacting.builtinAvailable, false);
 
 check("注册表恰为 reload+compact", BUILTIN_SLASH_COMMANDS.map((c) => c.name), ["reload", "compact"]);
+
+/* ---------------- adapt：compaction 翻译 ---------------- */
+const startEv = toAgentEvent({ type: "compaction_start", reason: "manual" });
+check("compaction_start → 契约事件", startEv, { type: "compaction_start", reason: "manual" });
+
+const endEv = toAgentEvent({
+	type: "compaction_end",
+	reason: "manual",
+	result: { summary: "已压缩前的摘要", firstKeptEntryId: "e1", tokensBefore: 100 },
+	aborted: false,
+	willRetry: false,
+});
+check("compaction_end → 契约事件（带 summary）", endEv, {
+	type: "compaction_end",
+	reason: "manual",
+	summary: "已压缩前的摘要",
+	aborted: false,
+	willRetry: false,
+});
+
+const endErr = toAgentEvent({
+	type: "compaction_end",
+	reason: "threshold",
+	aborted: true,
+	willRetry: true,
+	errorMessage: "boom",
+});
+check("compaction_end → 错误/中止透传", endErr, {
+	type: "compaction_end",
+	reason: "threshold",
+	aborted: true,
+	willRetry: true,
+	errorMessage: "boom",
+});
+
+check("未知 reason 丢弃", toAgentEvent({ type: "compaction_start", reason: "weird" }), null);
 
 const failed = checks.filter((ok) => !ok).length;
 console.log(failed === 0 ? `\n全部通过（${checks.length} 项）` : `\n失败 ${failed}/${checks.length}`);
