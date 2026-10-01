@@ -105,7 +105,7 @@ export function SkillsScreen({ os = "mac", onBackToWorkbench, onOpenSettings }: 
    * ★ C6（§1.1）：live 形态下「工具开关」读写 core 的真实状态（GET/POST /tools/active）。
    *
    * API 依据：core 转发 Pi 的 `getActiveToolNames()` / `setActiveToolsByName()`
-   * （0.87.1 `agent-session.d.ts:337/349`；写入下一 agent 轮次生效）。
+   * （0.99.2 `agent-session.d.ts:392/406`；写入下一 agent 轮次生效）。
    *
    * 关键取舍：**只替换 live 形态下的开关状态来源** —— mock 形态仍走 `ui-store` 的
    * localStorage 持久化（`enabledTools` / `toggleTool`，验收 4-3 期望值一行不改），

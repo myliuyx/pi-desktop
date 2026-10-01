@@ -3,7 +3,7 @@
  *
  * 依据：spike-core/spike.ts 实证手法（ModelRuntime.create → setRuntimeApiKey → getModel；
  * createAgentSession → bindExtensions({ uiContext, mode: "rpc" })；session.subscribe 事件管道）。
- * Pi 的 npm 包 `@earendil-works/pi-coding-agent@^0.87.1`（以实际 TS 类型为准）。
+ * Pi 的 npm 包 `@earendil-works/pi-coding-agent@^0.99.2`（以实际 TS 类型为准）。
  *
  * 运行环境：core 是独立 Node 进程，允许 node:* 与 pi 包（与 UI 包严格隔离）。
  *
@@ -766,7 +766,7 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	/*
 	 * C6 §1.2：重建活动会话（`continue-recent` 的落地路径，限时评估结论 = **有公开低险路径，做**）。
 	 *
-	 * API 依据（@earendil-works/pi-coding-agent@0.87.1 实查）：
+	 * API 依据（@earendil-works/pi-coding-agent@0.99.2 实查）：
 	 * - `createAgentSession` 公开选项 `sessionManager`（`core/sdk.d.ts` CreateAgentSessionOptions）；
 	 * - 传 `SessionManager.open(文件)` 时，`core/sdk.js:230` 会把会话历史灌进 agent state
 	 *   （`messages: existingSession.messages`，同函数还有模型/思考档位恢复逻辑）；

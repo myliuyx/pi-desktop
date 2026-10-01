@@ -5,22 +5,22 @@
  *
  * `resourceLoader.getSkills()` 只回**已加载**技能 —— 被 `!路径` 模式禁用的不在其中，
  * 拿它当清单会让「关掉的技能」从列表里消失、再也打不开。所以清单以
- * `DefaultPackageManager.resolve()` 的**全量**结果为准（0.87.1 的 resolve 内部跑
+ * `DefaultPackageManager.resolve()` 的**全量**结果为准（0.99.2 的 resolve 内部跑
  * `addAutoDiscoveredResources`，每条自带 enabled 标志），名称/描述优先从 getSkills()
  * 对齐，禁用项现场 `parseFrontmatter` 补齐（frontmatter 解析失败回落技能目录名）。
  *
- * ## 开关写路径（origin × scope 三分叉，均对 0.87.1 源码核实）
+ * ## 开关写路径（origin × scope 三分叉，均对 0.99.2 源码核实）
  *
  * - top-level + user    → 全局 settings `skills` 数组（`setSkillPaths`）
  * - top-level + project → 项目 settings `skills` 数组（`setProjectSkillPaths`）
  * - package             → 归属包的**对象过滤器** skills 字段 —— 字符串源的包资源默认
  *   全启用、**不受**全局模式数组管束（`applyPackageFilter` 只认包对象里的 skills 字段），
  *   禁用须升级为 `{source, skills:["!路径"]}`；**skills 数组被清空时必须整字段删除**
- *   （`{source, skills:[]}` 在 0.87.1 里=禁用整包技能，applyPackageFilter 既定语义）。
+ *   （`{source, skills:[]}` 在 0.99.2 里=禁用整包技能，applyPackageFilter 既定语义）。
  *
  * ## 安全口径
  *
- * - `resolve()` 一律传 `onMissing → "skip"`：不传时 0.87.1 会对缺失包**静默安装**
+ * - `resolve()` 一律传 `onMissing → "skip"`：不传时 0.99.2 会对缺失包**静默安装**
  *   （resolvePackageSources 的 installMissing 分支）—— GET 端点绝不能出网。
  * - 落盘只走 SettingsManager（setter + flush），禁止直写 settings.json
  *   （会被其内存态回写覆盖，见规格书 §六.6）。
@@ -43,7 +43,7 @@ import { readSkillSourceRecord } from "./skills-install.ts";
 /** toggle 定位不到技能时抛出（server.ts 据此回 404，与意外错误 500 区分） */
 export class SkillNotFoundError extends Error {}
 
-/** `resolve()` 的缺包动作：一律 skip —— 不传会被 0.87.1 静默安装（出网），GET 端点绝不允许 */
+/** `resolve()` 的缺包动作：一律 skip —— 不传会被 0.99.2 静默安装（出网），GET 端点绝不允许 */
 const skipMissing = async (): Promise<"skip"> => "skip";
 
 /** 路径对齐键：resolve() 与 getSkills() 两路的字符串必须先归一到同一口径再比对 */

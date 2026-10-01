@@ -9,7 +9,7 @@
  *
  * 口径：
  * - 目标目录：user = `<agentDir>/skills/<dir>/`；project = `<cwd>/.pi/skills/<dir>/`
- *   （与 0.87.1 addAutoDiscoveredResources 的发现路径一致，装完 reload 即被加载）。
+ *   （与 0.99.2 addAutoDiscoveredResources 的发现路径一致，装完 reload 即被加载）。
  * - 冲突不覆盖：目标目录已存在抛 409（v1 无更新/卸载入口，装错手动删目录）。
  * - 写路径加固：技能目录含符号链接抛 422（cp 默认 dereference:false 会原样搬运链接，
  *   装个技能会被升级为「读本机任意文件」）；SKILL.md 位于仓库根**照装**（2026-09-29

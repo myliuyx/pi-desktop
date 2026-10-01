@@ -387,7 +387,7 @@ export function PluginsSettingsTab() {
 					>
 						<p className="text-base font-medium text-text-primary">添加插件</p>
 
-						{/* 路径副标题（随 scope 变化；口径=0.87.1 npm/git 安装根，CONFIG_DIR_NAME=".pi"） */}
+						{/* 路径副标题（随 scope 变化；口径=0.99.2 npm/git 安装根，CONFIG_DIR_NAME=".pi"） */}
 						<p
 							className="min-w-0 truncate font-mono text-xs text-text-tertiary"
 							data-testid="settings-plugin-path-hint"
