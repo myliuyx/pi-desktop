@@ -115,6 +115,12 @@ export interface ChatState {
    */
   liveCwd: string | null;
   /**
+   * live 首屏是否仍在加载（问题二修复 · spec C3）：true 时 WorkspaceArea 渲染
+   * NewSessionHero 的 loading 变体，**绝不显示 mock 或错标题**。
+   * mock 形态恒 false（演示面零影响）；`?stress=` / `?empty=` 路径不经过它。
+   */
+  bootstrapping: boolean;
+  /**
    * 文件树刷新时钟（dir-tree 批次 D3）：`refreshSessions()` **成功**一次就 +1。
    * 触发点因此全覆盖：启动 / SSE `cwd_changed`（含多标签广播）/ `agent_settled` /
    * 流式发送完成 / 手动重拉。侧栏文件树订阅它做自动重拉（保持展开集）；
@@ -124,8 +130,8 @@ export interface ChatState {
   fsVersion: number;
   /** 重新拉取会话清单（live 形态；mock 形态是空操作），顺带刷新 `liveCwd` */
   refreshSessions: () => void;
-  /** 按 id 打开历史会话（live 形态；mock 形态是空操作） */
-  loadSessionById: (id: string, title?: string) => void;
+  /** 按 id 打开历史会话（live；mock 形态是空操作）。返回 Promise 供启动块 await */
+  loadSessionById: (id: string, title?: string) => Promise<void>;
   /**
    * 重命名会话（2026-09-28 用户需求）：乐观改清单与页头标题，core 落盘后
    * `refreshSessions` 以服务端为准；失败弹通知并回拉（乐观态被服务端真值冲掉）。
@@ -307,14 +313,18 @@ function mkText(content: string, streaming: boolean): TextBlock {
   return { type: "text", content, streaming };
 }
 
+/** live 判定：模块加载时确定（与 Sidebar / feature-flags 同口径） */
+const LIVE = isLiveEnabled();
+
 export const useChatStore = create<ChatState>((set, get) => ({
-  messages: INITIAL_SESSION.messages,
+  // live 首帧不得有 mock 可渲染（问题二根因）：初值给空数组，由 bootstrapping 顶住
+  messages: LIVE ? [] : INITIAL_SESSION.messages,
   streaming: false,
   awaitingModel: false,
   pendingSince: null,
   settledTurnKeys: new Set<string>(),
   tokenUsage: INITIAL_TOKEN_USAGE,
-  sessionTitle: INITIAL_SESSION_TITLE,
+  sessionTitle: LIVE ? "会话" : INITIAL_SESSION_TITLE,
 
   sendMessage: (text, fileRefs, images) => {
     const trimmed = text.trim();
@@ -524,6 +534,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   sessionSummaries: [],
   liveSessionId: null,
   liveCwd: null,
+  bootstrapping: LIVE,
   fsVersion: 0,
 
   refreshSessions: () => {
@@ -581,7 +592,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     get().refreshSessions();
   },
 
-  loadSessionById: (id, title) => {
+  loadSessionById: async (id, title) => {
     const transport = getLiveTransport();
     if (!transport) return;
     if (activeStream) {
@@ -590,34 +601,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
       streamMsgId = null;
     }
     void transport.abort().catch(() => {});
-    // 乐观先切标题与「当前会话」（消息体等 core 回来再填），避免点击后长时间无反馈；
-    // 点开历史会话即离开草稿态（否则草稿的空消息区会顶掉载入的内容）
-    set((state) => ({
+    /*
+     * 乐观范围收窄（spec §5.3）：**只**乐观改 liveSessionId —— 侧栏高亮表达的是
+     * 「我点了哪一条」，不是数据断言。标题与消息体等 loadSession 成功才同批写入：
+     * 否则网络抖动时页头已显示新标题、消息区还是旧会话内容，读起来像串台。
+     */
+    set({
       streaming: false,
       awaitingModel: false,
       pendingSince: null,
       liveSessionId: id,
-      sessionTitle: title ?? state.sessionTitle,
       newSessionDraft: false,
-    }));
-    void transport
-      .loadSession(id)
-      .then((loaded) => {
-        liveDraft = createDraft(loaded.messages);
-        useChatStore.setState({
-          messages: loaded.messages,
-          sessionTitle: loaded.title || title || "会话",
-          tokenUsage: loaded.tokenUsage,
-          streaming: false,
-          liveSessionId: loaded.id,
-          // 历史会话的轮次天然全部完结（task-process-collapse.md 决策 7）：打开即按同规则默认收起
-          settledTurnKeys: collectCollapsibleTurnKeys(loaded.messages, loaded.id),
-        });
-      })
-      .catch((e) => {
-        console.error(`[live] loadSession(${id}) 失败:`, e);
-        notifyFailure("会话加载失败", e);
+    });
+    try {
+      const loaded = await transport.loadSession(id);
+      liveDraft = createDraft(loaded.messages);
+      useChatStore.setState({
+        messages: loaded.messages,
+        sessionTitle: loaded.title || title || "会话",
+        tokenUsage: loaded.tokenUsage,
+        streaming: false,
+        liveSessionId: loaded.id,
+        // 历史会话的轮次天然全部完结（task-process-collapse.md 决策 7）：打开即默认收起
+        settledTurnKeys: collectCollapsibleTurnKeys(loaded.messages, loaded.id),
       });
+    } catch (e) {
+      console.error(`[live] loadSession(${id}) 失败:`, e);
+      notifyFailure("会话加载失败", e);
+    }
   },
 
   reset: () => {
@@ -693,31 +704,50 @@ if (typeof window !== "undefined") {
     // live 模式：建立真实链路订阅（SSE → reducer → store），并拉一次会话清单给 Sidebar
     ensureLive();
     if (isLiveEnabled()) {
-      useChatStore.getState().refreshSessions();
       /*
-       * C6 首个修复项（2026-09-23 用户实测反馈）：live 启动**不再展示 mock 会话**。
-       * 加载最近一条真实会话；一条都没有则进入空态（messages: []），
-       * 绝不拿 `INITIAL_SESSION` 的 7 条 mock 顶数 —— 否则用户看到的永远「和纯 UI 没区别」。
+       * A'（spec 方案）：启动**只拉一次** /sessions。
+       * 原先 refreshSessions() 与下面的 IIFE 各发一次，首屏白付一遍全量扫描。
+       * 现在一次拿全：会话清单 + liveCwd + 文件树时钟（fsVersion）。
+       *
+       * bootstrapping 覆盖整个首屏加载（含 loadSession），成功后与真实数据**同批**
+       * 置 false —— 不允许「标记就绪但数据未到」的中间态（D9 纪律：不显示假事实）。
        */
       void (async () => {
         const transport = getLiveTransport();
-        if (!transport) return;
+        if (!transport) {
+          useChatStore.setState({ bootstrapping: false });
+          return;
+        }
         try {
           const { cwd, sessions } = await transport.listSessions();
-          // 第二次调用点（启动时加载最近会话）同样写入 liveCwd，否则首屏要等到下一轮
-          // `agent_settled` 才有真值 —— 期间侧栏会一直停在「未知目录」。
-          useChatStore.setState({ liveCwd: cwd });
           if (sessions.length > 0) {
             const latest = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)[0];
-            useChatStore.getState().loadSessionById(latest.id, latest.title);
+            await useChatStore.getState().loadSessionById(latest.id, latest.title);
+            useChatStore.setState((state) => ({
+              sessionSummaries: sessions,
+              liveCwd: cwd,
+              fsVersion: state.fsVersion + 1,
+              bootstrapping: false,
+            }));
           } else {
-            liveDraft = createDraft([]);
             // D8：live 首启无历史会话 ⇒ 直接进新建会话草稿态（hero），不再是旧空态
-            useChatStore.setState({ messages: [], sessionTitle: "新会话", streaming: false, newSessionDraft: true });
+            liveDraft = createDraft([]);
+            useChatStore.setState((state) => ({
+              messages: [],
+              sessionTitle: "新会话",
+              streaming: false,
+              newSessionDraft: true,
+              sessionSummaries: sessions,
+              liveCwd: cwd,
+              fsVersion: state.fsVersion + 1,
+              bootstrapping: false,
+            }));
           }
         } catch (e) {
           console.error("[live] 启动加载最近会话失败:", e);
           useNoticeStore.getState().notify({ tone: "warning", text: "最近会话加载失败" });
+          // 失败也必须退出 loading（否则永久骨架屏）；消息区退回空态由 MessageList 兜底
+          useChatStore.setState({ bootstrapping: false });
         }
       })();
     }

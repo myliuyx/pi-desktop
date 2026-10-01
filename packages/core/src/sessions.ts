@@ -28,12 +28,10 @@
  * （与事件通道同因，见 `S6 §三·3`），Fabricate 一个 0/1 会让 UI 显示假成功。
  */
 
-import path from "node:path";
 import {
   SessionManager,
   type CustomMessageEntry,
   type SessionEntry,
-  type SessionInfo,
 } from "@earendil-works/pi-coding-agent";
 import type {
   Block,
@@ -46,6 +44,7 @@ import type {
 import { isRecord, num } from "./guards.ts";
 import { fileRefNames, stripFileRefBlocks } from "./prompt-files.ts";
 import { usageOf } from "./adapt.ts";
+import { listSessionsCached, readFirstUserText } from "./session-list-cache.ts";
 
 /* ---------------------------------------------------------------------------
  * 通用小工具
@@ -180,8 +179,25 @@ export function titleFallbackFromFirstMessage(raw: string): string {
 	return "";
 }
 
+/**
+ * `toSessionSummary` 的输入形状。
+ *
+ * 为什么不用 `SessionInfo`（2026-09-30 放宽）：清单现在走 `session-list-cache.ts`
+ * 的两层索引（spec A4），缓存里没有 `SessionInfo`（不存 firstMessage 等长文本）。
+ * 放宽为「本函数真正读到的字段」后，两条来源（Pi 的 `SessionInfo` 与缓存索引）
+ * 都能直接用同一个装配逻辑 —— 标题口径与既有 `session-title-check` 覆盖不分叉。
+ * `SessionInfo` 结构上兼容本接口，故既有调用方零改动。
+ */
+export interface SummarySource {
+  id: string;
+  name?: string;
+  firstMessage: string;
+  modified: string | number | Date;
+  messageCount: number;
+}
+
 /** `title = name ?? firstMessage`（`S2 §三` 的裁决；两者皆空时给一个明确占位，不返回空标题） */
-export function toSessionSummary(info: SessionInfo): SessionSummary {
+export function toSessionSummary(info: SummarySource): SessionSummary {
 	const name = typeof info.name === "string" ? info.name.trim() : "";
 	const first = typeof info.firstMessage === "string" ? info.firstMessage.trim() : "";
 	return {
@@ -453,16 +469,48 @@ export interface SessionRef {
 }
 
 /**
- * 会话清单。`all=true` 走 `listAll`（跨项目目录）—— 传的是 `<agentDir>/sessions`
- * （`sessionDir` 的父目录），否则 `listAll()` 会去扫默认 agentDir，与自定义 agentDir 不符。
+ * `readFirstUserText` 的防御包装：单个文件在扫描后消失（TOCTOU）或不可读时退化为
+ * `null`，绝不让一条会话的故障拖垮整个清单请求（`GET /sessions` 返回 500）。
+ */
+function safeReadFirstUserText(filePath: string): string | null {
+  try {
+    return readFirstUserText(filePath);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 会话清单。`all=true` 走跨项目目录（不过滤 cwd），否则只列 `ref.cwd`。
+ *
+ * 2026-09-30 起改走 `session-list-cache.ts` 的两层索引（spec 方案 A4）：
+ * 原先直调 `SessionManager.list()` 会为**每个**会话文件 readline 逐行 parse
+ * 并拼接全部消息文本，104 会话 / 40MB 实测 539ms 且随数据量线性增长。
+ *
+ * **语义对齐**：`all=false` 时按 `info.cwd`（header 里的真实值，非目录名反推）
+ * 与 `path.resolve(ref.cwd)` 比较 —— 与原先 `SessionManager.list` 的
+ * `sessionCwdMatches` 同口径。标题兜底（name 空时回读首条 user 文本）复用
+ * 本文件既有的 `titleFallbackFromFirstMessage`，口径与 `toSessionSummary` 不分叉。
  */
 export async function listSessions(ref: SessionRef, options: { all?: boolean } = {}): Promise<SessionSummary[]> {
-  const infos = options.all
-    ? ref.sessionDir
-      ? await SessionManager.listAll(path.dirname(ref.sessionDir))
-      : await SessionManager.listAll()
-    : await SessionManager.list(ref.cwd, ref.sessionDir);
-  return infos.map(toSessionSummary);
+  const { entries } = await listSessionsCached(ref, options);
+  return entries.map(({ path: filePath, info }) => {
+    /*
+     * `toSessionSummary` 口径是 `title = name ?? firstMessage`：有 name 时 firstMessage
+     * 根本不参与运算，而 `readFirstUserText` 要 open + 扫描文件（113 会话实测 ~290ms，
+     * 其中 100 条有 name ⇒ 纯浪费）。故只在「无名 + 有 user 消息」时才回读 ——
+     * 输出逐条比对零差异（见 task-3-report 的等价性验证）。索引刻意不存 firstMessage。
+     */
+    const firstMessage = !info.name && info.hasFirstUser ? (safeReadFirstUserText(filePath) ?? "") : "";
+    return toSessionSummary({
+      id: info.id,
+      // name 为 null 时不传（SummarySource.name 是可选 string）
+      ...(info.name ? { name: info.name } : {}),
+      firstMessage,
+      modified: info.modified,
+      messageCount: info.messageCount,
+    });
+  });
 }
 
 /** 按 id 找会话文件（`findById` 只比对会话头里的 id，不接受路径，天然免疫目录穿越） */
