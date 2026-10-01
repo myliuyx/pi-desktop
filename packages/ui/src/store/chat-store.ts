@@ -271,6 +271,12 @@ function computeTokens(messages: Message[]): TokenUsage {
     // （core 从 getContextUsage() 取同名字段）共用环组件的同一条渲染路径，
     // 否则 mock 形态环只能走「占用未知」降级态，验收口径就要分叉。
     contextTokens: input + output,
+    // 累计演示字段（task-context-ring-token-popover.md 决策 9）：字符估算路径
+    // 没有逐条缓存数据 → cacheReadSum/cacheWriteSum 不写（浮框缓存两行缺省隐藏，
+    // 与 INITIAL_TOKEN_USAGE 同一口径）；费用给固定演示值让费用行可见。
+    inputSum: input,
+    outputSum: output,
+    costTotal: INITIAL_TOKEN_USAGE.costTotal,
   };
 }
 

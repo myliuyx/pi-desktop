@@ -283,6 +283,11 @@ export const SESSION_SUMMARIES: SessionSummary[] = [
  *
  * contextTokens = total（task-composer-inline-toolbar.md 决策 3）：内嵌底行的
  * 上下文环要出百分比，mock 必须合成该字段——18600/128000 → 环值 `14.5%`（m2 2-14 锁定）。
+ *
+ * 累计演示字段（task-context-ring-token-popover.md 决策 9）：单轮演示叙事下
+ * 累计 = 最近一次（inputSum/outputSum 同值）；costTotal 给固定演示值让费用行可见。
+ * cacheReadSum/cacheWriteSum 不补——mock 估算路径没有逐条缓存数据，浮框缓存两行
+ * 走「缺省隐藏」降级，顺带演示该形态。
  */
 export const INITIAL_TOKEN_USAGE: TokenUsage = {
   input: 12400,
@@ -290,6 +295,9 @@ export const INITIAL_TOKEN_USAGE: TokenUsage = {
   total: 18600,
   contextWindow: 128000,
   contextTokens: 18600,
+  inputSum: 12400,
+  outputSum: 6200,
+  costTotal: 0.0217,
 };
 
 /**

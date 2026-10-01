@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { cn } from "@/lib/cn";
 import {
   contextTone,
@@ -7,14 +8,17 @@ import {
 } from "@/lib/format";
 import { CONTEXT_RING_SIZE, CONTEXT_RING_STROKE } from "@/lib/layout";
 import { useChatStore } from "@/store/chat-store";
+import { ComposerTokenPopover } from "@/components/chat/ComposerTokenPopover";
 
 /**
  * 上下文占用环 —— 输入框底行左簇的「消耗」代言人（task-composer-inline-toolbar.md D1=A1）。
  *
  * 参考图（另一 Agent 产品）把上下文占用画成小圆环 + 百分比，替代原 TokenStats 四段
- * 常驻文本：行内只留**最该盯的一个数字**（上下文占用率，Pi CLI 同口径），四段明细
- * （输入/输出/消耗/窗口）收进原生 `title` 悬停提示——与旧 TokenStats item 的 title
- * 同一手法，不引入新浮层组件。数据源与旧 TokenStats 相同：chat-store 的 `tokenUsage`
+ * 常驻文本：行内只留**最该盯的一个数字**（上下文占用率，Pi CLI 同口径）。四段明细
+ * 起初收进原生 `title` 悬停提示（2026-09-30），现已升级为参考图同款的**富浮框**
+ * （task-context-ring-token-popover.md，2026-10-01 主控裁决）：悬停环 + 数值整体
+ * 即弹出 Token 用量明细面板（ComposerTokenPopover，累计口径 + 费用/命中率行），
+ * 原生 title 同步退役——两者并存会双重弹出。数据源不变：chat-store 的 `tokenUsage`
  * （live 由 usage 事件实时下发，mock 由 computeTokens/INITIAL_TOKEN_USAGE 合成）。
  *
  * 颜色三档（contextTone）：≥90% danger / ≥70% warning / 其余中性。颜色挂在数值 span
@@ -22,7 +26,8 @@ import { useChatStore } from "@/store/chat-store";
  * 用 text-* 类，绝不能自己调亮度凑。
  *
  * 降级态（规格决策 5）：live 下 `contextTokens` 缺省（契约「仅当两侧都未知才缺省」，
- * 如刚压缩完的下一次回复前）→ 中性满环 + 数值显示窗口大小，title 注明占用未知。
+ * 如刚压缩完的下一次回复前）→ 中性满环 + 数值显示窗口大小，浮框上下文行百分比位
+ * 显示「—」（ComposerTokenPopover 上下文行降级）。
  */
 
 const TONE_CLASS: Record<ContextTone, string> = {
@@ -37,6 +42,10 @@ const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 export function ComposerContextRing() {
   const usage = useChatStore((state) => state.tokenUsage);
+  // 悬停开合（task-context-ring-token-popover.md 决策 7）：即显即隐、无定时器。
+  // 面板是本 wrapper 的 DOM 后裔 → 指针在环与面板间移动不会触发 mouseleave
+  // （位置容器用 padding 而非 margin 留缝，见 ComposerTokenPopover 文件头）。
+  const [hoverOpen, setHoverOpen] = useState(false);
 
   const { contextTokens, contextWindow } = usage;
   const known = contextTokens !== undefined && contextWindow > 0;
@@ -46,15 +55,12 @@ export function ComposerContextRing() {
   const tone = contextTone(percent);
   const valueText = known ? formatContextPercent(percent) : formatCompact(contextWindow);
 
-  const title = known
-    ? `输入 ${formatCompact(usage.input)} · 输出 ${formatCompact(usage.output)} · 消耗 ${formatCompact(usage.total)} · 上下文 ${valueText}/${formatCompact(contextWindow)}`
-    : `上下文占用未知（尚未回复或刚压缩完）· 窗口 ${formatCompact(contextWindow)} · 输入 ${formatCompact(usage.input)} · 输出 ${formatCompact(usage.output)} · 消耗 ${formatCompact(usage.total)}`;
-
   return (
     <div
       data-testid="composer-context-ring"
-      title={title}
-      className="flex shrink-0 items-center gap-1.5"
+      className="relative flex shrink-0 items-center gap-1.5"
+      onMouseEnter={() => setHoverOpen(true)}
+      onMouseLeave={() => setHoverOpen(false)}
     >
       <span className={cn("inline-flex", TONE_CLASS[tone])}>
         <svg
@@ -93,6 +99,8 @@ export function ComposerContextRing() {
       >
         {valueText}
       </span>
+
+      {hoverOpen ? <ComposerTokenPopover usage={usage} /> : null}
     </div>
   );
 }
