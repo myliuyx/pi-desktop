@@ -394,6 +394,15 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 	case "package_progress":
 		return state;
 
+	case "compaction_start":
+	case "compaction_end":
+		/*
+		 * 斜杠命令批次：压缩进度由 chat-store 的 SSE 订阅层消费（常驻 toast + compacting 标志），
+		 * 不进消息树。此 reducer 对 AgentEvent 无 default —— 新成员必须显式列出，否则
+		 * switch 非穷尽（TS2366）且运行时返回 undefined 会让调用方读 `.messages` 崩溃。
+		 */
+		return state;
+
 	/*
 	 * S2：技能安装进度（克隆/定位/拷贝阶段文案）不进会话状态 —— 消费方是设置弹窗
 	 * 的技能 Tab（自行订阅 transport 过滤该类型）。同上：新成员必须显式列出。

@@ -126,7 +126,7 @@ function blocksOfType(state, type) {
  * 四、翻译器：无关事件应被丢弃
  * ---------------------------------------------------------------------- */
 {
-	check("[翻译] 未知事件返回 null", toAgentEvent({ type: "compaction_start", reason: "threshold" }), null);
+	check("[翻译] 未知事件返回 null", toAgentEvent({ type: "queue_update" }), null);
 	check("[翻译] 非法消息返回 null", toAgentEvent({ type: "message_start", message: { role: "weird" } }), null);
 	check("[翻译] turn_start 透传", toAgentEvent({ type: "turn_start" }), { type: "turn_start" });
 	check(
