@@ -5,12 +5,15 @@ import { simulateStream, type StreamHandle } from "@/mock/stream";
 import { STREAM_TICK_MS } from "@/lib/layout";
 import { isLiveEnabled } from "@/lib/feature-flags";
 import { getLiveTransport } from "@/services/live-transport";
-import { applyEvent, createDraft, type DraftState } from "@/adapter/reduce";
+import { applyEvent, approvalRequestHasHost, createDraft, type DraftState } from "@/adapter/reduce";
 import { collectCollapsibleTurnKeys } from "@/lib/turns";
 import type { AgentEvent } from "@/adapter/pi-events";
 import { notifyFailure, useNoticeStore } from "@/store/notice-store";
 import { useUiStore } from "@/store/ui-store";
 import { stripDataUrl, type ComposerImage } from "@/lib/image-attach";
+
+/** 无宿主授权请求事件（AgentEvent 的 approval_request 成员；hostless-approval-overlay 批次） */
+type ApprovalRequestEvent = Extract<AgentEvent, { type: "approval_request" }>;
 
 /** 乐观回显的 attachments 快照 + live 请求体的 images 载荷（粘图批次共用一步算好） */
 function resolveSendImages(images?: ComposerImage[]): {
@@ -78,6 +81,14 @@ export interface ChatState {
    * 写入一律**整体替换**（collectCollapsibleTurnKeys 重算，幂等自愈），不做增量增删。
    */
   settledTurnKeys: ReadonlySet<string>;
+  /**
+   * 无宿主授权请求（hostless-approval-overlay 批次）：SSE `approval_request` 在消息树
+   * 找不到 assistant 宿主时（信任门提问发生在 cwd 切换/启动期——新建会话草稿态
+   * liveDraft 为空树，reducer 的宿主判据会静默丢弃事件）改落这里，由 App 级
+   * `ApprovalOverlay` 模态浮层渲染；有宿主的照旧走 reducer 进消息树（流式工具审批零变化）。
+   * 入列按 requestId 去重（SSE 重连补发幂等）；`approval_settled` 时移除；mock 恒空。
+   */
+  pendingApprovals: ApprovalRequestEvent[];
   tokenUsage: TokenUsage;
   sessionTitle: string;
 
@@ -186,6 +197,11 @@ function ensureLive(): void {
         useNoticeStore.getState().dismiss(outageNoticeId);
         outageNoticeId = null;
       }
+      // 未决授权清洗（hostless-approval-overlay 批次）：断线期间可能已被 core 超时结算的
+      // 条目，重连补发不会再包含 → 先清空。本 hook 在 SSE 响应头到达时触发
+      // （agent-transport connectSse），早于事件体读取，同连接的 C3 补发随后会把
+      // 仍真实未决的请求重灌回来（pendingApprovals 按 requestId 去重，幂等）。
+      useChatStore.setState({ pendingApprovals: [] });
       // core 的 /events 不回放断线期间的事件，措辞不承诺「已完全同步」，提示用户必要时重载会话。
       useNoticeStore.getState().notify({
         tone: "success",
@@ -214,6 +230,28 @@ function ensureLive(): void {
       useChatStore.getState().startNewSession();
       void useChatStore.getState().refreshSessions();
       return;
+    }
+    /*
+     * ★ 无宿主授权路由（hostless-approval-overlay 批次）：信任门在 cwd 切换/启动期提问，
+     * 此时消息树可能为空（新建会话草稿态 liveDraft=createDraft([])），reducer 的宿主判据
+     * 找不到 assistant 会静默丢弃事件 → 授权卡永不渲染、core 等应答到 120s 超时
+     * （「点了没反应」根因）。无宿主改落顶层 pendingApprovals（App 级 ApprovalOverlay
+     * 渲染）；有宿主照旧走下方 applyEvent 进消息树（流式工具审批行为零变化）。
+     */
+    if (event.type === "approval_request" && !approvalRequestHasHost(liveDraft)) {
+      useChatStore.setState((state) => ({
+        // SSE 重连补发会重灌同一帧：按 requestId 去重（幂等）
+        pendingApprovals: state.pendingApprovals.some((p) => p.requestId === event.requestId)
+          ? state.pendingApprovals
+          : [...state.pendingApprovals, event],
+      }));
+      return;
+    }
+    if (event.type === "approval_settled") {
+      // 无宿主条目的收卡（浮层随之关闭）；**不 return** —— 有宿主卡片照旧由 reducer 结算
+      useChatStore.setState((state) => ({
+        pendingApprovals: state.pendingApprovals.filter((p) => p.requestId !== event.requestId),
+      }));
     }
     /*
      * 等待占位按轮驱动（2026-09-28 用户裁决，task-waiting-row-turn-start.md F1/F2）：
@@ -339,8 +377,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   awaitingModel: false,
   pendingSince: null,
   settledTurnKeys: new Set<string>(),
+pendingApprovals: [],
   // mock 形态保留设计稿演示值（验收 2-13/2-14 的 14.5% / 128k 就锁在这个值上）；
-  // live 形态给"未知"（0）—— 首屏还没有任何真实 usage，沿用 mock 的 128000 会让
+  // live 形态给“未知”（0）—— 首屏还没有任何真实 usage，沿用 mock 的 128000 会让
   // 上下文环一上来就显示假的窗口分母（2026-10-01 上下文环真值批次）。
   tokenUsage: LIVE ? EMPTY_TOKEN_USAGE : INITIAL_TOKEN_USAGE,
   sessionTitle: LIVE ? "会话" : INITIAL_SESSION_TITLE,

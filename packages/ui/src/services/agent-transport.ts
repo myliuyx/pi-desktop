@@ -80,6 +80,25 @@ export interface CwdSwitchResult {
   trust: { trusted: boolean } | null;
 }
 
+/**
+ * `GET|POST /trust-policy` 的成功返回（task-trust-policy-switch）。
+ *
+ * 就地内联、不进 `contract.ts` —— 与 `/cwd`、`/fs/list` 同款（那三者也没进）。
+ * ⚠️ 别拿 `/thinking` 类比：它能复用 `ModelsPayload` 是因为返回的就是模型清单，
+ * 本端点返回的是新形状，没有现成类型可复用。
+ */
+export interface TrustPolicyPayload {
+  /** 开关的布尔投影（`policy === "ask"`） */
+  ask: boolean;
+  /**
+   * 三态原值。UI **必须**用它区分两种「关」：
+   * - `always` → 关，且**可切换**（关 = 自动信任并直接加载执行）
+   * - `never`  → 关，但**必须禁用**（关 = 不询问**且**不加载，是用户手工配的安全姿态，
+   *   两态开关表达不了它，可切换就会被一次误点静默覆写）
+   */
+  policy: "ask" | "always" | "never";
+}
+
 /** `GET /fs/list` 条目（dir-tree 批次 §4.0：kind 恒返回；dir-picker 旧 core 兼容由 listDirs 归一） */
 export interface DirEntryResult {
   name: string;
@@ -232,6 +251,16 @@ export interface AgentTransport {
   setModel(provider: string, modelId: string): Promise<ModelsPayload>;
   /** 05 屏：切换思考档位（core 侧写回 `settings.json`） */
   setThinkingLevel(level: ThinkingLevelName): Promise<ModelsPayload>;
+
+  /* ------------------------------------- 设置 · 常规：项目扩展授权询问开关 */
+  /**
+   * 读「项目扩展授权询问」开关（task-trust-policy-switch）。
+   * `policy` 是三态原值 —— UI 靠它区分两种「关」：`always`（自动信任，可切换）
+   * 与 `never`（不询问**且**不加载，开关须禁用）。
+   */
+  getTrustPolicy(): Promise<TrustPolicyPayload>;
+  /** 写开关（core 侧落盘 `defaultProjectTrust`；`never` 态下 core 会 400 拒绝） */
+  setTrustPolicy(ask: boolean): Promise<TrustPolicyPayload>;
 
   /* ------------------------------------------------- C6 · 04 屏工具开关 */
   /** 04 屏：当前启用的工具名与可启用全集（live 形态下开关初始态的数据源） */
@@ -753,6 +782,16 @@ export class HttpAgentTransport implements AgentTransport {
 
   setThinkingLevel(level: ThinkingLevelName): Promise<ModelsPayload> {
     return this.post<ModelsPayload>("/thinking", { level });
+  }
+
+  /* ---------------------------- 设置 · 常规：项目扩展授权询问开关（task-trust-policy-switch） */
+
+  getTrustPolicy(): Promise<TrustPolicyPayload> {
+    return this.get<TrustPolicyPayload>("/trust-policy");
+  }
+
+  setTrustPolicy(ask: boolean): Promise<TrustPolicyPayload> {
+    return this.post<TrustPolicyPayload>("/trust-policy", { ask });
   }
 
   /* ------------------------------------------------------------------ C6 */

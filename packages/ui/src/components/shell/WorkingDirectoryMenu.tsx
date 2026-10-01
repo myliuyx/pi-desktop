@@ -323,11 +323,20 @@ export function WorkingDirectoryMenu({
    * `cwd_changed` 广播本来也会触发 `refreshSessions()`，这里再调是给
    * 「SSE 短暂断线」的防御：显式反馈优先于依赖隐式通道。
    * 失败原样透出 core 的 `{ error }` 文案（流式中 409 / 目录无效 400）。
+   *
+   * 过程提示（hostless-approval-overlay 批次 D3）：切换是**长操作**——目标目录带
+   * 项目资源时信任门会向 UI 提问（等待应答最长 120s），期间 POST /cwd 一直挂着，
+   * 「点击后立即给常驻提示」补齐两段无反馈窗口：① 授权浮层出现前（重建绑定链耗时）；
+   * ② 根本没有浮层的场景（目录无 .pi 资源 / always·never 策略）。完成/失败时撤下，
+   * 由下方既有成功/失败通知接管。`timeoutMs: 0` 才常驻（notice-store 缺省 5s 自灭）。
    */
   async function switchLive(dir: string | null) {
     const transport = getLiveTransport();
     if (!transport) return;
     const previous = liveCwd;
+    const pendingNoticeId = useNoticeStore
+      .getState()
+      .notify({ tone: "info", text: "正在切换工作目录…", timeoutMs: 0 });
     try {
       const r = await transport.switchCwd(dir);
       if (previous && previous !== r.cwd) useUiStore.getState().recordRecentDir(previous);
@@ -339,6 +348,8 @@ export function WorkingDirectoryMenu({
       });
     } catch (e) {
       notifyFailure("切换工作目录失败", e);
+    } finally {
+      useNoticeStore.getState().dismiss(pendingNoticeId);
     }
   }
 

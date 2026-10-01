@@ -14,6 +14,7 @@
     "smoke:check": "node scripts/core-smoke.mjs",
     "check:c3": "node scripts/c3-approval-check.mjs",
     "check:c4": "node scripts/c4-sessions-check.mjs",
+    "check:trust": "node scripts/trust-policy-check.mjs",
     "check:sessions-new": "node scripts/sessions-new-check.mjs",
     "check:sessions-load": "node scripts/sessions-load-check.mjs",
     "check:run-dir": "node scripts/run-dir-check.mjs",

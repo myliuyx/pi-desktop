@@ -19,9 +19,22 @@ import type { ThinkingLevel } from "./types";
  * 为什么用字面量联合而不是 enum：验收脚本要读 `data-group` 的值做集合比对，
  * 字面量联合能在 TS 层保证组件不会写错字符串（写错即编译失败）。
  */
-export type SettingsGroupId = "model" | "thinking" | "session" | "appearance" | "working-dir";
+export type SettingsGroupId =
+  | "model"
+  | "thinking"
+  | "session"
+  | "appearance"
+  | "working-dir"
+  /* task-trust-policy-switch：新增「项目扩展信任」组，渲染在「工作目录」之后 */
+  | "trust";
 
-/** 分组定义（标题 + 说明 + 对齐说明） */
+/**
+ * 分组定义（标题 + 说明 + 对齐说明）—— **唯一权威定义**。
+ *
+ * ⚠️ 本常量当前**无消费方**（渲染顺序由 `SettingsGeneralTab` 的 JSX 决定，`data-group` 是验收判定位），
+ * 但新增分组时**必须同步**：它是「有哪些组、按什么顺序」的单点声明，
+ * 漏改不会编译失败、只会静默漂移（下一个人读到这里会以为只有旧几组）。
+ */
 export interface SettingsGroupDef {
   id: SettingsGroupId;
   title: string;
@@ -30,8 +43,10 @@ export interface SettingsGroupDef {
 }
 
 /**
- * 五个分组 —— 顺序固定，与 `.plan/screens.md` 05 屏列出的
- * 「模型、思考强度、会话（自动压缩 / 自动重试）、外观（主题）、工作目录」一致。
+ * 六个分组 —— 顺序固定。前四组对应 `.plan/screens.md` 05 屏列出的
+ * 「思考强度、会话（自动压缩 / 自动重试）、外观（主题）、工作目录」
+ * （「模型」组已删，改走「模型」Tab）；
+ * 第六组「项目扩展信任」为 task-trust-policy-switch 新增，追加在末尾。
  */
 export const SETTINGS_GROUPS: SettingsGroupDef[] = [
   { id: "model", title: "模型", note: "选择本次会话使用的模型" },
@@ -39,6 +54,11 @@ export const SETTINGS_GROUPS: SettingsGroupDef[] = [
   { id: "session", title: "会话", note: "长会话的自动处理策略" },
   { id: "appearance", title: "外观", note: "界面主题，深浅两套令牌同源" },
   { id: "working-dir", title: "工作目录", note: "Agent 可读写的工作区根路径" },
+  {
+    id: "trust",
+    title: "项目扩展信任",
+    note: "进入含项目本地扩展（.pi/）的目录时，是否先询问再加载执行",
+  },
 ];
 
 /* ---------------------------------------------------------------------------
@@ -125,6 +145,11 @@ export const PI_FIELD_NAMES = {
   autoRetry: "SettingsManager.autoRetry",
   /** 工作目录 → Pi 的 AgentOptions.cwd */
   workingDir: "AgentOptions.cwd",
+  /**
+   * 项目扩展授权询问 → Pi 的 SettingsManager.defaultProjectTrust
+   * （task-trust-policy-switch；说明文本里的字段名标注从这里取，勿在 JSX 里硬编码）
+   */
+  defaultProjectTrust: "SettingsManager.defaultProjectTrust",
 } as const;
 
 /**

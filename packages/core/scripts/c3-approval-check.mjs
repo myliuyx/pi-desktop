@@ -182,7 +182,15 @@ function makeAgentDir(name, { defaultProjectTrust, globalExtension = false }) {
 	fs.mkdirSync(dir, { recursive: true });
 	/* 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 模型清单随 agentDir 走（Pi 的约定位置） */
 	seedModelsJson(dir);
-	fs.writeFileSync(path.join(dir, "settings.json"), JSON.stringify({ defaultProjectTrust }, null, 2));
+	/*
+	 * task-trust-policy-switch：`defaultProjectTrust` 不传 ⇒ settings.json **不含该键**，
+	 * 复现「出厂未配置」。归一化口径要求此时按 `always` 收尾（不询问 + 自动信任加载），
+	 * 若实现误写成 `?? "ask"` 会弹提问 ⇒ 用例红。
+	 */
+	fs.writeFileSync(
+		path.join(dir, "settings.json"),
+		JSON.stringify(defaultProjectTrust === undefined ? {} : { defaultProjectTrust }, null, 2),
+	);
 	if (globalExtension) {
 		const extDir = path.join(dir, "extensions");
 		fs.mkdirSync(extDir, { recursive: true });
@@ -366,7 +374,8 @@ async function caseTrust({ name, port, defaultProjectTrust, answer, trustTimeout
 	const cwd = makeProjectCwd(name);
 	const agentDir = makeAgentDir(name, { defaultProjectTrust, globalExtension: false });
 	const core = launchCore({ name, cwd, agentDir, port, trustTimeoutMs });
-	const out = { name, defaultProjectTrust, answer: answer ?? "(不应答，等超时)", cwd };
+	/* 未配置（出厂默认）在证据里显示为可读文案，undefined 会被 JSON 序列化丢键 */
+	const out = { name, defaultProjectTrust: defaultProjectTrust ?? "(未配置)", answer: answer ?? "(不应答，等超时)", cwd };
 	try {
 		// ★ 先等服务 listen 再连 SSE：/health 在会话就绪前就可用（会话在等信任门裁决）。
 		//   顺序不能反 —— 连早了 ECONNREFUSED 会让 ask 态提问无人应答，直接落到超时。
@@ -445,8 +454,10 @@ try {
 	console.log("[c3] 判据① 真实授权往返 + 判据② 幂等（真实模型，可能需要 1~3 分钟）…");
 	evidence.judgments["①真实授权往返+②幂等"] = await caseApprovalRoundTrip();
 
-	console.log("[c3] 判据③ 信任门三态（不需模型，逐个起 core）…");
+	console.log("[c3] 判据③ 信任门三态 + 未配置（出厂默认，task-trust-policy-switch；不需模型，逐个起 core）…");
 	const trustCases = [
+		/* settings.json 不含该键 ⇒ 出厂默认 = 自动信任（不询问）。锁死归一化口径 */
+		{ name: "unset", port: 5204, defaultProjectTrust: undefined, expectLoaded: "positive" },
 		{ name: "never", port: 5198, defaultProjectTrust: "never", expectLoaded: "zero" },
 		{ name: "always", port: 5199, defaultProjectTrust: "always", expectLoaded: "positive" },
 		{ name: "ask-decline", port: 5200, defaultProjectTrust: "ask", answer: TRUST_DECLINE, expectLoaded: "zero" },
@@ -476,6 +487,16 @@ try {
 	check("③超时按不信任收尾并下发 settled(cancelled)", byName["ask-timeout"]?.trust?.reason === "cancelled" && (byName["ask-timeout"]?.结算帧 ?? []).some((f) => f?.resolution === "cancelled"), byName["ask-timeout"]?.结算帧);
 	check("③ask+拒绝：结论 reason=user-declined", byName["ask-decline"]?.trust?.reason === "user-declined", byName["ask-decline"]?.trust);
 	check("③ask+信任：结论 reason=user-accepted", byName["ask-accept"]?.trust?.reason === "user-accepted", byName["ask-accept"]?.trust);
+	/*
+	 * task-trust-policy-switch · 出厂默认口径（开关默认关 = 不询问）：
+	 * settings.json 不含 defaultProjectTrust ⇒ 归一化按 always ⇒ 自动信任、加载扩展、**不提问**。
+	 * 提问数 0 是本条的关键判据（实现若回落 ask 就会弹提问）。
+	 */
+	check(
+		"③未配置 defaultProjectTrust：出厂默认自动信任（加载>0 + 提问数 0 + reason=always）",
+		byName.unset?.extensions > 0 && byName.unset?.提问数 === 0 && byName.unset?.trust?.reason === "always",
+		{ extensions: byName.unset?.extensions, 提问数: byName.unset?.提问数, trust: byName.unset?.trust },
+	);
 
 	evidence.finishedAt = new Date().toISOString();
 	evidence.summary = {

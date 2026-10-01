@@ -78,7 +78,7 @@ import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
 import { installSkillFromGitHub, SkillInstallError } from "./skills-install.ts";
 import { searchSkillsSh } from "./skills-search.ts";
 import { continueRecentSession, findSessionPath, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
-import { DEFAULT_TRUST_TIMEOUT_MS, resolveProjectTrust, type TrustDecision } from "./trust.ts";
+import { DEFAULT_TRUST_TIMEOUT_MS, readTrustPolicy, resolveProjectTrust, type TrustDecision, type TrustPolicy } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
 import { getToolsState, setToolsState } from "./tools.ts";
 
@@ -139,6 +139,23 @@ export interface CoreRuntime {
 	getTrust(): TrustDecision | null;
 	/** 实际加载到的扩展数；ready 之前为 null（信任门三态的直接证据） */
 	getExtensionCount(): number | null;
+	/**
+	 * 读「项目扩展授权询问」开关状态（task-trust-policy-switch）。
+	 * 返回**归一化后**的策略（未配置 ⇒ `always`），与 `resolveProjectTrust` 同源。
+	 * 设置页关闭开关（默认）⇒ `ask:false` + `policy:"always"` = 自动信任不询问。
+	 */
+	getTrustPolicy(): TrustPolicy;
+	/**
+	 * 写「项目扩展授权询问」开关：`ask=true` ⇒ 落盘 `defaultProjectTrust="ask"`；
+	 * `false` ⇒ 落盘 `"always"`（**不落 `"never"`**）。
+	 *
+	 * - 写入后 `flush()` 等落盘完成，「HTTP 200 = 已落盘」才成立；
+	 * - 当前策略为 `never` 时**抛错**：那是用户手工配置的「不问**且**不加载」，
+	 *   两态开关没有对应位，不许静默覆写（UI 侧该态开关已禁用，正常到不了这里）。
+	 * - 生效时机：下次 `bootProject`（启动 / `switchCwd`）重建 SettingsManager 时读取，
+	 *   无需重启；当前已 booted 的会话不受影响（资源已加载完）。
+	 */
+	setTrustPolicy(ask: boolean): Promise<TrustPolicy>;
 	/** 会话工作目录（`/sessions` 响应里带上，便于复核「列的是哪个目录的会话」） */
 	getCwd(): string;
 	/** 会话是否正在生成回复（POST /cwd 的 409 护栏判据；会话未就绪时恒 false） */
@@ -992,6 +1009,33 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		getPendingApprovals: () => bridge.listPending(),
 		getTrust: () => trust,
 		getExtensionCount: () => extensionCount,
+		/* task-trust-policy-switch：设置页「项目扩展授权询问」开关的读写 */
+		getTrustPolicy: () => {
+			// 读口径与 resolveProjectTrust 同源（readTrustPolicy 是归一化唯一实现）。
+			// ready 之前 settingsManager 为 null ⇒ 返回未配置口径（always），与「出厂默认」一致，
+			// 不抛错 —— 这个 GET 是只读的，不该因 boot 未完成而把设置页打红。
+			if (!settingsManager) return { ask: false, policy: "always" };
+			return readTrustPolicy(settingsManager);
+		},
+		setTrustPolicy: async (ask) => {
+			await ready;
+			if (!settingsManager) throw new Error("会话组件未就绪，无法切换信任策略");
+			// 写保护：`never` 是用户手工配置的「不问且不加载」，两态开关没有对应位。
+			// UI 该态开关已禁用，正常到不了这里；到了就明确报错，不静默覆写。
+			const current = readTrustPolicy(settingsManager);
+			if (current.policy === "never") {
+				throw new Error(
+					"当前 defaultProjectTrust = never（不询问且不加载），本开关无法表达该状态；" +
+						"请编辑 settings.json 将其改为 always / ask 或删除该键后再用开关",
+				);
+			}
+			settingsManager.setDefaultProjectTrust(ask ? "ask" : "always");
+			// setDefaultProjectTrust → save() → enqueueWrite("global", …) 是**异步写队列**，
+			// 不是「即存」（settings-manager.js:450-459）。等它落盘，「HTTP 200 = 已落盘」才成立。
+			// 既有先例：skills.ts:213、本文件 toggleSkill / togglePackage 两处 flush。
+			await settingsManager.flush();
+			return readTrustPolicy(settingsManager);
+		},
 		getCwd: () => cwd,
 		isStreaming: () => session?.isStreaming ?? false,
 		switchCwd,

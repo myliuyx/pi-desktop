@@ -152,6 +152,8 @@ const API_ROUTES = new Set([
 	"/session/reload",
 	// D7 · 工作目录运行期热切换
 	"/cwd",
+	// task-trust-policy-switch · 设置页「项目扩展授权询问」开关（读写 defaultProjectTrust）
+	"/trust-policy",
 	// dir-picker · 自定义路径弹窗的浏览数据源（只读列子目录）
 	"/fs/list",
 	// dir-file-preview · 侧栏文件树点开文件的预览数据源（只读限长文本）
@@ -974,6 +976,33 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			if (!level) return json(400, { ok: false, error: "缺少 level" });
 			try {
 				const payload = await runtime.setThinkingLevel(level);
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
+				return json(400, { ok: false, error: String(e) });
+			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * task-trust-policy-switch · 设置页「项目扩展授权询问」开关
+		 *
+		 * 读写 Pi settings.json 的 `defaultProjectTrust`（**全局字段**）。
+		 * 返回形状就地内联 —— 与 `/cwd`、`/fs/list` 同款，**不进 `contract.ts`**
+		 * （那三者也没进；`/thinking` 能复用 `ModelsPayload` 是特例，本批没有这个便利）。
+		 * ----------------------------------------------------------------- */
+
+		if (req.method === "GET" && urlPath === "/trust-policy") {
+			// 只读、且不依赖会话就绪（getTrustPolicy 内部对未 boot 情形返回出厂口径）
+			return json(200, { ok: true, ...runtime.getTrustPolicy() });
+		}
+
+		if (req.method === "POST" && urlPath === "/trust-policy") {
+			const body = (await readBody(req)) as { ask?: unknown };
+			// 必须严格布尔 —— 防 `"false"`（真值串）这类混入被当成 true 落盘
+			if (typeof body.ask !== "boolean") {
+				return json(400, { ok: false, error: "ask 必须是布尔值" });
+			}
+			try {
+				const payload = await runtime.setTrustPolicy(body.ask);
 				return json(200, { ok: true, ...payload });
 			} catch (e) {
 				return json(400, { ok: false, error: String(e) });

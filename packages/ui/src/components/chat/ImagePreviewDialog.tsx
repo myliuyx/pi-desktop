@@ -1,5 +1,6 @@
 /**
- * 图片大图预览弹层（2026-10-01 图片预览批次）。
+ * 图片大图预览弹层（2026-10-01 图片预览批次；同日「面板随图走」修订，
+ * 见 .plan/task-image-preview-fit.md）。
  *
  * 复用 `primitives/Dialog` 继承：遮罩点击关闭、Esc、焦点陷阱。这三项都是项目既有约定，
  * 自己重写必漏其中一条。
@@ -23,12 +24,28 @@
  *
  * ⚠️ **换图重置加载态靠调用点的 `key`**：见下面 `failed`/`loaded` 的注释。
  *
- * 图片用 `object-contain` + max-h/w：完整显示不裁切（缩略图是 object-cover，
- * 放大后必须换成 contain，否则边缘被切）。
+ * ## 面板随图走（本批修订，修「巨大白色背景、图片只有一小块」）
+ *
+ * 旧实现把面板写死近全屏 + 内层容器 `flex-1`（父级非 flex，无效）⇒ `max-h-full`
+ * 对 auto 高度包含块解析为 none ⇒ 图片按原始像素渲染、大图还被静默裁切。
+ * 现在：
+ * - 挂载即用 `new Image()` **预取自然尺寸**，`computePreviewPanelSize` 反推面板
+ *   宽高（不放大、贴视口余量）；实测回来前面板以 `IMAGE_PREVIEW_PROVISIONAL`
+ *   出现（加载/失败态同尺寸）——dataUrl/localhost 解码 <50ms 无感，慢网也不死点击。
+ * - 内层容器 `h-full`（Dialog children 包装层高度确定，`h-full` 才是真约束），
+ *   `<img>` 的 `max-h-full` 由此真正生效，大图 object-contain 完整显示不裁切。
+ * - **零内边距、图即卡**（2026-10-01 实弹后二次裁决）：曾用「白卡 + p-4」形态，
+ *   深色图会衬出白框（用户实弹否决）⇒ 面板 = 图片显示盒，圆角/阴影由 Dialog
+ *   面板裁在图上；加载/失败文案自带 p-6。
+ * - 同 src 二次解码走内存缓存，预取无双重下载；`natural ≤ 0` 按加载失败处理。
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog } from "@/components/primitives";
 import { POPOVER_Z } from "@/lib/layout";
+import {
+  computePreviewPanelSize,
+  IMAGE_PREVIEW_PROVISIONAL,
+} from "@/lib/image-preview-size";
 
 export interface ImagePreviewDialogProps {
   /** 受控开关（调用方按「有预览对象才渲染」的条件渲染口径传入恒 true）。
@@ -64,21 +81,62 @@ export function ImagePreviewDialog({
    */
   const [failed, setFailed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  /** 预取到的自然尺寸；null = 实测未回（面板停在预置尺寸） */
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+
+  /*
+   * 预取自然尺寸：面板随图走的依据。`key={src}` 已保证换图重挂（state 归零），
+   * effect 依赖 `src` 重跑 + cancelled 清理只是防御（调用点漏 key 时不串尺寸）。
+   */
+  useEffect(() => {
+    setNatural(null);
+    setFailed(false);
+    let cancelled = false;
+    const probe = new Image();
+    probe.onload = () => {
+      if (cancelled) return;
+      // onload 但自然尺寸 0（某些损坏图）：按失败走，避免 scale 除 0 / 荒诞面板
+      if (probe.naturalWidth <= 0 || probe.naturalHeight <= 0) {
+        setFailed(true);
+        return;
+      }
+      setNatural({ w: probe.naturalWidth, h: probe.naturalHeight });
+    };
+    probe.onerror = () => {
+      if (!cancelled) setFailed(true);
+    };
+    probe.src = src;
+    return () => {
+      cancelled = true;
+    };
+  }, [src]);
+
+  const { width, height } = natural
+    ? computePreviewPanelSize(natural.w, natural.h, window.innerWidth, window.innerHeight)
+    : IMAGE_PREVIEW_PROVISIONAL;
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
       label={alt}
-      /* 全屏尺寸留出边距：图片按 contain 自适应，面板本身不裁切 */
-      width={Math.min(window.innerWidth - 48, 1600)}
-      height={Math.min(window.innerHeight - 48, 1200)}
+      /* 面板随图走：实测前预置小尺寸，实测后贴图（不放大 / 大图贴视口余量） */
+      width={width}
+      height={height}
       zIndex={POPOVER_Z}
       testId="image-preview-dialog"
     >
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-bg-elevated p-4">
+      {/*
+        * 零内边距、图即卡：容器不带 padding，<img> 铺满面板块（圆角/阴影由
+        * Dialog 面板 overflow-hidden + rounded-lg 裁在图上）。
+        * h-full 是本批 contain 链的修复点：Dialog 的 children 包装层是普通 block
+        * （高度确定），这里曾写 flex-1（父级非 flex ⇒ 无效 ⇒ 高度 auto ⇒
+        * <img> 的 max-h-full 解析为 none，图片按原始像素渲染、大图被裁）。
+        * h-full 让本容器高度确定，max-h-full 由此真正钳住。
+        */}
+      <div className="flex min-h-0 h-full items-center justify-center overflow-auto bg-bg-elevated">
         {failed ? (
-          <p data-testid="image-preview-error" className="text-sm text-text-secondary">
+          <p data-testid="image-preview-error" className="p-6 text-sm text-text-secondary">
             {errorText}
           </p>
         ) : (
@@ -93,7 +151,7 @@ export function ImagePreviewDialog({
           />
         )}
         {!loaded && !failed ? (
-          <p className="text-sm text-text-secondary" data-testid="image-preview-loading">
+          <p className="p-6 text-sm text-text-secondary" data-testid="image-preview-loading">
             加载中…
           </p>
         ) : null}

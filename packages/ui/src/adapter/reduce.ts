@@ -31,6 +31,43 @@ export function createDraft(messages: Message[] = []): DraftState {
 }
 
 /* ---------------------------------------------------------------------------
+ * 授权请求辅助（hostless-approval-overlay 批次）
+ * ------------------------------------------------------------------------- */
+
+/**
+ * `approval_request` 是否有宿主可挂 —— 镜像下方 approval_request case 的宿主判据
+ * （`currentAssistantId ?? 最后一条 assistant`）。
+ *
+ * 无宿主 = 事件进消息树会被 case 里的 `if (!ownerId) return state` **静默丢弃**。
+ * 信任门提问恰恰发生在零消息时刻（cwd 切换/启动期，新建会话草稿态 liveDraft 为空树）
+ * → chat-store 的 SSE 路由据此把无宿主事件改落顶层 `pendingApprovals`，由 App 级
+ * ApprovalOverlay 渲染；有宿主照旧走消息树（流式工具审批行为零变化）。
+ */
+export function approvalRequestHasHost(state: Pick<DraftState, "messages" | "currentAssistantId">): boolean {
+	return (state.currentAssistantId ?? lastAssistantId(state.messages)) !== null;
+}
+
+/**
+ * `approval_request` 事件 → `ApprovalBlock`：消息树内嵌卡与全局浮层**共用一份映射**，
+ * 口径只有一处（options 缺省归一为 `[]`；method/placeholder/timeoutMs 缺省透传为
+ * undefined；resolved 不在此写 —— 未决态由渲染层可点，结算见 approval_settled）。
+ */
+export function approvalEventToBlock(event: Extract<AgentEvent, { type: "approval_request" }>): ApprovalBlock {
+	return {
+		type: "approval",
+		requestId: event.requestId,
+		title: event.title,
+		message: event.message,
+		options: event.options ?? [],
+		// A1：请求形态与占位提示一并透传（缺省为 undefined，mock 行为不变）
+		method: event.method,
+		placeholder: event.placeholder,
+		// C3：请求带超时时一并带下去，卡片据此渲染倒计时/失效态（无则不渲染，mock 行为不变）
+		timeoutMs: event.timeoutMs,
+	};
+}
+
+/* ---------------------------------------------------------------------------
  * 内部工具
  * ------------------------------------------------------------------------- */
 
@@ -285,22 +322,13 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 			};
 
 	case "approval_request": {
-		// 授权请求挂在当前流式 assistant 消息后（无则挂到最后一条 assistant）
+		// 授权请求挂在当前流式 assistant 消息后（无则挂到最后一条 assistant）。
+		// 无宿主（信任门在空树时提问）不会走到这里 —— chat-store 的 SSE 路由已按
+		// approvalRequestHasHost 把这类事件改落顶层 pendingApprovals（全局浮层渲染）。
 		const ownerId = state.currentAssistantId ?? lastAssistantId(state.messages);
 		if (!ownerId) return state;
-		const block: ApprovalBlock = {
-			type: "approval",
-			requestId: event.requestId,
-			title: event.title,
-			message: event.message,
-			options: event.options ?? [],
-			// A1：请求形态与占位提示一并透传（缺省为 undefined，mock 行为不变）
-			method: event.method,
-			placeholder: event.placeholder,
-			// C3：请求带超时时一并带下去，卡片据此渲染倒计时/失效态（无则不渲染，mock 行为不变）
-			timeoutMs: event.timeoutMs,
-			// resolved 不在这里写：未决态由 UI 渲染可点；结算见 approval_settled
-		};
+		// 块构造与全局浮层共用 approvalEventToBlock（hostless-approval-overlay 批次收敛）
+		const block: ApprovalBlock = approvalEventToBlock(event);
 		return {
 			...state,
 			messages: replaceMessage(state.messages, ownerId, (m) => ({ ...m, blocks: [...m.blocks, block] })),
