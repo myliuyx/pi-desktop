@@ -287,7 +287,9 @@ export interface TokenUsage {
   /**
    * 当前**已用**上下文 tokens（Pi `AgentSession.getContextUsage().tokens`，随对话增长）。
    *
-   * 可选；缺失时 `TokenStats` 回落显示 `contextWindow`（验收 2-14 的 `128k`）。
+   * 可选；缺失时**不回落**到窗口大小，而是显式降级为未知：环数值位显示 `—`
+   * （`ComposerContextRing` 的 `known`/`valueText`）、浮框上下文行显示 `— / —`
+   * （`ComposerTokenPopover` 的 `knownContext`/`contextText`）。
    * 两个来源都会填：① `usage` 事件的实时快照；② 历史会话加载时由 `foldUsage`
    * 按 Pi `calculateContextTokens` 同式（`totalTokens || input+output+cacheRead+cacheWrite`）算出。
    * **仅当两侧都未知**（mock 数据、刚压缩完的下一次回复前）才缺省 —— 避免下发 0 的假数据。
