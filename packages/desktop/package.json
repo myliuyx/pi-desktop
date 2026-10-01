@@ -63,6 +63,7 @@
         "AppImage",
         "deb"
       ],
+      "icon": "build/icons",
       "executableName": "pi-workbench",
       "maintainer": "myliuyx <myliuyx@users.noreply.github.com>"
     },
