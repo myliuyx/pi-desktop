@@ -27,9 +27,12 @@ import {
 import type { Block, Message, TerminalBlock } from "@/mock/types";
 import { COMPOSER_MODELS } from "@/mock/composer";
 import { useModelsStore } from "@/store/models-store";
+import { useChatStore } from "@/store/chat-store";
+import { useUiStore } from "@/store/ui-store";
 import { formatMessageTime, speedTone, type SpeedTone } from "@/lib/format";
 import { toolArgsPreview } from "@/lib/tool-preview";
 import { buildTurnIndex, type TurnMembership } from "@/lib/turns";
+import { collectTurnFiles, type TurnFileEntry } from "@/lib/turn-files";
 import {
   buildPreviewTexts,
   collectRailTurns,
@@ -46,6 +49,7 @@ import { ToolCallCard } from "./ToolCallCard";
 import { ApprovalCard } from "./ApprovalCard";
 import { ProcessGroupRow } from "./ProcessGroupRow";
 import { MessageErrorCard } from "./MessageErrorCard";
+import { TurnFileChips } from "./TurnFileChips";
 import { TurnRail } from "./TurnRail";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
 import { getLiveConfig } from "@/lib/feature-flags";
@@ -202,6 +206,31 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
     },
     [settledTurnKeys, expandedTurns, toggleTurn],
   );
+
+  /*
+   * 轮次改动文件表（task-turn-file-chips.md）：每个 turn 推导一次「写成功的文件清单」，
+   * 只在尾条渲染 chips 行。与 turnIndex 同依赖（messages/sessionScope）+ liveCwd
+   * （相对路径绝对化与展示口径）——lib/turn-files.ts 纯函数，空清单不进表（不渲染行）。
+   */
+  const liveCwd = useChatStore((state) => state.liveCwd);
+  const turnFilesByKey = useMemo(() => {
+    const map = new Map<string, TurnFileEntry[]>();
+    const seen = new Set<string>();
+    for (const { turn } of turnIndex.values()) {
+      if (seen.has(turn.key)) continue;
+      seen.add(turn.key);
+      const files = collectTurnFiles(messages, turn, liveCwd);
+      if (files.length > 0) map.set(turn.key, files);
+    }
+    return map;
+  }, [turnIndex, messages, liveCwd]);
+
+  /** chip 点击 → 右侧预览打开该文件（WorkingDirFileTree openFile 同款两行模式） */
+  const openFileInPreview = useCallback((path: string) => {
+    const ui = useUiStore.getState();
+    ui.setPreviewFilePath(path);
+    if (ui.previewCollapsed) ui.togglePreview();
+  }, []);
   /**
    * 是否处于「我们主动贴底」的过程中。
    *
@@ -580,6 +609,12 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
                     message={message}
                     turn={turn}
                     onPreviewImage={openPreview}
+                    turnFiles={
+                      membership?.isTail === true
+                        ? turnFilesByKey.get(membership.turn.key)
+                        : undefined
+                    }
+                    onOpenFile={openFileInPreview}
                   />
                 )}
               </div>
@@ -749,6 +784,8 @@ function MessageItem({
   message,
   turn,
   onPreviewImage,
+  turnFiles,
+  onOpenFile,
 }: {
   message: Message;
   turn?: MessageTurnInfo;
@@ -756,6 +793,11 @@ function MessageItem({
       必传：MessageItem 只有 MessageList 一个调用点，那里恒有 openPreview —— 可选化就得
       造一个「点了没反应」的哑按钮（本仓明令避免的陷阱）。 */
   onPreviewImage: (src: string, alt: string, trigger?: HTMLElement | null) => void;
+  /** 本轮「写成功的文件」清单（task-turn-file-chips.md）——仅尾条由 MessageList 传入，
+      空清单不传（不渲染行，哑交互禁令）；chips 行折叠/展开都显示（折叠只藏过程块）。 */
+  turnFiles?: TurnFileEntry[];
+  /** chip 点击 → 右侧文件预览（MessageList 层的 openFile，同 WorkingDirFileTree 先例） */
+  onOpenFile: (path: string) => void;
 }) {
   const isUser = message.role === "user";
   /*
@@ -857,6 +899,11 @@ function MessageItem({
       {/* 模型请求失败直出（2026-09-28 用户裁决）：失败空壳不再被吞，错误框摆在
           内容块之后 / 时间戳之前 —— 模型标签照常在左上角，与参考截图同构 */}
       {message.errorMessage ? <MessageErrorCard message={message.errorMessage} /> : null}
+      {/* 本次修改文件 chips（task-turn-file-chips.md）：轮级元数据与 footer 同类——
+          摆在内容块/错误框之后、footer 之前（参考截图同落点）；折叠轮的尾条照常显示 */}
+      {turnFiles !== undefined && turnFiles.length > 0 ? (
+        <TurnFileChips files={turnFiles} onOpenFile={onOpenFile} />
+      ) : null}
       {/* 底部元信息行（F2 用量 + 2026-09-27 消息时间）：两个角色统一交 MessageFooter ——
           usage 契约上只存在于 assistant 消息，user 行自动退化为仅时间的右对齐小字 */}
       <MessageFooter usage={message.usage} timestamp={message.timestamp} />
