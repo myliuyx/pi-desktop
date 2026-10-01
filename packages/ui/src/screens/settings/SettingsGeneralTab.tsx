@@ -10,7 +10,7 @@ import {
   useWorkingDirectoryView,
 } from "@/components/shell/WorkingDirectoryMenu";
 import { Switch } from "@/components/screens/Switch";
-import { COMPOSER_THINKING_LEVELS, THINKING_LABEL } from "@/mock/composer";
+import { COMPOSER_THINKING_LEVELS, THINKING_LABEL, THINKING_LEVEL_OPTIONS } from "@/mock/composer";
 import type { ThinkingLevel } from "@/mock/types";
 import {
   PI_FIELD_NAMES,
@@ -76,6 +76,36 @@ export function SettingsGeneralTab() {
     ? pickActiveThinking(liveModels, thinkingLevel)
     : thinkingLevel;
 
+  /*
+   * ★ 档位清单（2026-10-01）：live 下**不再写死** Low/High/Max 三档。
+   *
+   * 数据源是 core 的 `GET /models.availableThinkingLevels` —— Pi 按**当前模型的真实能力**
+   * 动态算出（`getSupportedThinkingLevels`：先看 `model.reasoning`，再看 `thinkingLevelMap`
+   * 决定 xhigh / max 在不在；见 pi/packages/ai/src/models.ts:1211）。
+   *
+   * 既往写死三档的代价（2026-10-01 复盘）：本机不少模型 `reasoning: false`
+   * ⇒ core 只给 `["off"]`，但界面照样渲染 Low/High/Max 三个**可点**的芯片；
+   * 点了 High 会真的写进 `settings.json`（`defaultThinkingLevel: "high"`），
+   * 却因为不在可用集合里而回落到 off 显示（`pickActiveThinking`）——
+   * 用户看到的是「点了没反应，High 永远不亮」。
+   *
+   * 不可用档位**灰显而非隐藏**（用户裁决）：让用户知道「存在这一档，但当前模型不支持」，
+   * 也能解释为什么切到某个模型后档位突然变少。
+   */
+  const levels: readonly ThinkingLevel[] = live
+    ? liveModels && liveModels.availableThinkingLevels.length > 0
+      ? liveModels.availableThinkingLevels
+      : THINKING_LEVEL_OPTIONS
+    : COMPOSER_THINKING_LEVELS;
+
+  /** 灰显的档位：全集减去 core 报告可用的（mock 形态没有 core 可问，不灰显任何东西） */
+  const unavailableLevels: readonly ThinkingLevel[] = live
+    ? THINKING_LEVEL_OPTIONS.filter((level) => !levels.includes(level))
+    : [];
+
+  /** 「可用 + 灰显」合并渲染；两组不可能相交（unavailable 是 levels 的补集） */
+  const renderedLevels: readonly ThinkingLevel[] = [...levels, ...unavailableLevels];
+
   const selectThinking = (level: ThinkingLevel) => {
     setThinkingLevel(level);
     const transport = getLiveTransport();
@@ -100,17 +130,23 @@ export function SettingsGeneralTab() {
         note={`对齐 Pi 的 ${PI_FIELD_NAMES.thinking} · 档位取值与工具条同源`}
       >
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          {COMPOSER_THINKING_LEVELS.map((level) => {
+          {renderedLevels.map((level) => {
             const active = level === activeThinking;
+            const available = !unavailableLevels.includes(level);
             return (
               <Chip
                 key={level}
                 data-testid="settings-thinking-option"
                 data-thinking-level={level}
                 data-active={active}
+                /* 灰显态的判定位：验收脚本据此断言「灰显的确实就是 core 说不可用的」 */
+                data-available={available}
                 variant={active ? "accent" : "neutral"}
                 selected={active}
-                onClick={() => selectThinking(level)}
+                /* 不可用档位点不动（disabled 原生阻断键盘/鼠标，另加 available 守卫双保险） */
+                disabled={!available}
+                title={available ? undefined : `当前模型不支持 ${THINKING_LABEL[level]}`}
+                onClick={available ? () => selectThinking(level) : undefined}
               >
                 {THINKING_LABEL[level]}
               </Chip>

@@ -30,7 +30,6 @@ const coreDir = path.join(uiDir, "..", "core");
 const tsxPath = path.join(coreDir, "node_modules", "tsx", "dist", "cli.mjs");
 /** ⚠️ 必须绝对路径：本脚本把 core 的 cwd 指到临时项目目录，相对路径会解析到临时目录下（首跑实踩） */
 const mainPath = path.join(coreDir, "src", "main.ts");
-const modelsSrc = path.resolve(coreDir, "..", "..", "pi", "_poc", "models.json");
 const fixtureDir = path.join(coreDir, "test", "fixtures", "resources");
 const evidencePath = path.join(uiDir, "_probe-c5-evidence.json");
 
@@ -51,24 +50,50 @@ fs.writeFileSync(path.join(agentDir, "settings.json"), JSON.stringify({ defaultP
 for (const kind of ["extensions", "skills", "prompts"]) {
 	fs.cpSync(path.join(fixtureDir, kind), path.join(agentDir, kind), { recursive: true });
 }
-/* 2026-09-24：CORE_MODELS_PATH 覆盖口已删 —— 合成清单直接写进 agentDir（Pi 的约定位置） */
+/*
+ * 合成模型清单（2026-10-01 改内联，不再读 `pi/_poc/models.json`）。
+ *
+ * 旧夹具源已随 POC 资产一起清掉（`pi/_poc/` 现为空目录，而 `pi/` 本身被
+ * `.gitignore:45` 整体忽略、换机即无）—— 脚本连读都读不到，压根跑不起来。
+ * 改为照抄 `probe-settings-live.mjs` 的内联夹具范式：清单只落在临时 agentDir，
+ * 绝不碰 `~/.pi/agent`。
+ *
+ * 档位判据要 `reasoning: true` 才有非平凡的可用集合（`getSupportedThinkingLevels`
+ * 对 `reasoning: false` 恒返回 `["off"]`），故两个模型都显式声明 `reasoning: true`。
+ */
+const FIXTURE_BASE_URL = "https://ark.cn-beijing.volces.com/api/coding/v3";
 const modelsPath = path.join(agentDir, "models.json");
+const fixtureModel = (id, name) => ({
+  id,
+  name,
+  reasoning: true,
+  input: ["text"],
+});
 {
-	const src = JSON.parse(fs.readFileSync(modelsSrc, "utf8"));
-	const base = src.providers["ark-coding"];
-	fs.writeFileSync(
-		modelsPath,
-		JSON.stringify(
-			{
-				providers: {
-					...src.providers,
-					[ALT_PROVIDER]: { ...base, models: [{ ...base.models[0], id: ALT_MODEL_ID, name: "DeepSeek V4 Pro (fixture)" }] },
-				},
-			},
-			null,
-			2,
-		),
-	);
+  const provider = {
+    name: "Ark Coding",
+    baseUrl: FIXTURE_BASE_URL,
+    api: "openai-completions",
+    apiKey: "$ARK_API_KEY",
+    models: [fixtureModel("deepseek-v4-flash", "DeepSeek V4 Flash (fixture)")],
+  };
+  fs.writeFileSync(
+    modelsPath,
+    JSON.stringify(
+      {
+        providers: {
+          "ark-coding": provider,
+          // 合成第二个 provider（同一个 env key）—— 让「切换模型」有第二个可选项
+          [ALT_PROVIDER]: {
+            ...provider,
+            models: [fixtureModel(ALT_MODEL_ID, "DeepSeek V4 Pro (fixture)")],
+          },
+        },
+      },
+      null,
+      2,
+    ),
+  );
 }
 
 const settingsFile = path.join(agentDir, "settings.json");
@@ -275,16 +300,29 @@ try {
 		await sleep(500);
 		const general = await cdp.eval(`(() => ({
 		  chips: [...document.querySelectorAll('[data-testid="settings-thinking-option"]')].map((el) => ({
-		    level: el.dataset.thinkingLevel, active: el.dataset.active,
+		    level: el.dataset.thinkingLevel, active: el.dataset.active, available: el.dataset.available,
 		  })),
 		  modelOptions: document.querySelectorAll('[data-testid="settings-model-option"]').length,
 		}))()`);
 		ctx.record("设置弹窗 · 常规 Tab 快照", general);
-		A("C5[设置弹窗] 思考档位仍是 mock 契约的 3 档（Low/High/Max，未因 live 改结构）", {
-			三档: general.chips.length === 3,
-			档位值不变: JSON.stringify(general.chips.map((c) => c.level)) === JSON.stringify(["low", "high", "max"]),
-			无mock之外的档位: !general.chips.some((c) => ["off", "minimal", "medium", "xhigh"].includes(c.level)),
-			初始无激活_未持久化: general.chips.every((c) => c.active === "false"),
+		/*
+		 * 判据改为**与 core 下发的真值对齐**（2026-10-01）。
+		 *
+		 * 旧断言锁的是「live 也不许动 mock 契约的 3 档」—— 那与「档位不写死、读 Pi 真实
+		 * 可用集合」直接冲突，已废弃。新的防漂移意图（仍要有）改由「与 core 一致」承担。
+		 */
+		const coreLevelsSnapshot = (await request("GET", "/models")).json?.availableThinkingLevels ?? [];
+		const chipAvailable = general.chips.filter((c) => c.available !== "false").map((c) => c.level);
+		const chipGray = general.chips.filter((c) => c.available === "false").map((c) => c.level);
+		ctx.record("档位与 core 真值对照", { core: coreLevelsSnapshot, 可用: chipAvailable, 灰显: chipGray });
+		A("C5[设置弹窗] 思考档位与 core 下发的可用集合一致（不再写死 3 档）", {
+			可用档位与core逐项相等: JSON.stringify(chipAvailable) === JSON.stringify(coreLevelsSnapshot),
+			无core之外的可用档位: chipAvailable.every((l) => coreLevelsSnapshot.includes(l)),
+		});
+		A("C5[设置弹窗] 不可用档位灰显（可见但点不动），且确实是 core 说不可用的那些", {
+			灰显非空_有东西可解释: chipGray.length > 0,
+			灰显档位均不在core可用集: chipGray.every((l) => !coreLevelsSnapshot.includes(l)),
+			灰显不与可用相交: !chipGray.some((l) => coreLevelsSnapshot.includes(l)),
 		});
 		A("C5[设置弹窗] D3 修订：常规 Tab 不再挂模型单选组（模型管理已迁到「模型」Tab）", {
 			常规Tab无模型选项: general.modelOptions === 0,
@@ -301,7 +339,7 @@ try {
 		const afterThink = readSettings();
 		const modelsAfterThink = (await request("GET", "/models")).json ?? {};
 		const chipsAfter = await cdp.eval(
-			`[...document.querySelectorAll('[data-testid="settings-thinking-option"]')].map((el) => ({ level: el.dataset.thinkingLevel, active: el.dataset.active }))`,
+			`[...document.querySelectorAll('[data-testid="settings-thinking-option"]')].map((el) => ({ level: el.dataset.thinkingLevel, active: el.dataset.active, available: el.dataset.available }))`,
 		);
 		ctx.record("切换思考档位后", {
 			已点击: clickedThinking,

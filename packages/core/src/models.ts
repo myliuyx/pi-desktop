@@ -24,8 +24,46 @@
 import type { ModelRuntime, SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { ModelInfo, ModelsPayload, ThinkingLevelName } from "./contract.ts";
 
-/** 全档位（顺序即 UI 展示顺序，与 `mock/composer.ts` 的 `THINKING_LABEL` 键一致） */
-export const THINKING_LEVELS: readonly ThinkingLevelName[] = [
+/**
+ * 全档位 —— **运行时从 Pi 加载，不再手抄**（2026-10-01）。
+ *
+ * 既往此处是一份手抄的 7 档，抄自 Pi `core/defaults.ts` 的 `THINKING_LEVEL_OPTIONS`，
+ * 且**没有任何断言守住**——Pi 升版加一档，这里会静默失配（`normalizeThinkingLevel` 变成
+ * 错误的白名单 ⇒ 该档位被当作非法值丢弃）。
+ *
+ * ## 为什么不能用 `import { THINKING_LEVEL_OPTIONS } from "@earendil-works/pi-coding-agent"`
+ * Pi **根入口没有导出**它（实测 `'THINKING_LEVEL_OPTIONS' in import(pkg) === false`；
+ * 同包的 `getAgentDir` / `createAgentSession` 都导出了，就 `core/defaults.ts` 这两个漏了），
+ * 深路径 `dist/core/defaults.js` 又被 package.json 的 `exports` 挡掉
+ * （`ERR_PACKAGE_PATH_NOT_EXPORTED`）。故只能 `import.meta.resolve` 定位根入口，
+ * 再按其相对位置取同级 `core/defaults.js`。
+ *
+ * 已在三处实测通过：`tsc --noEmit` / `tsc -p tsconfig.build.json` 产物的运行时 /
+ * electron 打包产物（`extraResources` 把 `core/node_modules` 整体带进安装包）。
+ *
+ * ⚠️ 加载失败必须回落而不是崩：core 起不来 ⇒ 设置页与工具条全废，代价远大于
+ *   「档位清单偶尔旧了」。兜底内容由 `npm run check:thinking-levels` 钉死
+ *   （Pi 一改就红），所以这里的字面量不是数据源，只是**不能没有的兜底**。
+ */
+const PI_ENTRY_URL = import.meta.resolve("@earendil-works/pi-coding-agent");
+
+const piThinkingDefaults = await (async () => {
+  try {
+    return (await import(new URL("./core/defaults.js", PI_ENTRY_URL).href)) as {
+      THINKING_LEVEL_OPTIONS?: unknown[];
+      DEFAULT_THINKING_LEVEL?: unknown;
+    };
+  } catch (e) {
+    console.warn(
+      `[core] 警告: 无法从 Pi 加载思考档位全集（${e instanceof Error ? e.message : String(e)}），` +
+        `回落内置兜底清单（档位集合可能与当前 Pi 版本不一致）`,
+    );
+    return null;
+  }
+})();
+
+/** Pi 加载失败时的兜底（内容由 `check:thinking-levels` 保证与 Pi 一致） */
+const FALLBACK_THINKING_LEVELS: readonly string[] = [
   "off",
   "minimal",
   "low",
@@ -33,7 +71,19 @@ export const THINKING_LEVELS: readonly ThinkingLevelName[] = [
   "high",
   "xhigh",
   "max",
-] as const;
+];
+
+/**
+ * 全档位（顺序即 UI 展示顺序，与 `mock/composer.ts` 的 `THINKING_LABEL` 键一致）。
+ *
+ * 只过滤「非字符串」这一类明显脏值：Pi 是可信上游，具体档位集合由
+ * `check:thinking-levels` 逐项比对（长度 + 顺序 + 值），不在运行时重复它的职责。
+ */
+export const THINKING_LEVELS: readonly ThinkingLevelName[] = (
+  Array.isArray(piThinkingDefaults?.THINKING_LEVEL_OPTIONS)
+    ? piThinkingDefaults.THINKING_LEVEL_OPTIONS
+    : FALLBACK_THINKING_LEVELS
+).filter((x): x is ThinkingLevelName => typeof x === "string");
 
 /** 白名单式归一：Pi 的 `ThinkingLevel` 与我们的字面量集合一致；非法值一律 null */
 export function normalizeThinkingLevel(value: unknown): ThinkingLevelName | null {
