@@ -16,12 +16,11 @@ import type { ModelsPayload } from "@/mock/types";
  * 2. `GET /models` 清单里**当前模型**的 `contextWindow` —— 覆盖"usage 事件还没来"
  *    的空窗期。清单是 UI 已有的 `models-store` 数据源（Composer 的模型芯片、
  *    粘图门控都在用它），不新增请求。
- * 3. 都取不到 → `0` = **未知**。本函数只解析、不渲染：当前消费方
- *    （`ComposerContextRing` / `ComposerTokenPopover`）尚未处理未知窗口，拿到 `0`
- *    仍会当已知值渲染 —— 环数值位走 `formatCompact(0)` 显示 `"0"`、浮框上下文行
- *    显示 `"— / 0"`。这在窗口未知时依旧是假事实（0 不是任何模型的真实窗口），
- *    故**渲染侧改造**（本批次后续任务，不是本函数职责）需把未知态改为：数值位
- *    显示 `—`、浮框上下文行显示 `— / —`。
+ * 3. 都取不到 → `0` = **未知**。这是本函数与渲染层之间的**不变量**：返回 `0` 时，
+ *    环数值位渲染 `—`（`ComposerContextRing.tsx` 的 `known` / `valueText`），
+ *    浮框上下文行渲染 `— / —`（`ComposerTokenPopover.tsx` 的 `knownContext` /
+ *    `contextText`）。`0` 不是任何模型的真实窗口，把它当已知值渲染即假事实（D9）；
+ *    回落成 `formatCompact(0)` 的 `0` 同样不允许。
  *
  * ## 为什么不回落任何默认值
  * 「窗口未知就显示 128k」正是本批次要根治的假事实（D9 纪律）。未知就是未知：
