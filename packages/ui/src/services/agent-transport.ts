@@ -22,6 +22,7 @@ import type {
 	PackageUpdateResult,
 	PackagesPayload,
 	PackageUpdatesPayload,
+	PromptDisposition,
 	ResourcesPayload,
 	SessionLoadResult,
 	SessionReloadResult,
@@ -32,6 +33,8 @@ import type {
 	SkillToggleRequest,
 	SkillToggleResult,
 	SkillsPayload,
+	SlashCommandItem,
+	SlashCommandsPayload,
 	ThinkingLevelName,
 	ToolsPayload,
 } from "@/mock/types";
@@ -159,6 +162,10 @@ export interface FsSearchResult {
 
 /** `POST /prompt` 的返回（at-file 批次 §4.2）：无 skippedFiles 时恒空数组 */
 export interface PromptSendResult {
+  /**
+   * 本次输入如何被派发（斜杠命令批次）：handled=命令已执行（无消息）/ started=已发模型 / queued=排队
+   */
+  disposition: PromptDisposition;
   /**
    * 当前读不到的 @引用（用户输入原样 + 括注原因），UI 据此弹通知。
    * ★ 2026-10-02：@引用不再注入模型上下文（内容交给模型自己 read/ls），
@@ -290,6 +297,10 @@ export interface AgentTransport {
    * `listResources()` 的已加载子集是两回事）。失败抛错，文案取 core 的 `{ error }` 原文。
    */
   listSkills(): Promise<SkillsPayload>;
+  /**
+   * 斜杠命令清单（内置 / 扩展 / 技能）；core 组装，UI 只渲染。失败抛错
+   */
+  getSlashCommands(): Promise<SlashCommandsPayload>;
   /**
    * 设置弹窗 · 技能 Tab：切换启用态（core 写 settings 模式数组 → `session.reload()`）。
    * 返回切换后的**最新清单**（UI 直接整体替换，免二次拉取）。
@@ -535,13 +546,22 @@ export class HttpAgentTransport implements AgentTransport {
     // fileRefs/images 缺省/空时不带字段——请求体与旧版逐字节相同（旧 core 零风险）
     const refs = opts?.fileRefs && opts.fileRefs.length > 0 ? { fileRefs: opts.fileRefs } : {};
     const imgs = opts?.images && opts.images.length > 0 ? { images: opts.images } : {};
-    const body = await this.post<{ ok?: boolean; skippedFiles?: unknown; skippedImages?: unknown }>("/prompt", {
+    const body = await this.post<{
+      ok?: boolean;
+      disposition?: unknown;
+      skippedFiles?: unknown;
+      skippedImages?: unknown;
+    }>("/prompt", {
       text,
       ...refs,
       ...imgs,
     });
     const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : []);
+    const d = body?.disposition;
+    const disposition: PromptDisposition =
+      d === "handled" || d === "queued" || d === "started" ? d : "started"; // 旧 core 无该字段：按旧语义（正常发模型）处理，不误撤消息
     return {
+      disposition,
       skippedFiles: strings(body?.skippedFiles),
       skippedImages: strings(body?.skippedImages),
     };
@@ -850,6 +870,19 @@ export class HttpAgentTransport implements AgentTransport {
       throw new Error(detail ?? `读取技能清单失败（HTTP ${res.status}）`);
     }
     return body;
+  }
+
+  /**
+   * 斜杠命令清单（内置 / 扩展 / 技能）：`GET /slash-commands`，core 组装，UI 只渲染。
+   * `commands` / `builtinAvailable` 逐字段归一（缺字段回落空数组 / false），
+   * 失败（非 2xx / 旧 core 无此路由的 SPA 回退非 JSON）由 `this.get` 抛错。
+   */
+  async getSlashCommands(): Promise<SlashCommandsPayload> {
+    const body = await this.get<{ ok?: unknown; commands?: unknown; builtinAvailable?: unknown }>("/slash-commands");
+    return {
+      commands: Array.isArray(body?.commands) ? (body.commands as SlashCommandItem[]) : [],
+      builtinAvailable: body?.builtinAvailable === true,
+    };
   }
 
   /**

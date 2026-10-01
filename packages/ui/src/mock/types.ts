@@ -65,6 +65,13 @@ export type {
   PackageUpdatesPayload,
   PackagesPayload,
   SessionReloadResult,
+  /* 斜杠命令批次：命令清单与回执类型（core 契约，UI 只 import type） */
+  SlashCommandSource,
+  SlashCommandScope,
+  SlashCommandItem,
+  SlashCommandsPayload,
+  PromptDisposition,
+  CompactionReason,
 } from "../../../core/src/contract.ts";
 
 import type { Block, BlockType } from "../../../core/src/contract.ts";
