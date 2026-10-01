@@ -46,6 +46,7 @@ import type {
 	PackageUpdateResult,
 	PackagesPayload,
 	PackageUpdatesPayload,
+	PromptDisposition,
 	ProviderModelsRequest,
 	ProviderModelsResult,
 	ProvidersPayload,
@@ -58,6 +59,7 @@ import type {
 	SkillToggleRequest,
 	SkillToggleResult,
 	SkillsPayload,
+	SlashCommandsPayload,
 	ResourcesPayload,
 	SessionLoadResult,
 	SessionSummary,
@@ -78,6 +80,7 @@ import { collectSkillsPayload, toggleSkillInSettings } from "./skills.ts";
 import { installSkillFromGitHub, SkillInstallError } from "./skills-install.ts";
 import { searchSkillsSh } from "./skills-search.ts";
 import { continueRecentSession, findSessionPath, listSessions, loadSessionById, usageFromActiveBranch, type SessionRef } from "./sessions.ts";
+import { buildSlashCommandsPayload, matchBuiltinCommand, scopeOfSource } from "./slash-commands.ts";
 import { DEFAULT_TRUST_TIMEOUT_MS, readTrustPolicy, resolveProjectTrust, type TrustDecision, type TrustPolicy } from "./trust.ts";
 import { createUiBridge, type ApprovalRequestEvent, type UiBridge } from "./ui-context.ts";
 import { getToolsState, setToolsState } from "./tools.ts";
@@ -117,12 +120,11 @@ function sessionImageMime(raw: unknown): string {
 
 export interface CoreRuntime {
 	/**
-	 * 发送一条用户消息（驱动模型）。会等会话就绪（信任门裁决在此期间完成）。
-	 * `images` 为 @file 引用展开出的图片附件（at-file 批次，task-composer-at-file.md
-	 * §4.2），走 AgentSession.prompt 的 PromptOptions.images；文本文件的展开在 server
-	 * 层拼进 text，不过这里。
+	 * 发送一条用户消息（驱动模型）或执行一条内置斜杠命令。
+	 * 返回 `PromptDisposition`：命中内置命令 / 被扩展命令消费 = `"handled"`（无消息产生），
+	 * 否则 `"started"` / `"queued"`。UI 据此撤回乐观回显。
 	 */
-	prompt(text: string, images?: PromptImage[]): Promise<void>;
+	prompt(text: string, images?: PromptImage[]): Promise<PromptDisposition>;
 	/** 中止当前会话（Pi 公开 API） */
 	abort(): Promise<void>;
 	/** 订阅 Pi 原始事件管道（未经翻译；core 侧再经 toAgentEvent 适配后下发 SSE） */
@@ -273,6 +275,11 @@ export interface CoreRuntime {
 	/** 设置启用工具集（`POST /tools/active {names}`；未注册名抛错 → 400） */
 	setTools(names: string[]): Promise<ToolsPayload>;
 
+	/**
+	 * 斜杠命令清单（内置 + 扩展 + 技能；斜杠命令批次）。
+	 * 数据源全部是 pi 公开 getter；技能过 settings 的 `getEnableSkillCommands()` 闸门。
+	 */
+	getSlashCommands(): Promise<SlashCommandsPayload>;
 	/* -------------------------------------------------------------------------
 	 * C7 · 设置弹窗 · 技能 Tab（`skills.ts` 的转发；`GET /skills` / `POST /skills/toggle`）
 	 * ----------------------------------------------------------------------- */
@@ -990,7 +997,37 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		prompt: async (text, images) => {
 			await ready;
 			if (!session) throw new Error("会话未就绪");
-			await session.prompt(text, images && images.length > 0 ? { images } : undefined);
+			const s = session;
+			// 内置命令前置拦截：命中即执行，返回 "handled"（不产生对话消息，不发给模型）
+			const hit = matchBuiltinCommand(text);
+			if (hit) {
+				await hit.command.run(
+					{
+						// 与 GET /slash-commands 的 available 口径一致：手打命令绕过 UI 置灰，
+						// reload() 自身不拒流式（pi agent-session 会当场 teardown/重建扩展运行时），
+						// 因此这里必须补护栏；compact() 内部先 abort() 当前生成，流式**允许**。
+						reload: async () => {
+							if (s.isStreaming) throw new Error("会话正在生成回复，请先停止再重新加载会话");
+							if (s.isCompacting) throw new Error("会话正在压缩，请稍候再重新加载");
+							await s.reload();
+						},
+						compact: async (instructions) => {
+							if (s.isCompacting) throw new Error("会话正在压缩，请稍候");
+							await s.compact(instructions);
+						},
+					},
+					hit.args,
+				);
+				return "handled";
+			}
+			let disposition: PromptDisposition = "started";
+			await s.prompt(text, {
+				...(images && images.length > 0 ? { images } : {}),
+				preflightResult: (d) => {
+					disposition = d;
+				},
+			});
+			return disposition;
 		},
 		abort: async () => {
 			await ready;
@@ -1171,6 +1208,28 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			await ready;
 			if (!session) throw new Error("会话未就绪");
 			return setToolsState(session, names);
+		},
+
+		getSlashCommands: async () => {
+			await ready;
+			if (!session || !settingsManager) throw new Error("会话组件未就绪");
+			const extensionCommands = session.extensionRunner.getRegisteredCommands().map((c) => ({
+				name: c.invocationName,
+				description: c.description ?? "",
+				scope: scopeOfSource(c.sourceInfo),
+			}));
+			const skills = session.resourceLoader.getSkills().skills.map((s) => ({
+				name: `skill:${s.name}`,
+				description: s.description ?? "",
+				scope: scopeOfSource(s.sourceInfo),
+			}));
+			return buildSlashCommandsPayload({
+				isStreaming: session.isStreaming,
+				isCompacting: session.isCompacting,
+				skillsEnabled: settingsManager.getEnableSkillCommands(),
+				extensionCommands,
+				skills,
+			});
 		},
 
 		/* ------------------------------------------------------------ C7 */

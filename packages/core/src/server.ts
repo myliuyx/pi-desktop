@@ -18,7 +18,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { toAgentEvent } from "./adapt.ts";
-import type { AgentEvent, ModelTestRequest, ProviderModelsRequest, PutProvidersRequest } from "./contract.ts";
+import type { AgentEvent, ModelTestRequest, PromptDisposition, ProviderModelsRequest, PutProvidersRequest } from "./contract.ts";
 import { DirListError, listDirectories } from "./fs-list.ts";
 import { FsSearchError, searchFiles } from "./fs-search.ts";
 import { FileReadError, readTextFile } from "./fs-read.ts";
@@ -150,6 +150,8 @@ const API_ROUTES = new Set([
 	"/packages/check-updates",
 	"/packages/update",
 	"/session/reload",
+	// 斜杠命令清单（内置 / 扩展 / 技能）
+	"/slash-commands",
 	// D7 · 工作目录运行期热切换
 	"/cwd",
 	// task-trust-policy-switch · 设置页「项目扩展授权询问」开关（读写 defaultProjectTrust）
@@ -487,8 +489,13 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				// 纯图无文本兜底：Anthropic 对 content 里的空 text 块直接 400，补一行占位
 				//（与上游 anthropic-messages.ts 纯图时插的 "(see attached image)" 同措辞）
 				const finalText = images && !text.trim() ? "(see attached image)" : text;
-				await runtime.prompt(finalText, images);
-				const resp: { ok: boolean; skippedFiles?: string[]; skippedImages?: string[] } = { ok: true };
+				const disposition = await runtime.prompt(finalText, images);
+				const resp: {
+					ok: boolean;
+					disposition: PromptDisposition;
+					skippedFiles?: string[];
+					skippedImages?: string[];
+				} = { ok: true, disposition };
 				if (unreadable.length > 0) resp.skippedFiles = unreadable;
 				if (pasted.skipped.length > 0) resp.skippedImages = pasted.skipped;
 				return json(200, resp);
@@ -876,6 +883,15 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				return json(200, { ok: true, ...result });
 			} catch (e) {
 				if (e instanceof PackageNotFoundError) return json(404, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+
+		if (req.method === "GET" && urlPath === "/slash-commands") {
+			try {
+				const payload = await runtime.getSlashCommands();
+				return json(200, { ok: true, ...payload });
+			} catch (e) {
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
 		}
