@@ -94,7 +94,14 @@ export function normalizeThinkingLevel(value: unknown): ThinkingLevelName | null
 
 /** `Model` → UI 的 `ModelOption` 同形对象（`supportsXhigh` 用 `Model.reasoning` 代理） */
 export function toModelInfo(
-  model: { id: string; name?: string; provider: string; reasoning?: boolean; input?: readonly string[] },
+  model: {
+    id: string;
+    name?: string;
+    provider: string;
+    reasoning?: boolean;
+    input?: readonly string[];
+    contextWindow?: number;
+  },
   providerLabel?: string,
 ): ModelInfo {
   const info: ModelInfo = {
@@ -111,6 +118,13 @@ export function toModelInfo(
   // 输入模态（粘图批次）：UI 门控「模型不支持图片则禁贴」的数据源；Pi Model 恒有 input，
   // 可选透传只为兼容测试桩（只给 id/provider 的窄对象）
   if (Array.isArray(model.input)) info.input = model.input.filter((x): x is "text" | "image" => x === "text" || x === "image");
+  // 上下文窗口（2026-10-01 上下文环真值批次）：输入框底行上下文环的窗口分母。
+  // 「>0 才写」是本文件的既有纪律（supportsXhigh / input 同款）：0 / 缺省 / 脏值
+  // 一律不写键 —— 消费方看到 undefined 就走「未知」降级，绝不能把 0 或字符串
+  // 当成窗口大小显示出去（那正是本批次要根治的假事实）。
+  if (typeof model.contextWindow === "number" && Number.isFinite(model.contextWindow) && model.contextWindow > 0) {
+    info.contextWindow = model.contextWindow;
+  }
   return info;
 }
 

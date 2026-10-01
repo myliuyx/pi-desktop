@@ -534,6 +534,17 @@ export interface ModelInfo {
    * 消费方对缺省**宽松放行**（不能因字段缺失把门控做成全面禁贴）。
    */
   input?: ("text" | "image")[];
+  /**
+   * 模型上下文窗口（tokens，Pi `Model.contextWindow`；2026-10-01 上下文环真值批次补）。
+   *
+   * 可选 = 旧版 payload 没有，或该模型在 `models.json` 里没显式配（Pi 会用自身默认值，
+   * 但那不是"我们能断言的事实"，消费方按未知处理）；**`>0` 才由 core 写入**，
+   * 0 / 脏值一律不写键（同 `supportsXhigh` 的"缺省即没有"纪律）。
+   *
+   * 消费方：输入框底行上下文占用环的**窗口分母**（此前用 UI 侧 mock 演示值 128000，
+   * 是假事实）。唯一真值来源就是这里。
+   */
+  contextWindow?: number;
 }
 
 /** 思考档位（字面量集合与 UI `mock/types.ts` 的 `ThinkingLevel` 一致；core 侧独立声明，避免跨包运行时依赖） */
