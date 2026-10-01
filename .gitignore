@@ -5,7 +5,8 @@ node_modules/
 .worktrees/
 
 # electron-builder 安装包输出（Pi-Desktop 桌面壳）
-packages/desktop/release/
+# release*/ 而非 release/ —— 锁死的旧解包目录可换输出目录重建（如 release-win），同样不入库
+packages/desktop/release*/
 
 # 构建产物与类型缓存
 dist/
