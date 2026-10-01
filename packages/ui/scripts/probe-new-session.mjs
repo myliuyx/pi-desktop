@@ -2,7 +2,7 @@
  * 新建会话页 + 惰性建会话 · 验收探针。
  *
  * mock 模式（`probe:new-session`，dev server :5180）：N1–N10。
- * live 模式（`probe:new-session:live`，自起 core :5390 + 托管 ui/dist）：L1–L4。
+ * live 模式（`probe:new-session:live`，自起 core :5390 + 托管 ui/dist）：L1–L5。
  *
  * 规格：`.plan/task-new-session-page.md`
  * - §4.0 接口冻结 = testid / 文案 的唯一权威来源；
@@ -344,7 +344,7 @@ async function runMock() {
 }
 
 /* ===========================================================================
- * live 段（L1–L4）：自起 core（临时 agentDir / 空清单），走真实模型
+ * live 段（L1–L5）：自起 core（临时 agentDir / 空清单），走真实模型
  * ======================================================================== */
 
 /** Node 侧带 token 的 GET /sessions（清单真相在 core，不在页面里） */
@@ -447,11 +447,15 @@ async function runLive() {
        * ⚠️ 断言打在**浮框上下文行**（`X% / Yk` 的 Y 位），不是环值：草稿态
        * contextTokens=0 ⇒ 环值无论真假都是 `0%`，只断言环值是假绿。
        * hover 用 m2 同款显式派发（React 的 onMouseEnter 由 mouseover 合成）。
+       *
+       * ⚠️ 下面这个 eval 的表达式是 async IIFE，**必须传 awaitPromise=true**，
+       *    否则 Runtime.evaluate 拿回来的是一个 Promise 对象，returnByValue 会把它序列化成 {} ——
+       *    `l5Models` 变 `{}` ⇒ `l5Active`/`l5ExpectedWindow` 全 null ⇒ 断言恒红（踩 m2-2-5 的坑）。
        */
       const l5Models = await cdp.eval(`(async () => {
         const res = await fetch('/models', { headers: { Authorization: 'Bearer ${LIVE_TOKEN}' } });
         return res.json();
-      })()`);
+      })()`, true);
       const l5Active =
         l5Models?.models?.find(
           (m) => m.provider === l5Models?.current?.provider && m.id === l5Models?.current?.modelId,
@@ -479,6 +483,8 @@ async function runLive() {
         清单带窗口字段: typeof l5Active?.contextWindow === "number" && l5Active.contextWindow > 0,
         浮框窗口位等于模型配置:
           typeof l5ExpectedWindow === "string" && typeof l5Row === "string" && l5Row.endsWith(l5ExpectedWindow),
+        // ⚠️ 这条在未知态（行渲染成「— / —」）时**也为 true**，单看它分不出
+        // 「真值」和「未知」；真正把未知态打红的是上面那两条。别单独删掉它们只留这条。
         不再是演示值128k: typeof l5Row === "string" && !l5Row.endsWith("128k"),
       });
 
