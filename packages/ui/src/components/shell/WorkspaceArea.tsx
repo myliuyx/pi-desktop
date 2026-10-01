@@ -60,6 +60,24 @@ export const WorkspaceArea = forwardRef<HTMLElement, WorkspaceAreaProps>(functio
         <NewSessionHero />
       ) : (
         <MessageList
+          /*
+           * ★ key={liveSessionId}（2026-10-01切会话必贴底）：强制按会话重挂。
+           *
+           * 不重挂的缺陷（实测）：上一个会话滚到顶（scrollTop=0、atBottomRef=false）后
+           * 切到另一个会话，React 复用同一滚动容器 ⇒ 浏览器保留旧 scrollTop（实测继承为 0），
+           * 新会话开在顶部看历史开头；同时 atBottomRef 残留 false把自动贴底门关掉，回不来。
+           *
+           * 重挂的连锁收益：
+           *   ① atBottomRef 归位true ⇒ 首帧 effect 自然贴底（复用既有 2-5e 路径，零新滚动逻辑）
+           *   ② virtualizer 实例与 itemSizeCache 一并重建 ⇒ 消除 virtual-core 默认
+           *   getItemKey(i) 用**索引**当键造成的跨会话高度缓存污染（旧会话的行高被新会话复用）
+           *   ③ 展开态回到默认收起（用户已确认接受；历史会话本就默认收起，见
+           *      chat-store 的 collectCollapsibleTurnKeys 回填）
+           *
+           * 切走正在流式的会话无额外影响：loadSessionById 本就先中止流式再换会话
+           * （chat-store.ts:598），重挂时 streaming 已是 false，不会残留转圈/半展开态。
+           */
+          key={liveSessionId ?? "draft"}
           messages={messages}
           streaming={streaming}
           awaitingModel={awaitingModel}

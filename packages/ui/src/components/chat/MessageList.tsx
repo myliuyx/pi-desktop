@@ -50,6 +50,12 @@ import { TurnRail } from "./TurnRail";
 import { ImagePreviewDialog } from "./ImagePreviewDialog";
 import { getLiveConfig } from "@/lib/feature-flags";
 import { imageThumbnailAlt, imageUrl } from "@/lib/image-src";
+import {
+  createHeightMemory,
+  rememberMessageHeight,
+  resolveRowHeight,
+  type HeightMemory,
+} from "@/lib/message-height";
 
 export interface MessageListProps extends HTMLAttributes<HTMLDivElement> {
   messages: Message[];
@@ -217,14 +223,68 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
   const pinningRef = useRef(false);
   const [atBottom, setAtBottom] = useState(true);
 
+  /*
+   * 行高估算 + 实测记忆化（2026-10-01 上滚回弹根治 · 第 2 层）。
+   *
+   * ## 为什么不能只靠 measureElement
+   *
+   * 虚拟滚动对**未渲染行**只能用 estimateSize，滚动到才由 measureElement 回填
+   * 真实高度⇒ 总高在“向上滚进新区域”时缩水，scrollTop 被浏览器连带拽动 = 回弹。
+   * 旧实现固定 `estimateSize: () => 140`：实测真实行高 stress 短句97/99、
+   * live 长回复 342/464 —— 每个方向都偏，短句档每次滚动多退约 249px。
+   *
+   * ## 两个 hook
+   *
+   * ① `heightMemory`（实测值，messageId 键）：消息只增不改 ⇒ 同一条高度恒定，
+   *    回看已浏览区域**零误差零跳变** —— 这是根治的主路径。
+   * ② `estimateSizeOf`（估算值兜底）：未测量过的行按内容估算（lib/message-height.ts，
+   *    常量全部实测反推），把首次进入的误差从固定 43~324px 压到个位数。
+   *
+   * ⚠️ `estimateSizeOf` 用 ref 读最新的 messages（闭包稳定）：virtualizer 内部按
+   * 函数身份记忆 measurements，若每次渲染新建函数会导致整表缓存失效、滚动位置跳。
+   * 同 `measureAtBottom` 的模块级常量纪律。
+   */
+  const heightMemoryRef = useRef<HeightMemory>(createHeightMemory());
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+  const estimateSizeOf = useCallback((index: number) => {
+    return resolveRowHeight(heightMemoryRef.current, messagesRef.current[index]);
+  }, []);
+
   const virtualizer = useVirtualizer({
     // 占位行计入虚拟行数（消息数 + 1），testid 用 thinking-indicator，不占 message-item 名额
     count: messages.length + (pending ? 1 : 0),
     getScrollElement: () => parentRef.current,
-    // 仅作为首帧前的猜测值；真实高度由 measureElement 覆盖
-    estimateSize: () => 140,
+    // 未渲染行的行高：实测优先，否则按内容估算（见上方注释）
+    estimateSize: estimateSizeOf,
     overscan: 6,
   });
+
+  /*
+   * 实测高度记忆的写入点（与 estimateSizeOf 成对）。
+   *
+   * 包装 `virtualizer.measureElement`：调用原函数（保留它内置的 ResizeObserver ——
+   * 代码块异步高亮后的高度变化靠它重新测量，**不要自己再包一层 RO**），再把本次
+   * 测到的真实高度按 messageId 记进 heightMemory。
+   *
+   * 口径一致性（关键）：这里读的 getBoundingClientRect().height 与 virtualizer 自己
+   * 测量用的是同一盒模型（含 MESSAGE_GAP 的 paddingBottom）—— 两边口径不一致的话，
+   * 记忆值与实测量对不上，记忆化反而会引入新的偏差。
+   *
+   * 用 messageId 而非索引作键：切会话后索引会指向别的消息（virtual-core 默认
+   * getItemKey(i) 正是跨会话缓存污染的来源）。
+   */
+  const measureRow = useCallback(
+    (node: HTMLElement | null) => {
+      virtualizer.measureElement(node);
+      if (!node) return;
+      const message = messagesRef.current[Number(node.dataset.index)];
+      if (!message) return;
+      const height = node.getBoundingClientRect().height;
+      if (height > 0) rememberMessageHeight(heightMemoryRef.current, message.id, height);
+    },
+    [virtualizer],
+  );
 
   const scrollToBottom = useCallback(() => {
     const el = parentRef.current;
@@ -597,7 +657,7 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
                       "data-message-id": message.id,
                       "data-role": message.role,
                     })}
-                ref={virtualizer.measureElement}
+                ref={measureRow}
                 style={{
                   position: "absolute",
                   top: 0,

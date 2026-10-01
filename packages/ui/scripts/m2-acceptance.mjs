@@ -794,6 +794,148 @@ await withBrowser(
       });
     }
 
+    /* ---------------------------------------------------------------- 2-6 上滚无自发跳变 */
+    /*
+     * 上滚时视口不得「回弹」（2026-10-01 新增）。
+     *
+     * 缺陷形态：虚拟列表对未渲染行用 estimateSize 估算（上滚进入新区域时由140px
+     * 回填真实高度，总高缩水数千 px），scrollTop 被浏览器连带拽动 —— 表现为
+     * 往上滚着突然被弹回去。内置补偿本应修正它，但自研 ResizeObserver 与
+     * 内置补偿在同一帧抢写 scrollTop，互相踩掉。
+     *
+     * 测法（rAF 高频采样 + 用户意图标记）：从底部向上快速滚动，逐帧记录
+     * scrollTop；标为「非用户输入」帧里若出现**向下**跳动（top 变大），
+     * 即是被动拽动。向上滚（top 变小）本身是用户意图，不算。
+     */
+    {
+      // ⚠️ 必须切到 stress=600（600 条消息）才能触发高度缩水：
+      // 默认 mock 只有 12 条，整列表高度 < 视口，滚不动也测不出跳变（实测 total=12 时
+      // 采样到的全是用户帧，passivePulls 恒 0 —— 假通过）。stress 形态下未渲染行
+      // 以 estimateSize 估算、滚动到才回填真实高度，总高缩水数千 px 才会被拽。
+      await ctx.open("/?stress=600");
+      await sleep(1600);
+      const g = await cdp.eval(`(async () => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        list.scrollTop = list.scrollHeight;
+        await new Promise(r => setTimeout(r, 900));
+        return { atBottom: list.dataset.atBottom, total: +list.dataset.totalCount, h: list.scrollHeight };
+      })()`, true);
+      // 采样器：记录所有变化帧，并标注该帧之前是否有真实用户交互
+      await cdp.eval(`(() => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        window.__jumps = [];
+        let prev = list.scrollTop;
+        let userIntent = false;
+        const mark = () => { userIntent = true; };
+        list.addEventListener('wheel', mark, { passive: true });
+        list.addEventListener('touchstart', mark, { passive: true });
+        const tick = () => {
+          const top = list.scrollTop;
+          if (Math.abs(top - prev) > 1) {
+            window.__jumps.push({ from: Math.round(prev), to: Math.round(top), user: userIntent });
+            prev = top;
+            userIntent = false;
+          }
+          if (!window.__doneSampling) requestAnimationFrame(tick);
+        };
+        window.__doneSampling = false;
+        requestAnimationFrame(tick);
+        return true;
+      })()`);
+      // 快速向上滚动（每轮较大delta，复现真实滚轮惯性）
+      const { cx, cy } = await cdp.eval(`(() => {
+        const r = window.__T.q('[data-testid="message-list"]').getBoundingClientRect();
+        return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+      })()`);
+      for (let i = 0; i < 20; i++) {
+        await cdp.send("Input.dispatchMouseEvent", {
+          type: "mouseWheel", x: cx, y: cy, deltaX: 0, deltaY: -500, pointerType: "mouse",
+        });
+        await sleep(40);
+      }
+      await sleep(900);
+      const h = await cdp.eval(`(async () => {
+        window.__doneSampling = true;
+        const list = window.__T.q('[data-testid="message-list"]');
+        const jumps = window.__jumps;
+        // 被动拽动：非用户输入帧里 top 反而变大（往上滚时被往下拉）
+        const passivePulls = jumps.filter(j => !j.user && j.to > j.from);
+        return {
+          totalFrames: jumps.length,
+          passivePulls: passivePulls.length,
+          maxPull: passivePulls.reduce((m, j) => Math.max(m, j.to - j.from), 0),
+          samples: passivePulls.slice(0, 5),
+        };
+      })()`, true);
+      ctx.record("2-6_上滚跳变采样", { 起点: g, 采样结果: h });
+      ctx.assert("2-6 上滚过程中无自发跳变（无回弹）", {
+        "数据量足够（能触发高度重算）": g.total >= 500 && g.h > 40000,
+        "有滚动发生（采样非空）": h.totalFrames > 0,
+        "无被动向下拽动": h.passivePulls === 0,
+        "单次拽动幅度为0": h.maxPull === 0,
+      });
+      await ctx.open("/");
+      await sleep(1200);
+    }
+
+    /* ---------------------------------------------------------------- 2-7 切换会话必贴底 */
+    /*
+     * 从会话 A 滚到顶后切到会话 B，B 必须贴底看最新（2026-10-01 新增）。
+     *
+     * 缺陷形态：MessageList 在切会话时不重挂，React 复用同一滚动容器 →
+     * 浏览器保留 A 的 scrollTop（实测继承为 0），B 于是开在顶部看历史开头。
+     * 同时 atBottomRef 残留 A 的 false，自动贴底门被关，回不来。
+     */
+    {
+      const r = await cdp.eval(`(() => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        list.scrollTop = 0;
+        return { scrolledTop: Math.round(list.scrollTop), atBottom: list.dataset.atBottom };
+      })()`);
+      await sleep(400);
+      const before = await cdp.eval(`(() => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        const s = window.__T.scroll(list);
+        return { top: s.top, dist: s.dist, dataAtBottom: list.dataset.atBottom };
+      })()`);
+      // mock 形态没有真实会话切换，用 store 直接换 messages 模拟「切到另一个会话」
+      // （live 链路的真实切换由 2-7-live 探针覆盖；这里锁渲染层的重挂语义）
+      await cdp.eval(`(() => {
+        // ⚠️ 先备份再改：2-7 把messages 换成截断版，若不恢复会污染后续用例
+        // （实测会连带打挂 G7 的 terminal-toggle 查找 —— 它需要真实会话里的终端块）
+        const store = window.__chatStore;
+        window.__backupMessages = store.getState().messages;
+        window.__backupSessionId = store.getState().liveSessionId;
+        const cur = store.getState();
+        // ⚠️ 必须同时改 liveSessionId：WorkspaceArea 的 key={liveSessionId} 靠它重挂，
+        // 只改 messages 不改 id 测不到重挂路径。
+        const other = cur.messages.slice(0, Math.max(2, Math.floor(cur.messages.length / 2)))
+          .map(m => ({ ...m, id: 'swapped-' + m.id }));
+        store.setState({ messages: other, liveSessionId: 'probe-switched-session' });
+        return true;
+      })()`);
+      await sleep(900);
+      const after = await cdp.eval(`(() => {
+        const list = window.__T.q('[data-testid="message-list"]');
+        const s = window.__T.scroll(list);
+        return { top: s.top, dist: s.dist, dataAtBottom: list.dataset.atBottom };
+      })()`);
+      ctx.record("2-7_切换会话前后", { 切换前滚到顶: before, 切换后: after });
+      ctx.assert("2-7 切换会话后视口贴底看最新", {
+        "切换前确实在顶部": before.top <= 40 && before.dataAtBottom === "false",
+        "切换后距底在阈值内": after.dist <= 32,
+        "切换后状态变true": after.dataAtBottom === "true",
+        "切换后不再是旧位置": after.top > 40,
+      });
+      // 还原真实会话（后续 G7 等用例依赖它，见上方备份注释）
+      await cdp.eval(`(() => {
+        const store = window.__chatStore;
+        store.setState({ messages: window.__backupMessages, liveSessionId: window.__backupSessionId ?? null });
+        return true;
+      })()`);
+      await sleep(400);
+    }
+
     /* ---------------------------------------------------------------- G7 键盘可达 */
     {
       const r = await cdp.eval(`(() => {
