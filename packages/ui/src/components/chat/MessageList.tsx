@@ -32,6 +32,7 @@ import { COMPOSER_MODELS } from "@/mock/composer";
 import { useModelsStore } from "@/store/models-store";
 import { useUiStore } from "@/store/ui-store";
 import { formatMessageTime, speedTone, type SpeedTone } from "@/lib/format";
+import { toolArgsPreview } from "@/lib/tool-preview";
 import { buildTurnIndex, type TurnMembership } from "@/lib/turns";
 import {
   buildPreviewTexts,
@@ -1191,12 +1192,8 @@ function BlockView({
 
 /** 工具调用内联展示（轻量，无专门 testid，不进验收核心路径） */
 function ToolCallInline({ block }: { block: Extract<Block, { type: "tool_call" }> }) {
-  const argsPreview =
-    "command" in block.args
-      ? String(block.args.command)
-      : Object.entries(block.args)
-          .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
-          .join(" ");
+  // 与 ToolCallCard 同源摘要（D3）：edit/write 短摘要，其余通用兜底
+  const argsPreview = toolArgsPreview(block.toolName, block.args);
   return (
     <div className="flex min-w-0 items-center gap-2 rounded-lg border border-border-subtle bg-bg-subtle px-3 py-2 text-sm text-text-secondary">
       <Icon icon={Wrench} className="shrink-0 text-icon-neutral" />

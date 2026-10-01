@@ -10,7 +10,8 @@
  * 3. AgentEvent 全集原样搬自 `packages/ui/src/adapter/pi-events.ts`，并做三处修订：
  *    - 新增 `approval_request` / `approval_settled`（我们的形状，非 Pi 9 变体）；
  *    - `tool_execution_end`：补 `result` 形状 `{ content; details? }`、`isError`，
- *      明确不设 `exitCode` / `truncated`（spike-tools 实证事件里没有）；
+ *      明确不设 `exitCode` / `truncated`（spike-tools 实证事件里没有）；另补顶层扁平
+ *      `details`（task-tool-diff-preview.md，edit 的展示用 diff 走这里到 UI）。
  *    - `tool_execution_update`：补 `partialResult` 对象 `{ content; details? }`，非 string。
  *
  * ⚠️ 偏差记录（执行方）：为守住「check:adapter 既有断言一行不改」的硬约束，
@@ -79,6 +80,14 @@ export interface TerminalBlock {
    * mock 演示（01 屏会话 / 03 屏运行详情）不设 → 默认展开，验收 2-7 与 03 屏期望不变。
    */
   collapsed?: boolean;
+  /**
+   * 工具结果的结构化详情（Pi `ToolResultMessage.details` 原样透传，task-tool-diff-preview.md）。
+   * 上游各工具 details 形状各异：edit 为 `{ diff, patch, firstChangedLine }`（展示用 diff，
+   * 格式 `+行号 内容`/`-行号 内容`/` 行号 内容`）、write/bash 等为 undefined/空对象。
+   * **无 details 不写键**（adapter-check 对事件形状做精确断言）；UI 按
+   * `toolName==="edit" && typeof details.diff==="string"` 守卫收窄，缺省回落 output 文本。
+   */
+  details?: Record<string, unknown>;
 }
 
 /** ← Extension UI Protocol 的 `select` / `confirm` 请求-响应 */
@@ -293,6 +302,26 @@ export interface TokenUsage {
   cacheRead?: number;
   /** 最近一次 assistant 请求的缓存写入 tokens（F2；>0 才写） */
   cacheWrite?: number;
+  /**
+   * 会话累计输入 tokens（Σ 各次 assistant 请求的 `input`；task-context-ring-token-popover.md D1）。
+   *
+   * 与 `input`（最近一次）并存：环悬停浮框的明细面板用累计口径（参考图四行加总=总计）。
+   * 累计四项**直接写、0 合法**（「会话无缓存」是真事实，区别于最近一次 cache 两项的
+   * 「>0 才写」反假数据纪律）。
+   */
+  inputSum?: number;
+  /** 会话累计输出 tokens（Σ 各次 `output`；口径同 `inputSum`） */
+  outputSum?: number;
+  /** 会话累计缓存命中 tokens（Σ 各次 `cacheRead`；口径同 `inputSum`） */
+  cacheReadSum?: number;
+  /** 会话累计缓存写入 tokens（Σ 各次 `cacheWrite`；口径同 `inputSum`） */
+  cacheWriteSum?: number;
+  /**
+   * 会话累计费用美元（Σ pi-ai `usage.cost.total`——按每次请求的模型单价算好的值，
+   * 模型中途切换天然正确）。**>0 才写**：0 = 模型没配单价（或旧会话 jsonl 无 cost 字段），
+   * 消费方（浮框费用行）按缺省/≤0 整行隐藏。
+   */
+  costTotal?: number;
 }
 
 /**
@@ -375,6 +404,13 @@ export type AgentEvent =
       toolCallId: string;
       output: string;
       isError: boolean;
+      /**
+       * 工具结果的结构化详情（task-tool-diff-preview.md）：`result.details` 的扁平透传，
+       * 与 `output`（content 的文本扁平）同款口径 —— reducer/TerminalBlock 直接消费扁平字段，
+       * 不撑开可选的 `result` 整体（避免每个事件双份 payload）。edit 为
+       * `{ diff, patch, firstChangedLine }`；无 details 不写键（adapter-check 精确断言）。
+       */
+      details?: Record<string, unknown>;
       /** 修订：result 形状 = { content:[{type:"text",text}], details? }；明确不设 exitCode/truncated */
       result?: { content: ToolResultContent[]; details?: unknown };
     }

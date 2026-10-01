@@ -533,12 +533,20 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	 * 模型切换**不补发**（下次发消息自然带新的 contextWindow）。
 	 * cacheRead/cacheWrite（F2）：同 input/output 的「最近一次」口径，>0 才写 ——
 	 * 原先这两项在这里被丢弃，TokenStats 的「缓存」展示拿不到数据。
+	 * *Sum 五项（task-context-ring-token-popover.md D1）：会话累计口径，环悬停浮框
+	 * 明细面板用——Σ 各次请求分量（0 合法、直接写）与 Σ cost.total（>0 才写）。
+	 * cost 由 pi-ai 按当次模型单价算好（`usage.cost.total`），这里只累计不算钱。
 	 */
 	let usageInput = 0;
 	let usageOutput = 0;
 	let usageTotal = 0;
 	let usageCacheRead = 0;
 	let usageCacheWrite = 0;
+	let usageInputSum = 0;
+	let usageOutputSum = 0;
+	let usageCacheReadSum = 0;
+	let usageCacheWriteSum = 0;
+	let usageCostTotal = 0;
 
 	const emitUsage = () => {
 		/*
@@ -546,6 +554,7 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		 * Pi 在压缩后、下一次 LLM 回复前返回 null —— 此时**不写该字段**，
 		 * 让 UI 回落 contextWindow（与旧行为一致，不出现 0 的假数据）。
 		 * cache 两项同纪律：>0 才写。
+		 * *Sum 累计项：0 合法直接写（口径见上方闭包注释）；costTotal >0 才写（D3）。
 		 */
 		const contextTokens = session?.getContextUsage()?.tokens;
 		emitAgent({
@@ -558,6 +567,11 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 				...(typeof contextTokens === "number" ? { contextTokens } : {}),
 				...(usageCacheRead > 0 ? { cacheRead: usageCacheRead } : {}),
 				...(usageCacheWrite > 0 ? { cacheWrite: usageCacheWrite } : {}),
+				inputSum: usageInputSum,
+				outputSum: usageOutputSum,
+				cacheReadSum: usageCacheReadSum,
+				cacheWriteSum: usageCacheWriteSum,
+				...(usageCostTotal > 0 ? { costTotal: usageCostTotal } : {}),
 			},
 		});
 	};
@@ -571,6 +585,11 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		usageTotal += num(message.usage.totalTokens);
 		usageCacheRead = num(message.usage.cacheRead);
 		usageCacheWrite = num(message.usage.cacheWrite);
+		usageInputSum += num(message.usage.input);
+		usageOutputSum += num(message.usage.output);
+		usageCacheReadSum += num(message.usage.cacheRead);
+		usageCacheWriteSum += num(message.usage.cacheWrite);
+		usageCostTotal += num((message.usage.cost as { total?: unknown } | undefined)?.total);
 		emitUsage();
 	};
 
@@ -585,6 +604,11 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		usageTotal = tokenUsage.total;
 		usageCacheRead = tokenUsage.cacheRead ?? 0;
 		usageCacheWrite = tokenUsage.cacheWrite ?? 0;
+		usageInputSum = tokenUsage.inputSum ?? 0;
+		usageOutputSum = tokenUsage.outputSum ?? 0;
+		usageCacheReadSum = tokenUsage.cacheReadSum ?? 0;
+		usageCacheWriteSum = tokenUsage.cacheWriteSum ?? 0;
+		usageCostTotal = tokenUsage.costTotal ?? 0;
 	};
 
 	const models: ModelsController = createModelsController({

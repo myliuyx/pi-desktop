@@ -61,10 +61,18 @@
 .preview-source .shiki code {
   counter-reset: preview-line;
   display: block;
+  /*
+   * shiki 的行 span 以 `\n` 连接（`</span>\n<span class="line">`）：code 若维持
+   * UA 的 pre 语义，块级行之间的 \n 各生成一个空行盒 ⇒ 行距恒定翻倍（write 内容
+   * 预览实弹发现，PreviewPane 源码态同命中）。code 归位 normal —— 块级盒之间的
+   * 纯空白按 CSS 规则折叠、不生成盒子；行内代码的空白语义由 .line 自己以 pre 扛。
+   */
+  white-space: normal;
 }
 
 .preview-source .shiki .line {
   display: block;
+  white-space: pre;
   /* shiki 对空行输出空 span，block 化后没有内容高度，靠它撑住行高 */
   min-height: 1.6em;
 }

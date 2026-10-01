@@ -46,6 +46,23 @@ export function formatThousands(value: number): string {
   return new Intl.NumberFormat("en-US").format(Math.trunc(value));
 }
 
+/**
+ * 费用文案（美元；环悬停浮框用，task-context-ring-token-popover.md 决策 5）。
+ *
+ * `<10` → 4 位小数去尾零（`$0.0217` / `$0.02` / `$1.5`）——小额费用的有效数字
+ * 落在第 3、4 位，2 位小数会变成 `$0.02` 级别的假精度；`≥10` → 千分位 + 2 位小数
+ * （`$12.35` / `$1,234.56`）——该量级下 4 位小数已无信息量。
+ * 调用纪律：仅在 `costTotal > 0` 时调用（D3：缺省/0 整行隐藏），0/负数按 `$0` 兜底。
+ * 固定 en-US，理由同 formatThousands（locale 变脸会破坏「逗号分组、点分小数」口径）。
+ */
+export function formatCost(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "$0";
+  if (value < 10) {
+    return `$${value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")}`;
+  }
+  return `$${new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
+}
+
 /* ---------------------------------------------------------------------------
  * token 速度徽章分档（2026-09-27 用户裁决，模型行徽章用）
  * ------------------------------------------------------------------------- */

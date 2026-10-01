@@ -484,7 +484,8 @@ await withBrowser(
     /* ---------------------------------------------------------------- 2-13 ~ 2-16 上下文占用环 */
     {
       // 内嵌底行（task-composer-inline-toolbar.md D1=A1）：原 TokenStats 四段退役，
-      // 「消耗」的行内代言改为上下文占用环；四段明细收进环的 title（2-14 断言）。
+      // 「消耗」的行内代言改为上下文占用环；明细面板收进悬停浮框
+      // （task-context-ring-token-popover.md，2-14 断言；原生 title 已退役）。
       const r = await cdp.eval(`(() => {
         const composer = window.__T.q('[data-testid="composer"]');
         const ring = window.__T.q('[data-testid="composer-context-ring"]');
@@ -516,7 +517,73 @@ await withBrowser(
       });
       ctx.assert("2-14 环数值口径（mock 合成 contextTokens = total → 14.5%）", {
         "环值14.5%": r.valueText === "14.5%",
-        title含四段明细: r.title.includes("输入 12.4k · 输出 6.2k · 消耗 18.6k · 上下文 14.5%/128k"),
+      });
+
+      // 2-14 悬停浮框（task-context-ring-token-popover.md）：原生 title 退役，明细面板
+      // hover 即显 / 移出即收。React 的 onMouseEnter 由 mouseover 合成——显式派发
+      // （bubbles:true）；关闭派发 mouseout 且 relatedTarget 指向非后裔（document.body）。
+      // 注入带累计字段的 usage 断言各行文案（累计口径 D1），再注入旧形状断言降级
+      // （D3 费用隐藏 + 回退最近一次）。⚠️ 派发与读面板拆开、中间 sleep：React 重渲染
+      // 是调度式的（同 2-15 的 setUsage 手法）。
+      await cdp.eval(`window.__T.setUsage({
+        input: 12400, output: 6200, total: 18600, contextWindow: 128000, contextTokens: 18600,
+        inputSum: 30584, outputSum: 8263, cacheReadSum: 441258, costTotal: 0.0217,
+      })`);
+      await sleep(150);
+      await cdp.eval(`document.querySelector('[data-testid="composer-context-ring"]')
+        .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))`);
+      await sleep(150);
+      const pop = await cdp.eval(`(() => {
+        const text = (id) => {
+          const el = window.__T.q('[data-testid="composer-token-row-' + id + '"]');
+          return el ? el.textContent.trim() : null;
+        };
+        return {
+          exists: !!window.__T.q('[data-testid="composer-token-popover"]'),
+          input: text('input'), output: text('output'), cacheRead: text('cache-read'),
+          cacheWrite: text('cache-write'), total: text('total'), cost: text('cost'),
+          context: text('context'), hitRate: text('hit-rate'),
+        };
+      })()`);
+      await cdp.eval(`document.querySelector('[data-testid="composer-context-ring"]')
+        .dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }))`);
+      await sleep(150);
+      const popClosed = await cdp.eval(`!window.__T.q('[data-testid="composer-token-popover"]')`);
+      // 降级：旧形状（无 sums / 无 costTotal）→ 费用与缓存行隐藏、命中率隐藏、
+      // 输入/输出回退「最近一次」值（12,400 / 6,200）
+      await cdp.eval("window.__T.setUsage({ input: 12400, output: 6200, total: 18600, contextWindow: 128000, contextTokens: 18600 })");
+      await sleep(150);
+      await cdp.eval(`document.querySelector('[data-testid="composer-context-ring"]')
+        .dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))`);
+      await sleep(150);
+      const popDegrade = await cdp.eval(`(() => {
+        const text = (id) => {
+          const el = window.__T.q('[data-testid="composer-token-row-' + id + '"]');
+          return el ? el.textContent.trim() : null;
+        };
+        return { input: text('input'), cost: text('cost'), cacheRead: text('cache-read'), hitRate: text('hit-rate') };
+      })()`);
+      // 还原 mock 初始用量（INITIAL_TOKEN_USAGE，含累计演示字段），不污染后续断言
+      await cdp.eval("window.__T.setUsage({ input: 12400, output: 6200, total: 18600, contextWindow: 128000, contextTokens: 18600, inputSum: 12400, outputSum: 6200, costTotal: 0.0217 })");
+      await sleep(150);
+      ctx.record("2-14_悬停浮框", { pop, popClosed, popDegrade });
+      ctx.assert("2-14 悬停浮框：hover 开合 + 各行文案（累计口径）", {
+        浮框随hover出现: pop.exists === true,
+        输入行: pop.input.includes("30,584"),
+        输出行: pop.output.includes("8,263"),
+        缓存读取行: pop.cacheRead.includes("441,258"),
+        缓存写入行缺省隐藏: pop.cacheWrite === null,
+        总计行: pop.total.includes("18,600"),
+        费用行: pop.cost.includes("$0.0217"),
+        上下文行: pop.context.includes("14.5% / 128k"),
+        命中率行: pop.hitRate.includes("93.5%"),
+        移出即收: popClosed === true,
+      });
+      ctx.assert("2-14 悬停浮框降级：缺省行隐藏 + 回退最近一次", {
+        降级费用行隐藏: popDegrade.cost === null,
+        降级缓存读取行隐藏: popDegrade.cacheRead === null,
+        降级命中率行隐藏: popDegrade.hitRate === null,
+        降级输入回退最近一次: popDegrade.input.includes("12,400"),
       });
 
       // 2-15 三档颜色：经 store 注入三档 tokenUsage（占比 0.5 / 0.75 / 0.95，窗口不变）。

@@ -278,6 +278,9 @@ export function applyEvent(state: DraftState, event: AgentEvent): DraftState {
 					...block,
 					output: event.output || block.output,
 					status: event.isError ? "error" : "success",
+					// 结构化详情透传（task-tool-diff-preview.md）：edit 的展示用 diff；
+					// 无则不写键，渲染层缺省回落 output 文本
+					...(event.details ? { details: event.details } : {}),
 				})),
 			};
 

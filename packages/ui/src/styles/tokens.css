@@ -51,6 +51,11 @@
   --accent-soft: #eef2fe; /* 发送按钮底、选中态底；--accent 在其上 4.58:1 */
   --accent-fg: #ffffff; /* 强调色上的文字 */
 
+  /* 文本选区高亮。不能用 --accent-soft：它与白底仅 ~1.1:1，选区肉眼不可辨（2026-10-01）。
+     用带透明度的 accent 代替实色：代码块、soft 底等异色背景上叠色仍自然，
+     文字保持 --text-primary 不糊。深色档见下方 dark 块。 */
+  --selection-bg: rgba(53, 99, 232, 0.28); /* 即 --accent #3563e8 的 28% */
+
   /* 语义色
      浅色语义色作为文字放在各自 soft 底上，必须 >= 4.5:1（G3）。
      原建议初值（#1d9e75 / #ba7517 / #378add / #e24b4a）实测仅 2.98~3.41:1，故整体压暗一档。 */
@@ -62,6 +67,12 @@
   --danger-soft: #fcebeb;
   --info: #1a6bbd; /* on --info-soft = 4.72:1 */
   --info-soft: #e6f1fb;
+
+  /* diff 行底色（task-tool-diff-preview.md）：工具卡 diff 的整行红绿染色。
+     与 soft 徽章语义分开、可独立调档；透明度叠在 bg-surface 上，
+     与行内语义色文字（text-success / text-danger）保持 G3 衬度 */
+  --diff-add-bg: rgba(15, 122, 88, 0.09); /* --success 的 9% */
+  --diff-del-bg: rgba(192, 57, 43, 0.09); /* --danger 的 9% */
 
   /* 圆角 */
   --radius-sm: 4px;
@@ -114,6 +125,9 @@
      注意：此处是「深色模式下用深色前景」的刻意反例，改回 #ffffff 会直接跌破 G3。 */
   --accent-fg: #16181c;
 
+  /* 同上：深色下 accent 提亮为 #6b93ff，透明度略升一档补足与深底的衬度 */
+  --selection-bg: rgba(107, 147, 255, 0.32);
+
   --success: #5dcaa5;
   --success-soft: #14352b;
   --warning: #ef9f27;
@@ -122,6 +136,10 @@
   --danger-soft: #3d1f1f;
   --info: #85b7eb;
   --info-soft: #16293d;
+
+  /* 深色下透明度升档补足与深底的衬度（同 --selection-bg 手法） */
+  --diff-add-bg: rgba(93, 202, 165, 0.16); /* --success 的 16% */
+  --diff-del-bg: rgba(240, 149, 149, 0.16); /* --danger 的 16% */
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
