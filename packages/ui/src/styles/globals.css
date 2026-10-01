@@ -175,7 +175,7 @@
   }
 
   ::selection {
-    background-color: var(--accent-soft);
+    background-color: var(--selection-bg);
     color: var(--text-primary);
   }
 }
