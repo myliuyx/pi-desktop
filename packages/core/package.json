@@ -27,6 +27,7 @@
     "check:providers": "node scripts/providers-check.mjs",
     "check:usage-branch": "node node_modules/tsx/dist/cli.mjs scripts/usage-branch-check.mjs",
     "check:tool-details": "node node_modules/tsx/dist/cli.mjs scripts/tool-details-check.mjs",
+    "check:slash-commands": "node node_modules/tsx/dist/cli.mjs scripts/slash-commands-check.mjs",
     "smoke": "node node_modules/tsx/dist/cli.mjs src/main.ts",
     "check:session-title": "node node_modules/tsx/dist/cli.mjs scripts/session-title-check.mjs",
     "check:session-cache-scan": "node node_modules/tsx/dist/cli.mjs scripts/session-cache-scan-check.mjs",
@@ -40,7 +41,7 @@
     "check:file-perms": "node node_modules/tsx/dist/cli.mjs scripts/file-perms-check.mjs",
     "check:thinking-levels": "node scripts/thinking-levels-align-check.mjs",
     "check:model-info": "node node_modules/tsx/dist/cli.mjs scripts/model-info-check.mjs",
-    "test:ci": "npm run typecheck && npm run build && npm run check:thinking-levels && npm run check:model-info && npm run security-check && npm run check:trust && npm run check:run-dir && npm run check:fs-list && npm run check:fs-search && npm run check:prompt-filerefs && npm run check:error-visible && npm run check:usage-branch && npm run check:tool-details && npm run check:session-title && npm run check:sessions-manage && npm run check:skills-install && npm run check:compat && npm run check:model-select && npm run check:file-perms && npm run check:session-cache-scan && npm run check:session-cache-index && npm run check:session-list-perf"
+    "test:ci": "npm run typecheck && npm run build && npm run check:thinking-levels && npm run check:model-info && npm run security-check && npm run check:trust && npm run check:run-dir && npm run check:fs-list && npm run check:fs-search && npm run check:prompt-filerefs && npm run check:error-visible && npm run check:usage-branch && npm run check:tool-details && npm run check:slash-commands && npm run check:session-title && npm run check:sessions-manage && npm run check:skills-install && npm run check:compat && npm run check:model-select && npm run check:file-perms && npm run check:session-cache-scan && npm run check:session-cache-index && npm run check:session-list-perf"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.99.2"

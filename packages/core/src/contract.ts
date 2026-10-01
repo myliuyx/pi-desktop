@@ -446,7 +446,18 @@ export type AgentEvent =
   /** C8 新增：包操作进度（安装/移除/更新；core 由 setProgressCallback 桥接直接生成） */
   | PackageProgressEvent
   /** S1-S2 新增：技能安装进度（克隆/定位/拷贝阶段文案；core 直发，同 package_progress 管道） */
-  | SkillProgressEvent;
+  | SkillProgressEvent
+  /** 斜杠命令批次新增：上下文压缩开始/结束（此前 adapt.ts 显式丢弃，UI 全无感知） */
+  | { type: "compaction_start"; reason: CompactionReason }
+  | {
+      type: "compaction_end";
+      reason: CompactionReason;
+      /** 压缩摘要（成功且有 result 时写；UI 本轮只用它做 toast 文案，不渲染长文本） */
+      summary?: string;
+      aborted: boolean;
+      willRetry: boolean;
+      errorMessage?: string;
+    };
 
 /* ---------------------------------------------------------------------------
  * C6 · 04 屏工具开关（`GET /tools/active` / `POST /tools/active {names}`）
@@ -1012,4 +1023,35 @@ export interface PackageProgressEvent {
   source: string;
   /** 进度文案（Pi 原生 withProgress 的 message 原文） */
   message?: string;
+}
+
+/* ---------------------------------------------------------------------------
+ * 斜杠命令（斜杠命令批次，2026-10-01）
+ * 数据源：GET /slash-commands（core 组装）；执行：builtin 在 core 拦截，扩展/技能走 /prompt
+ * ------------------------------------------------------------------------- */
+
+export type SlashCommandSource = "builtin" | "extension" | "skill";
+export type SlashCommandScope = "user" | "project" | "package";
+export type PromptDisposition = "handled" | "queued" | "started";
+export type CompactionReason = "manual" | "threshold" | "overflow";
+
+export interface SlashCommandItem {
+  /** 展示名，不带前导斜杠：reload / think-zh / skill:brainstorming */
+  name: string;
+  /** 无描述写空串，UI 不造占位文案 */
+  description: string;
+  source: SlashCommandSource;
+  /** 仅 builtin 的参数提示（如 compact 的 "<instructions>"）；其余不写键 */
+  argumentHint?: string;
+  /** 当前是否可执行：builtin 在流式/压缩中为 false；扩展/技能恒 true */
+  available: boolean;
+  /** 资源归属（扩展/技能专用，供 UI 打来源标签） */
+  scope?: SlashCommandScope;
+}
+
+export interface SlashCommandsPayload {
+  /** 分组由 UI 按 source 归并；空组不渲染 */
+  commands: SlashCommandItem[];
+  /** 会话是否可执行 builtin（= 无流式且无压缩） */
+  builtinAvailable: boolean;
 }
