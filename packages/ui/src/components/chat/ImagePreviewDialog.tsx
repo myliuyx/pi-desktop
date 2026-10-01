@@ -34,6 +34,9 @@
  *   出现（加载/失败态同尺寸）——dataUrl/localhost 解码 <50ms 无感，慢网也不死点击。
  * - 内层容器 `h-full`（Dialog children 包装层高度确定，`h-full` 才是真约束），
  *   `<img>` 的 `max-h-full` 由此真正生效，大图 object-contain 完整显示不裁切。
+ * - **零内边距、图即卡**（2026-10-01 实弹后二次裁决）：曾用「白卡 + p-4」形态，
+ *   深色图会衬出白框（用户实弹否决）⇒ 面板 = 图片显示盒，圆角/阴影由 Dialog
+ *   面板裁在图上；加载/失败文案自带 p-6。
  * - 同 src 二次解码走内存缓存，预取无双重下载；`natural ≤ 0` 按加载失败处理。
  */
 import { useEffect, useState } from "react";
@@ -124,14 +127,16 @@ export function ImagePreviewDialog({
       testId="image-preview-dialog"
     >
       {/*
+        * 零内边距、图即卡：容器不带 padding，<img> 铺满面板块（圆角/阴影由
+        * Dialog 面板 overflow-hidden + rounded-lg 裁在图上）。
         * h-full 是本批 contain 链的修复点：Dialog 的 children 包装层是普通 block
         * （高度确定），这里曾写 flex-1（父级非 flex ⇒ 无效 ⇒ 高度 auto ⇒
         * <img> 的 max-h-full 解析为 none，图片按原始像素渲染、大图被裁）。
         * h-full 让本容器高度确定，max-h-full 由此真正钳住。
         */}
-      <div className="flex min-h-0 h-full items-center justify-center overflow-auto bg-bg-elevated p-4">
+      <div className="flex min-h-0 h-full items-center justify-center overflow-auto bg-bg-elevated">
         {failed ? (
-          <p data-testid="image-preview-error" className="text-sm text-text-secondary">
+          <p data-testid="image-preview-error" className="p-6 text-sm text-text-secondary">
             {errorText}
           </p>
         ) : (
@@ -146,7 +151,7 @@ export function ImagePreviewDialog({
           />
         )}
         {!loaded && !failed ? (
-          <p className="text-sm text-text-secondary" data-testid="image-preview-loading">
+          <p className="p-6 text-sm text-text-secondary" data-testid="image-preview-loading">
             加载中…
           </p>
         ) : null}
