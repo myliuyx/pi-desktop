@@ -613,7 +613,7 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 					// mimeType 来自魔数嗅探 + 5 种白名单，不含 CR/LF ⇒ 不触发 ERR_INVALID_CHAR
 					"Content-Type": r.mimeType,
 					"Content-Length": String(r.bytes.length),
-					// 磁盘图片**会被 agent 改写**，与 /sessions.image 的 append-only 恰相反 ⇒
+					// 磁盘图片**会被 agent 改写**，与 /sessions/image 的 append-only 恰相反 ⇒
 					// 不能 immutable，必须每次协商（那是会话 JSONL 的特例，不适用此处）
 					"Cache-Control": "no-cache",
 					// 成本 0：图片由白名单定型，不给浏览器嗅探空间
