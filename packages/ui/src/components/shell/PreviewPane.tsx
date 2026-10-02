@@ -719,13 +719,13 @@ function FileImagePreview({ path, name, size }: { path: string; name: string; si
    * 桌面端拖图会触发浏览器**原生拖拽**，被拖走的是 <img> 元素本身（不是 overflow-auto 的
    * 容器）⇒ 预览区留白，只能靠 fsVersion 变化或重开文件恢复；拖图是高频手势，必须挡住。
    *
-   * 两个必须记下的坑（均已在本仓库真 Chrome 里实测）：
-   * 1. 必须给**字符串** `"false"` 而非布尔 `false`：React 对未收录的属性走
-   *    `setValueForAttribute`，布尔值会被当布尔属性处理 —— 非 data-/aria- 前缀一律
-   *    `removeAttribute`，结果是 `dragging={false}` 静默无效果、图片照样能被拖走。
-   * 2. @types/react 19.3 的 `ImgHTMLAttributes` 只收 `draggable` 不收 `dragging`，
-   *    直接写在 JSX 上会报 TS 2339，故用同义的原生 `draggable={false}` 挡住拖拽，
-   *    两者都是规范里的可拖拽开关，Chrome 上均使 <img> 不可拖。
+   * 为什么用 `draggable` 而不是看起来更贴切的 `dragging`（实测于本仓库真 Chrome）：
+   * - `dragging` 不在 React 19 已收录的属性列表里，落 `default` → `setValueForAttribute`，
+   *   而该分支把非 data-/aria- 前缀的布尔值一律 `removeAttribute` ⇒ `dragging={false}`
+   *   **静默无效果**（不报错、图片照样被拖走）；
+   * - `@types/react` 19.3 的 `ImgHTMLAttributes` 也只收 `draggable`，写 `dragging` 报 TS 2339。
+   * `draggable` 是 React 已收录属性（Booleanish），布尔写法落到 `draggable="false"`，
+   * 正是 HTML 规范里关掉元素原生可拖拽的开关。
    */
   return (
     <div data-testid="preview-file-image" className="flex min-h-0 flex-1 overflow-auto bg-bg-subtle p-3">
