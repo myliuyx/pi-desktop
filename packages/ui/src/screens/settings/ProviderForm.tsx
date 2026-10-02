@@ -127,7 +127,7 @@ export function ProviderForm({ provider, onChange, onDelete, onImport, invalidFi
 
       <Field
         label="API key"
-        hint="以 ! 开头执行 shell 命令，或填写环境变量名"
+        hint="可填写环境变量名（$ENV_NAME）；`!cmd` 仅在保存后生效，测试连接时不会执行命令"
         required={provider.enabled}
         invalid={missing("apiKey")}
         error={REQUIRED_ERROR.apiKey}
@@ -137,7 +137,7 @@ export function ProviderForm({ provider, onChange, onDelete, onImport, invalidFi
             className={cn(INPUT_CLASS, "pr-9", missing("apiKey") && "border-danger")}
             type={showApiKey ? "text" : "password"}
             value={provider.apiKey}
-            placeholder="sk-... 或 $ENV_NAME 或 !cmd"
+            placeholder="sk-... 或 $ENV_NAME"
             data-testid="provider-api-key"
             onChange={(e) => patch({ apiKey: e.target.value })}
           />

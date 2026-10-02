@@ -69,7 +69,7 @@ export interface ModelProviderConfig {
   name: string;
   /** Base URL */
   baseUrl: string;
-  /** API key（以 ! 开头执行 shell 命令，或填写环境变量名） */
+  /** API key（可填写环境变量名 $ENV_NAME；`!cmd` 可保存但仅在 Pi 读盘时解析，不经 HTTP 测试） */
   apiKey: string;
   /** API 类型，默认 openai-completions */
   api: ModelApiType;
