@@ -33,6 +33,10 @@
  * 用法（在 packages/core 下）：`npm run check:fs-image`
  * 环境变量口径：`FS_IMAGE_PORT ?? 5235`、`FS_IMAGE_TOKEN ?? fs-image-token`（避让 5231/5233）。
  * 证据：`run/fs-image-evidence.json`；失败非 0 退出。
+ *
+ * 汇总口径：跳过 ≠ 通过。环境能力不足（root 绕过 chmod 000 / win32）时 R8 不跑，
+ * 条目上打 `skipped:true`、并登记进顶层 `skipped[]`；收尾打印「实跑通过 M/N 项，
+ * 跳过 K 项」，机读消费者据 `summary.passed` 统计，不把 skip 算成通过。
  */
 
 import { spawn } from "node:child_process";
@@ -144,9 +148,27 @@ const DIR_REL = "subdir";
 fs.mkdirSync(f(DIR_REL), { recursive: true });
 
 const checks = [];
+/**
+ * 环境能力不足、判据**压根没跑**的条目登记处。
+ *
+ * 为什么要单独一栏（follow-up fix round 1 · Important 1）：
+ *   「本环境构造不出不可读文件（root 绕过 chmod / win32 无 POSIX 权限）⇒ 403 不可观测」
+ * 是**诚实的 skip**，但它一旦只写 `{pass:true}`，机读消费者（CI 面板、回归统计、
+ * 「本批 N 项全通过」的口径）就与「403 真的验过了」**完全无法区分** ——
+ * skip 伪装成 pass 的变体。这里采用 `skills-install-check.mjs` 的 SKIPPED 惯例：
+ *   1) 条目上打 `skipped:true`，不计入「已通过」；
+ *   2) 顶层 `skipped[]` 再列一遍（id + 理由 + 平台），证据文件里一眼可辨；
+ *   3) 收尾显式打印「跳过 N 项」。
+ */
+const SKIPPED = [];
 const check = (name, pass, detail) => {
 	checks.push({ name, pass: !!pass, detail });
 	console.log(`  ${pass ? "✓" : "✗"} ${name}${pass ? "" : `  ${JSON.stringify(detail ?? "")}`}`);
+};
+const skip = (name, detail, { id, reason }) => {
+	SKIPPED.push({ id, name, reason, platform: `${process.platform}${process.getuid ? ` uid=${process.getuid()}` : ""}` });
+	checks.push({ name, pass: true, skipped: true, detail });
+	console.log(`  - ${name}（SKIP）${reason}`);
 };
 
 /** 返回 { status, headers, buffer }；binary 端点不能按字符串收（逐字节比较的前提） */
@@ -409,8 +431,15 @@ try {
 		check("R8 chmod 000 的文件 ⇒ 403", r.status === 403, { status: r.status, error: r.json?.error });
 		fs.chmodSync(NO_PERM_ABS, 0o644); // 复原，避免 tmp 清理踩坑
 	} else {
-		checks.push({ name: "R8 无权限 ⇒ 403", pass: true, detail: "不适用：当前环境无法构造不可读文件（root 或 win32）" });
-		console.log("  - R8 跳过（无法构造不可读文件，见 evidence.detail）");
+		/*
+		 * follow-up fix round 1 · Important 1：skip 不再伪装成 pass。
+		 * `pass:true` 保留（「没有失败项」这个语义不动），但同时打 `skipped:true`，
+		 * 机读汇总必须把两者分开数 —— 否则「root 下没验过 403」会被统计成「403 验过了」。
+		 */
+		skip("R8 无权限 ⇒ 403", `不适用：当前环境无法构造不可读文件（chmodApplied=${chmodApplied}；root 绕过读权限或 win32 无 POSIX 权限）`, {
+			id: "R8-403",
+			reason: "root 绕过 chmod 000（或 win32 无 POSIX 权限位）⇒ 403 在本环境不可观测；chmodApplied=false 即触发",
+		});
 	}
 
 	/* ===== 豁免零外溢：?token= 只对 /fs/image 与 /sessions/image 生效 ===== */
@@ -453,11 +482,25 @@ try {
 
 evidence.finishedAt = new Date().toISOString();
 evidence.checks = checks;
+evidence.skipped = SKIPPED;
+// 「实跑通过」与「跳过」分列：机读消费者只数已验证的那部分
+evidence.summary = {
+	total: checks.length,
+	passed: checks.filter((c) => c.pass && !c.skipped).length,
+	skipped: checks.filter((c) => c.skipped).length,
+	failed: checks.filter((c) => !c.pass).length,
+	skippedIds: SKIPPED.map((s) => s.id),
+};
 fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2));
 
 const failed = checks.filter((c) => !c.pass).length;
+const skippedCount = SKIPPED.length;
+const skipNote = skippedCount > 0 ? `，跳过 ${skippedCount} 项（root/win32 下 403 不可观测）` : "";
 if (failed > 0) {
-	console.error(`\nfs-image 检查失败 ${failed} 项（证据：${evidencePath}）`);
+	console.error(`\nfs-image 检查失败 ${failed} 项${skipNote}（证据：${evidencePath}）`);
+	for (const c of checks.filter((x) => !x.pass)) console.error(`  ✗ ${c.name}`);
 	process.exit(1);
 }
-console.log(`fs-image 检查全部通过：${checks.length} 项（证据：${evidencePath}）`);
+console.log(
+	`fs-image 检查全部通过：${checks.length - skippedCount}/${checks.length} 项实跑通过${skipNote}（证据：${evidencePath}）`,
+);
