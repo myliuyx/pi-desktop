@@ -493,14 +493,20 @@ evidence.summary = {
 };
 fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2));
 
-const failed = checks.filter((c) => !c.pass).length;
-const skippedCount = SKIPPED.length;
+/*
+ * fix round 2 · Minor 3：打印口径只认 evidence.summary 一处。
+ * 原来失败路径用 `checks.length - skippedCount / checks.length` 另算一遍通过数，
+ * 与 summary.passed 是**两份重复维护的算术**，将来任何一边改了判据口径就会两处漂移
+ * （且漂移方向不可察：人只会看打印那行）。现在两边都直接读 summary。
+ */
+const failed = evidence.summary.failed;
+const { passed, total, skipped: skippedCount } = evidence.summary;
 const skipNote = skippedCount > 0 ? `，跳过 ${skippedCount} 项（root/win32 下 403 不可观测）` : "";
 if (failed > 0) {
-	console.error(`\nfs-image 检查失败 ${failed} 项${skipNote}（证据：${evidencePath}）`);
+	console.error(
+		`\nfs-image 检查失败 ${failed} 项${skipNote}（实跑通过 ${passed}/${total}，证据：${evidencePath}）`,
+	);
 	for (const c of checks.filter((x) => !x.pass)) console.error(`  ✗ ${c.name}`);
 	process.exit(1);
 }
-console.log(
-	`fs-image 检查全部通过：${checks.length - skippedCount}/${checks.length} 项实跑通过${skipNote}（证据：${evidencePath}）`,
-);
+console.log(`fs-image 检查全部通过：${passed}/${total} 项实跑通过${skipNote}（证据：${evidencePath}）`);

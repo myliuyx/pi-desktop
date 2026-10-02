@@ -4,7 +4,10 @@
  * 写作方：**验收方（非实现方）** —— 项目铁律「验收脚本必须由非实现方写」
  * （见 probe-image-preview.mjs 文件头）。本文件**只从冻结契约推导断言**，不读
  * PreviewPane 的 FileImagePreview 实现。契约：DOM testid 四个（容器 / <img> / 超限 / 失败）、
- * 图片点开后 <img> 的 src 来自 /fs/image、缓存破门 v=、超限走本地占位文案「图片过大」。
+ * 图片点开后 <img> 的 src 来自 /fs/image、缓存破门 v=、超限走本地占位文案「图片过大，
+ * 暂不支持预览」、解码失败走本地占位文案「图片无法加载」。四条文案都是冻结契约的一部分 ——
+ * 「随便写点非空串」不是合规实现，所以断言逐字比对（口径同 core 侧 fs-image-check
+ * 的 R13「文案含『文件不存在』」）。
  *
  * 运行前置：`packages/ui` 下先 `npm run build`（core 同源托管的是 dist，不是源码）。
  * 用法：`npm run probe:preview-image`；证据 `_probe-preview-image-evidence.json`；失败非 0 退出。
@@ -22,10 +25,17 @@
  *   并在证据里写明「图片链路未获验证」。静默跳过会让本批最大的验证缺口被吞掉。
  * - G11（坏字节图 ⇒ error 占位）**不得**「取不到就跳过」：取不到 error 占位判红 ——
  *   它的性质是「浏览器拿不到可解码字节时的诚实呈现」，必须始终被观测。
- * - ⚠️ 判据顺序：**G9（无未捕获异常）必须排在 G11 之前**。实测（本机 Google Chrome 154 +
- *   `window.addEventListener('error', h, true)`）资源加载错误（`<img>` 的 error）
- *   **会**以捕获阶段事件到达 window，G9 那个不区分来源的计数器会计到它；
- *   反过来排在 G9 之后，G9 就退化成「只测了前半程没有脚本异常」。顺序是口径的一部分。
+ * - ⚠️ G9 与 G11 **不再有先后约束**（fix round 2 · Important 2）：原实现用单个不区分来源的
+ *   `window.__err` 计数，而资源加载错误（`<img>` 的 error，以捕获阶段事件到达 window）
+ *   会计进去 —— 实测（本机 Google Chrome 154 + `addEventListener('error', h, true)`）
+ *   坏字节图确实把计数推成 1。那样 G9 就只能是「**探针前半程**无未捕获异常」，
+ *   半程口径既没写进断言名、也没写进汇总，还逼出一条「G9 必须排在 G11 之前」的
+ *   隐式顺序契约（谁调整检查顺序，G9 就静默改语义）。现在拆成两个计数器：
+ *     `__scriptErr` = 脚本类异常（捕获阶段 error 事件里 target 不是 <img> 的那些）
+ *     `__resErr`     = 资源类异常（target 是 <img> 的那些，即图片加载失败）
+ *   G9 只看 `__scriptErr`，于是「脚本类异常全程为 0」成了与位置无关的陈述，
+ *   可以放在流程任意位置 —— 顺序契约直接消失，G11 挪到 G9 前后均不影响 G9。
+ *   `__resErr` 不作判据（图片加载失败本身正是 G11 要观测的现象），只在证据里留读数。
  * - 文件行点击用 `[data-kind="file"]` + textContent 匹配后 `.click()`；**不要**点
  *   `sidebar-file-tree-file-row-N`（那是外层 div，没有 onClick，点了没有任何反应）。
  *   目录展开用 `[data-kind="dir"]`，展开结果读 `data-expanded`。
@@ -252,8 +262,20 @@ try {
 
     phase = "打开页面";
     await ctx.open(`/?live=1&token=${TOKEN}`);
-    await cdp.eval(`window.addEventListener('error', () => { window.__err = (window.__err||0)+1; }, true);
-                   window.__err = 0;`, false);
+    /*
+     * 未捕获异常**双计数器**（G9；fix round 2 · Important 2）。必须挂在导航之后、任何检查之前，
+     * 且用捕获阶段监听（不设 capture 就不会到 window）。拆分依据：捕获阶段 error 事件的
+     * `target` 就是事件源元素 —— 资源加载失败（<img> 的 error）的 target 是那个 <img>，
+     * 脚本抛错的 target 是出错的元素/Window。复审已在本机 Chrome 154 独立复现确认
+     * 「资源错误会计入不区分来源的计数器」（{"all":1,"res":1,"script":0}），
+     * 即这种区分是可观测的、不是凭感觉分的类。
+     * `window.__err` 保留为不区分来源的全量读数，只写进证据做对照，不参与判据。
+     */
+    await cdp.eval(`window.addEventListener('error', (h) => {
+                     if (h && h.target && h.target.tagName === 'IMG') window.__resErr = (window.__resErr||0)+1;
+                     else window.__scriptErr = (window.__scriptErr||0)+1;
+                   }, true);
+                   window.__err = 0; window.__scriptErr = 0; window.__resErr = 0;`, false);
     await cdp.eval(HELPERS);
 
     /* ===== G0：前置闸门 —— 侧栏文件树出现，展到 assets/ ===== */
@@ -364,7 +386,7 @@ try {
     const clickedTooLarge = (await cdp.eval(`window.__PI.clickFile('toolarge.png')`)) === true;
     await sleep(2000);
     const g6 = await cdp.eval(
-      `(() => ({ tooLarge: window.__PI.tooLargeExists(), text: window.__PI.tooLargeText(), hasImg: window.__PI.imgFacts().exists, name: window.__PI.fileName() }))()`,
+      `(() => ({ tooLarge: window.__PI.tooLargeExists(), text: window.__PI.tooLargeText(), hasImg: window.__PI.imgFacts().exists, name: window.__PI.fileName(), error: window.__PI.errorExists() }))()`,
       true,
     );
     ctx.record("G6 超限占位", g6);
@@ -374,6 +396,15 @@ try {
       文案含图片过大: g6.text.includes("图片过大"),
       超限时不出img: g6.hasImg === false,
       文件名是toolarge_png: g6.name === "toolarge.png",
+      /*
+       * ★ 直接阳性对照（fix round 2 · Important 1 增补）：在**已知健康**的超限场景
+       *   （同一组件、同一 kind、同一 FileStatusBlock）要求 error 占位**不存在**。
+       *   作用：G11 的 `error占位出现` 与本项「同一选择器在健康态下为 false」互为反证，
+       *   排掉「error 选择器恒非空 / testid 拼错导致组件压根没渲染」这两类假阳性。
+       *   G11 里那对阳性对照（非空文案 + G6 无 img）都证明不了这一点 ——
+       *   「文案非空」无法区分「文案写对」与「组件整体没渲染/没报错」。
+       */
+      阳性对照_健康态不出error占位: g6.error === false,
     });
 
     /* ===== G7：点 preview-file-close ⇒ 清选择 + 预览区收起 ===== */
@@ -445,14 +476,29 @@ try {
       阳性对照_code按钮存在: g8md.tabs.tabCodeBtn === 1,
     });
 
-    /* ===== G9：页面无未捕获异常（window.onerror 计数 0 + CDP exceptionThrown 为空） ===== */
-    // ⚠️ 必须排在 G11 之前：资源错误（<img> 的 error）也会进那个 capture 版 window 计数器，
-    //    顺序颠倒会把 G9 染红、或反过来把 G9 退化成半程口径。见文件头纪律段。
-    phase = "G9 无未捕获异常";
-    const windowErrCount = (await cdp.eval(`window.__err ?? 0`, true)) ?? 0;
-    ctx.record("G9 异常计数", { windowErrCount, cdpExceptions: pageErrors.length, samples: pageErrors.slice(0, 3) });
-    A("G9 页面无未捕获异常（window.onerror=0 且无 CDP exceptionThrown）", {
-      window_onerror为0: windowErrCount === 0,
+    /* ===== G9：页面无未捕获**脚本**异常（__scriptErr 全程为 0 + CDP exceptionThrown 为空） ===== */
+    /*
+     * 口径（fix round 2 · Important 2）：判据只看 `__scriptErr`（脚本类），不看
+     * `__resErr`（<img> 等资源类）。资源类错误是本探针**故意制造**的（G11 的 415 坏字节图），
+     * 它进不进 G9 由「是不是资源类」决定，与本块在流程里的位置无关 ——
+     * 因此不再有“G9 必须在 G11 之前”的顺序契约（已实测：G11 挪到 G9 之前，G9 仍绿）。
+     * 语义也从「前半程无异常」收回到它字面上真正在说的东西：脚本类异常全程为 0。
+     */
+    phase = "G9 无未捕获脚本异常";
+    const errCounts = await cdp.eval(
+      `({ script: window.__scriptErr ?? 0, resource: window.__resErr ?? 0, all: window.__err ?? 0 })`,
+      true,
+    );
+    const windowErrCount = errCounts?.script ?? 0;
+    ctx.record("G9 异常计数", {
+      脚本类异常: windowErrCount,
+      资源类异常_不作判据: errCounts?.resource ?? null,
+      全量异常_仅对照: errCounts?.all ?? null,
+      cdpExceptions: pageErrors.length,
+      samples: pageErrors.slice(0, 3),
+    });
+    A("G9 页面无未捕获脚本异常（window.__scriptErr=0 且无 CDP exceptionThrown；资源类异常不计入）", {
+      window脚本类异常为0: windowErrCount === 0,
       无cdp未捕获异常: pageErrors.length === 0,
     });
 
@@ -488,20 +534,29 @@ try {
       await sleep(250);
     }
     ctx.record("G11 坏字节图 error 占位", g11);
-    A("G11 点 liar.png（扩展名 png、字节是文本）⇒ core 415 ⇒ <img> 加载失败 ⇒ 出 preview-file-image-error 占位", {
+    A("G11 点 liar.png（扩展名 png、字节是文本）⇒ core 415 ⇒ <img> 加载失败 ⇒ 出 preview-file-image-error 占位且文案为「图片无法加载」", {
       liar_png行可点: clickedLiar === true,
       文件名是liar_png: g11.name === "liar.png",
       error占位出现: g11.error === true,
-      文案非空: (g11.text ?? "").length > 0,
+      /*
+       * 逐字文案断言（fix round 2 · Important 1）。原判据是 `文案非空: (g11.text ?? "").length > 0`
+       * —— 复审实测把实现的文案改成任意非空串后它**仍然 PASS、探针仍 exit=0**，
+       * 对「文案写错」零鉴别力（假阳性口：看着绿、实则什么都没测）。
+       * 现在按冻结契约比对 FileImagePreview 的 text prop —— 口径跟随 core 侧
+       * fs-image-check 的 R13「文案含『文件不存在』」，是精确文案而非非空。
+       */
+      文案是图片无法加载: g11.text === "图片无法加载",
       不落读取失败占位: g11.readError === false,
       不落binary占位: g11.binary === false,
       不落超限占位: g11.tooLarge === false,
     });
     /*
      * ★ 阳性对照（防空转断言）：若 error 占位是因为「组件压根没渲染」而出现，上面的
-     *   `error占位出现` 就恒真。所以先在**同类健康路径**上取一条真值事实 ——
-     *   G6 的 toolarge.png（同样是 image kind、同样走 FileStatusBlock）在 error 不存在时
-     *   恰好出现过（见 G6 的「超限时不出img」），两者互补即可证伪「error 选择器恒非空」。
+     *   `error占位出现` 就恒真。**直接**反证由 G6 的新判据给出：同一 FileStatusBlock、
+     *   同一 image kind、同样点得开的 toolarge.png 上，error 占位为 false
+     *   （见 G6 的「阳性对照_健康态不出error占位」= true）。此前这里写的
+     *   「对照_超大图G6无error占位: 见 G6 的『超时不出现 img』」其实不成立 ——
+     *   「不出 <img>」并不蕴含「不出 error 占位」，组件没渲染时两者会同时消失。
      * 这里把 liar.png 的观测（源 URL 仍指向 /fs/image ⇒ 请求真发出过且被 415 拒了）
      * 一并留在证据里，供人复核，而不是只留一个布尔。
      */
@@ -509,7 +564,8 @@ try {
       注: "img 已被 error 占位替换 ⇒ src/naturalWidth 应为 null/0（浏览器已卸下 <img>）；换文件重试后由 G12 复位证明失败态可清",
       src: g11.src ?? null,
       naturalWidth: g11.naturalWidth ?? 0,
-      对照_超大图G6无error占位: "见 G6 断言项『超限时不出img』= true",
+      文案原文: g11.text ?? "",
+      "对照_健康态(G6超限图)无error占位": "见 G6 断言项『阳性对照_健康态不出error占位』= true",
     });
 
     /* ===== G12：失败态可复位 —— 回到 shot.png ⇒ 又出 preview-file-image-img（onError 不粘手） ===== */
