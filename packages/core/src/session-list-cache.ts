@@ -12,6 +12,11 @@
  * - **热层** 进程内 Map：命中只做 `stat`（实测 197 文件 2ms）。
  * - **冷底** `<agentDir>/session-index.json`：core 重启后首屏也是毫秒级。
  *
+ * **子会话过滤（2026-10-02）**：扫描时识别 pi-web subagent 的专属标记
+ * （`custom` entry `customType === "pi-web:subagent"`）并置 `isSubagent`，
+ * 清单与「续接最近」都默认排除它。**刻意不用 `header.parentSession` 判定** ——
+ * 那是 Pi 的 fork / 跨 cwd 复制语义，用它过滤会误伤用户主动 fork 的会话。
+ *
  * ## 失效判据为什么是「整文件指纹」而不是「尾读增量」
  *
  * Pi 的 `session-manager.ts` `_rewriteFile()` 会 `openSync(file, "w")` **全量重写**
