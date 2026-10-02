@@ -1157,7 +1157,7 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 		},
 		continueRecentSession: async () => {
 			await ready;
-			const loaded = continueRecentSession(sessionRef(), { contextWindow: contextWindow() });
+			const loaded = await continueRecentSession(sessionRef(), { contextWindow: contextWindow() });
 			/*
 			 * C6 §1.2：把活动会话切到「最近一次会话」（重建 AgentSession，见 rebuildSession 注释）。
 			 * 两条护栏：① 没有历史会话（空壳、无 path）或最近会话没有任何消息 → 不重建（切过去无意义）；

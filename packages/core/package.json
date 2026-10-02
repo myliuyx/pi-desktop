@@ -33,6 +33,7 @@
     "check:session-title": "node node_modules/tsx/dist/cli.mjs scripts/session-title-check.mjs",
     "check:session-cache-scan": "node node_modules/tsx/dist/cli.mjs scripts/session-cache-scan-check.mjs",
     "check:session-cache-index": "node node_modules/tsx/dist/cli.mjs scripts/session-cache-index-check.mjs",
+    "check:session-subagent": "node node_modules/tsx/dist/cli.mjs scripts/session-subagent-check.mjs",
     "check:session-list-perf": "node node_modules/tsx/dist/cli.mjs scripts/session-list-perf-check.mjs",
     "check:error-visible": "node node_modules/tsx/dist/cli.mjs scripts/error-visible-check.mjs",
     "check:sessions-manage": "node scripts/sessions-manage-check.mjs",
@@ -42,7 +43,7 @@
     "check:file-perms": "node node_modules/tsx/dist/cli.mjs scripts/file-perms-check.mjs",
     "check:thinking-levels": "node scripts/thinking-levels-align-check.mjs",
     "check:model-info": "node node_modules/tsx/dist/cli.mjs scripts/model-info-check.mjs",
-    "test:ci": "npm run typecheck && npm run build && npm run check:thinking-levels && npm run check:model-info && npm run security-check && npm run check:trust && npm run check:run-dir && npm run check:fs-list && npm run check:fs-search && npm run check:fs-image && npm run check:prompt-filerefs && npm run check:error-visible && npm run check:usage-branch && npm run check:tool-details && npm run check:slash-commands && npm run check:session-title && npm run check:sessions-manage && npm run check:skills-install && npm run check:compat && npm run check:model-select && npm run check:file-perms && npm run check:session-cache-scan && npm run check:session-cache-index && npm run check:session-list-perf"
+    "test:ci": "npm run typecheck && npm run build && npm run check:thinking-levels && npm run check:model-info && npm run security-check && npm run check:trust && npm run check:run-dir && npm run check:fs-list && npm run check:fs-search && npm run check:fs-image && npm run check:prompt-filerefs && npm run check:error-visible && npm run check:usage-branch && npm run check:tool-details && npm run check:slash-commands && npm run check:session-title && npm run check:sessions-manage && npm run check:skills-install && npm run check:compat && npm run check:model-select && npm run check:file-perms && npm run check:session-cache-scan && npm run check:session-cache-index && npm run check:session-subagent && npm run check:session-list-perf"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.99.2"

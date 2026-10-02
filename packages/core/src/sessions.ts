@@ -44,7 +44,7 @@ import type {
 import { isRecord, num } from "./guards.ts";
 import { fileRefNames, stripFileRefBlocks } from "./prompt-files.ts";
 import { usageOf } from "./adapt.ts";
-import { listSessionsCached, readFirstUserText } from "./session-list-cache.ts";
+import { listSessionsCached, mostRecentSessionPath, readFirstUserText } from "./session-list-cache.ts";
 
 /* ---------------------------------------------------------------------------
  * 通用小工具
@@ -612,31 +612,36 @@ export function loadSessionById(
  * 「把 core 的活动 `AgentSession` 切过去」由 `session.ts` 的 `rebuildSession` 完成
  * （C6 §1.2：`createAgentSession({ sessionManager: SessionManager.open(file) })`
  * 公开路径，续写落同一 session 文件）；返回值里的 `path` 就是重建用的文件路径。
+ *
+ * 2026-10-02：不走 Pi 的 `SessionManager.continueRecent`，改从本仓会话索引里挑
+ * 「最新的非 subagent 会话」再用 `SessionManager.open` 打开 —— 否则 mtime 最新的
+ * 子 agent 会话会抢占续接。判据与清单过滤同源（`isSubagent`）。
  */
-export function continueRecentSession(
+export async function continueRecentSession(
   ref: SessionRef,
   options: { contextWindow?: number } = {},
-): LoadedSession {
-  const manager = SessionManager.continueRecent(ref.cwd, ref.sessionDir);
-  const sessionPath = manager.getSessionFile();
-  if (!sessionPath) {
-    // 没有任何历史会话：返回一个空壳（UI 侧表现为「无可续接」而不是报错）
-    return {
-      result: {
-        id: manager.getSessionId(),
-        title: "(未命名会话)",
-        updatedAt: Date.now(),
-        messages: [],
-        tokenUsage: { input: 0, output: 0, total: 0, contextWindow: options.contextWindow ?? 0 },
-        stats: {
-          entryCount: 0,
-          messageCount: 0,
-          skipped: {},
-          usageSource: "none",
-          mainBranchOnly: true,
-        },
-      },
-    };
+): Promise<LoadedSession> {
+  const sessionPath = await mostRecentSessionPath(ref);
+  if (sessionPath) {
+    const manager = SessionManager.open(sessionPath, ref.sessionDir, ref.cwd);
+    return readSession(manager, { ...options, path: sessionPath });
   }
-  return readSession(manager, { ...options, path: sessionPath });
+  // 没有任何「非 subagent」历史会话：返回一个空壳（UI 侧表现为「无可续接」而不是报错）
+  const manager = SessionManager.inMemory(ref.cwd);
+  return {
+    result: {
+      id: manager.getSessionId(),
+      title: "(未命名会话)",
+      updatedAt: Date.now(),
+      messages: [],
+      tokenUsage: { input: 0, output: 0, total: 0, contextWindow: options.contextWindow ?? 0 },
+      stats: {
+        entryCount: 0,
+        messageCount: 0,
+        skipped: {},
+        usageSource: "none",
+        mainBranchOnly: true,
+      },
+    },
+  };
 }

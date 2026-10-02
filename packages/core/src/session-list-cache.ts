@@ -640,6 +640,34 @@ function selectEntries(sessionDir: string | undefined, cwd: string, all: boolean
 }
 
 /**
+ * 最近一次会话的文件路径（排除 subagent 子会话）—— 供 `sessions.ts` 的
+ * `continueRecentSession()` 使用。
+ *
+ * 语义与 Pi 的 `findMostRecentSession()` 对齐：按**文件 mtime** 降序取第一个
+ * cwd 匹配的会话；差别只在于这里是复用索引（`CacheEntry.fp.mtimeMs`）并跳过
+ * `isSubagent`，避免子会话抢占「续接最近」。
+ */
+export async function mostRecentSessionPath(
+  ref: { cwd: string; sessionDir?: string },
+  options: { all?: boolean } = {},
+): Promise<string | undefined> {
+  const stats = await refreshIndex(ref.sessionDir);
+  if (stats.changed) scheduleSave(ref.sessionDir, getIndex());
+  const index = getIndex();
+  const resolved = path.resolve(ref.cwd);
+  let best: { path: string; mtimeMs: number } | undefined;
+  for (const [filePath, entry] of index) {
+    if (entry.info.isSubagent) continue;
+    if (!options.all) {
+      const ecwd = entry.info.cwd;
+      if (!ecwd || path.resolve(ecwd) !== resolved) continue;
+    }
+    if (!best || entry.fp.mtimeMs > best.mtimeMs) best = { path: filePath, mtimeMs: entry.fp.mtimeMs };
+  }
+  return best?.path;
+}
+
+/**
  * 会话清单（缓存版）—— `sessions.ts` 的 `listSessions()` 唯一入口。
  *
  * 与 Pi 的 `SessionManager.list(cwd, sessionDir)` 语义对齐：
