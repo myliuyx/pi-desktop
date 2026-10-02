@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { listSessionsCached, indexFilePath, resetIndexCacheForTests, flushIndexSaveForTests, INDEX_VERSION } from "../src/session-list-cache.ts";
+import { listSessionsCached, indexFilePath, resetIndexCacheForTests, flushIndexSaveForTests, INDEX_VERSION, scanSessionFileLight } from "../src/session-list-cache.ts";
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "index-check-"));
 const checks = [];
@@ -101,6 +101,53 @@ fs.rmSync(indexFilePath(sessionDir), { force: true }); // 使「全 miss」不�
 resetIndexCacheForTests();
 const [g1, g2] = await Promise.all([listSessionsCached(ref), listSessionsCached(ref)]);
 check("G1 并发两拉共享一次扫描（misses 相同且等于文件数）", g1.stats.misses === g2.stats.misses && g1.stats.misses === g1.stats.files, { g1: g1.stats, g2: g2.stats });
+
+/* ---------- H. subagent 子会话过滤 ---------- */
+const gammaDir = path.join(sessionsRoot, "--proj-gamma--");
+fs.mkdirSync(gammaDir, { recursive: true });
+const GAMMA = "/proj/gamma";
+const gammaHeader = (id, parent) => ({
+  type: "session",
+  version: 3,
+  id,
+  ...(parent ? { parentSession: parent } : {}),
+  cwd: GAMMA,
+  timestamp: "2026-09-30T09:00:00.000Z",
+});
+const subMeta = {
+  type: "custom",
+  customType: "pi-web:subagent",
+  id: "c1",
+  parentId: "x",
+  timestamp: "2026-09-30T09:00:00.000Z",
+  data: { version: 1, parentSessionId: "p", parentSessionPath: "/p.jsonl", profile: "general-purpose" },
+};
+const gammaMsg = (text, iso) => ({
+  type: "message",
+  id: "m1",
+  parentId: "x",
+  timestamp: iso,
+  message: { role: "user", content: [{ type: "text", text }] },
+});
+const writeRaw = (name, entries) =>
+  fs.writeFileSync(path.join(gammaDir, name), entries.map((e) => JSON.stringify(e)).join("\n") + "\n");
+
+writeRaw("normal.jsonl", [gammaHeader("g-normal"), gammaMsg("普通会话", "2026-09-30T09:00:01.000Z")]);
+writeRaw("fork.jsonl", [gammaHeader("g-fork", "/proj/gamma/parent.jsonl"), gammaMsg("fork 会话", "2026-09-30T09:00:02.000Z")]);
+writeRaw("subagent.jsonl", [
+  gammaHeader("g-sub", "/proj/gamma/parent.jsonl"),
+  subMeta,
+  gammaMsg("子会话", "2026-09-30T09:00:03.000Z"),
+]);
+
+const gref = { cwd: GAMMA, sessionDir: gammaDir };
+resetIndexCacheForTests();
+const rG = await listSessionsCached(gref);
+check("H1 子会话被排除出 entries", !rG.entries.some((e) => e.info.id === "g-sub"), ids(rG));
+check("H2 fork（仅 parentSession）保留", rG.entries.some((e) => e.info.id === "g-fork"), ids(rG));
+check("H3 普通会话保留", rG.entries.some((e) => e.info.id === "g-normal"), ids(rG));
+check("H4 stats.files 仍扫描全部文件（含子会话；>仅 gamma）", rG.stats.files >= 3, rG.stats);
+check("H5 扫描层对子会话置 isSubagent=true", scanSessionFileLight(path.join(gammaDir, "subagent.jsonl"))?.isSubagent === true, scanSessionFileLight(path.join(gammaDir, "subagent.jsonl")));
 
 fs.rmSync(tmpRoot, { recursive: true, force: true });
 const failed = checks.filter((c) => !c.pass);

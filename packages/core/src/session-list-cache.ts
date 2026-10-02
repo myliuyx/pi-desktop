@@ -348,9 +348,10 @@ export function readFirstUserText(filePath: string): string | null {
  * 索引格式版本。变更语义时必须 bump —— 指纹 `(size, mtimeMs)` 未变的存量条目
  * 不会被重扫，旧语义会一直生效到文件恰好被改动。v2：`modified` 改为 Pi
  * `getMessageActivityTime` 同口径（`message.timestamp` 数字 + 仅 user/assistant）。
+ * v3：`CacheInfo` 新增 `isSubagent`（pi-web subagent 子会话标记）。
  * `loadIndex` 遇到版本不符会静默丢弃整份索引并冷重建，使新语义立即对全体会话生效。
  */
-export const INDEX_VERSION = 2;
+export const INDEX_VERSION = 3;
 export const INDEX_FILENAME = "session-index.json";
 /** 写盘 debounce（spec §3.7）：连续对话每轮都触发 refreshSessions，不能每次都写 5MB */
 const SAVE_DEBOUNCE_MS = 2000;
@@ -364,6 +365,8 @@ export interface CacheInfo {
   created: string;
   modified: number;
   hasFirstUser: boolean;
+  /** 是否 pi-web subagent 子会话（清单默认排除，见 selectEntries） */
+  isSubagent: boolean;
 }
 export interface CacheEntry {
   fp: { size: number; mtimeMs: number };
@@ -442,7 +445,8 @@ function isCacheEntry(v: unknown): v is CacheEntry {
     typeof e.info.messageCount === "number" &&
     typeof e.info.created === "string" &&
     typeof e.info.modified === "number" &&
-    typeof e.info.hasFirstUser === "boolean"
+    typeof e.info.hasFirstUser === "boolean" &&
+    typeof e.info.isSubagent === "boolean"
   );
 }
 
@@ -618,12 +622,13 @@ function refreshIndex(sessionDir: string | undefined): Promise<RefreshResult> {
   return task;
 }
 
-/** 从内存索引筛出当前 ref 的条目（`all=true` 不过滤 cwd），按 modified 降序 */
+/** 从内存索引筛出当前 ref 的条目（`all=true` 不过滤 cwd；默认排除 subagent 子会话），按 modified 降序 */
 function selectEntries(sessionDir: string | undefined, cwd: string, all: boolean): Array<{ path: string; info: CacheInfo }> {
   const index = loadIndex(sessionDir);
   const resolved = path.resolve(cwd);
   const out: Array<{ path: string; info: CacheInfo }> = [];
   for (const [filePath, entry] of index) {
+    if (entry.info.isSubagent) continue;
     if (!all) {
       const ecwd = entry.info.cwd;
       if (!ecwd || path.resolve(ecwd) !== resolved) continue;
