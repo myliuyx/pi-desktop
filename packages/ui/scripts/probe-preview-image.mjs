@@ -269,9 +269,11 @@ try {
      * 脚本抛错的 target 是出错的元素/Window。复审已在本机 Chrome 154 独立复现确认
      * 「资源错误会计入不区分来源的计数器」（{"all":1,"res":1,"script":0}），
      * 即这种区分是可观测的、不是凭感觉分的类。
-     * `window.__err` 保留为不区分来源的全量读数，只写进证据做对照，不参与判据。
+     * `window.__err` 保留为不区分来源的全量读数，只写进证据做对照（可核「脚本类 + 资源类
+     * 是否刚好等于全量」，即上面那个 tagName 分类有没有漏归类），不参与判据。
      */
     await cdp.eval(`window.addEventListener('error', (h) => {
+                     window.__err = (window.__err||0)+1;
                      if (h && h.target && h.target.tagName === 'IMG') window.__resErr = (window.__resErr||0)+1;
                      else window.__scriptErr = (window.__scriptErr||0)+1;
                    }, true);
