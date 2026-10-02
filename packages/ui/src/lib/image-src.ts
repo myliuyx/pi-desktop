@@ -79,7 +79,8 @@ export const FILE_IMAGE_ROUTE = "/fs/image";
  *
  * 与上方历史图 `imageUrl` 的**同与异**：
  * - 同：`token` 必须拼进 URL——调用方是 `<img src>`，带不了 Authorization 头，
- *   core 为此对 `/fs/image` 单点豁免 `?token=`（见 server.ts 鉴权块）。
+ *   core 为此对 `/fs/image` 豁免 `?token=`（与 `/sessions/image` 并列两点，
+ *   见 server.ts:180 `TOKEN_IN_URL_ROUTES`）。
  *   缺省/空串 ⇒ 不拼该段；`baseUrl` 缺省空串 ⇒ 逐字节不变（同源托管形态）。
  * - 同：手拼 query 而非 `URLSearchParams.toString()`，沿用 agent-transport 口径；
  *   `encodeURIComponent` 遇孤立代理会抛 URIError，故 try/catch 兜底空串
@@ -87,7 +88,7 @@ export const FILE_IMAGE_ROUTE = "/fs/image";
  * - **异 1**：入参是**路径**而非定位三元组——文件树点开的就是绝对路径，
  *   无需 sessionId/entryId。
  * - **异 2**：多一个 `fsVersion` ⇒ `&v=N`。磁盘图片**会被 agent 改写**，
- *   而 core 的 `/fs/image` 用 `Cache-Control: no-cache`（不是 `/sessions.image` 的
+ *   而 core 的 `/fs/image` 用 `Cache-Control: no-cache`（不是 `/sessions/image` 的
  *   immutable，那是 append-only 会话 JSONL 的特例）。URL 不带版本号时，
  *   `fsVersion` 变化触发的重拉拿到的是同一 URL，浏览器会直接吐缓存旧字节 ⇒
  *   agent 刚改完的图在预览区纹丝不动。`v=` 是这条链上唯一的缓存破门。
