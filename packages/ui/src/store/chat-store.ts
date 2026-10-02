@@ -189,7 +189,7 @@ function ensureLive(): void {
   let outageNoticeId: string | null = null;
   transport.setHooks({
     onConnectionError: (message) => {
-      outageNoticeId = useNoticeStore.getState().notify({ tone: "danger", text: message });
+      outageNoticeId = useNoticeStore.getState().notify({ tone: "danger", text: message, timeoutMs: 0 });
       // 断线后收不到 compaction_end，常驻的「正在压缩…」toast 会永久残留——一并撤掉。
       if (compactionNoticeId) {
         useNoticeStore.getState().dismiss(compactionNoticeId);

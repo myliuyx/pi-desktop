@@ -26,13 +26,13 @@ interface NoticeState {
 
 let seq = 0;
 
-/** danger 默认常驻（需要用户读一眼），其余 5s 自动消失；也可手动关闭。 */
+/** 所有提示缺省 5s 自动消失，也可手动关闭；需要常驻的调用方（如断线提示）显式传 timeoutMs: 0。 */
 export const useNoticeStore = create<NoticeState>((set, get) => ({
   notices: [],
   notify: ({ tone, text, timeoutMs }) => {
     const id = `n-${++seq}`;
     set((state) => ({ notices: [...state.notices, { id, tone, text }] }));
-    const ms = timeoutMs ?? (tone === "danger" ? 0 : 5000);
+    const ms = timeoutMs ?? 5000;
     if (ms > 0) setTimeout(() => get().dismiss(id), ms);
     return id;
   },

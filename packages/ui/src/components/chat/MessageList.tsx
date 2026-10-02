@@ -35,7 +35,7 @@ import { useUiStore } from "@/store/ui-store";
 import { formatMessageTime, speedTone, type SpeedTone } from "@/lib/format";
 import { toolArgsPreview } from "@/lib/tool-preview";
 import { buildTurnIndex, type TurnMembership } from "@/lib/turns";
-import { collectTurnFiles, type TurnFileEntry } from "@/lib/turn-files";
+import { collectTurnFiles, inFlightSuppressedTurnKey, type TurnFileEntry } from "@/lib/turn-files";
 import {
   buildPreviewTexts,
   collectRailTurns,
@@ -236,19 +236,32 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(function
    * 轮次改动文件表（task-turn-file-chips.md）：每个 turn 推导一次「写成功的文件清单」，
    * 只在尾条渲染 chips 行。与 turnIndex 同依赖（messages/sessionScope）+ liveCwd
    * （相对路径绝对化与展示口径）——lib/turn-files.ts 纯函数，空清单不进表（不渲染行）。
+   *
+   * 流式闸门（2026-10-02 裁决：chips 只在最终回复出现）：整轮进行中把活动轮从表里
+   * 剔除——不剔除的话首个成功 edit/write 落地（agent 索引第一轮）chips 就跟着尾条
+   * 显示、并随后续每一轮往下挂，二十步的轮次会挂十九步。进行中信号不能用 streaming
+   * 单挑：它在每轮 message_end 翻回 false（工具执行空窗会闪烁）；pendingSince 由
+   * send 置值、agent_settled/中止/断线/发送失败统一同批清零，覆盖全窗口。
    */
   const liveCwd = useChatStore((state) => state.liveCwd);
+  const turnInFlight = useChatStore(
+    (state) => state.pendingSince !== null || state.streaming || state.awaitingModel,
+  );
   const turnFilesByKey = useMemo(() => {
     const map = new Map<string, TurnFileEntry[]>();
     const seen = new Set<string>();
+    let lastTurnKey: string | null = null;
     for (const { turn } of turnIndex.values()) {
       if (seen.has(turn.key)) continue;
       seen.add(turn.key);
+      lastTurnKey = turn.key;
       const files = collectTurnFiles(messages, turn, liveCwd);
       if (files.length > 0) map.set(turn.key, files);
     }
+    const suppressed = inFlightSuppressedTurnKey(messages, lastTurnKey, turnInFlight);
+    if (suppressed !== null) map.delete(suppressed);
     return map;
-  }, [turnIndex, messages, liveCwd]);
+  }, [turnIndex, messages, liveCwd, turnInFlight]);
 
   /** chip 点击 → 右侧预览打开该文件（WorkingDirFileTree openFile 同款两行模式） */
   const openFileInPreview = useCallback((path: string) => {

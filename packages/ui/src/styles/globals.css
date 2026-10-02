@@ -302,6 +302,16 @@
 }
 
 /* ---------------------------------------------------------------------------
+ * 思考尾窗顶部渐隐（ThinkingCard tail 态，.plan/task-thinking-tail.md D1）
+ * 提示「上方还有内容」：可视区恒停最后一行，新内容从渐隐区长出来（tail -f 观感）。
+ * 渐变色必须 rgb() 形态（禁 #hex）；-webkit- 前缀兼容未去前缀的 Chromium。
+ * ------------------------------------------------------------------------- */
+.thinking-tail-window {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, rgb(0 0 0 / 1) 45%);
+  mask-image: linear-gradient(to bottom, transparent, rgb(0 0 0 / 1) 45%);
+}
+
+/* ---------------------------------------------------------------------------
  * 窗口拖拽区（无边框桌面壳专用，2026-09-28）
  *
  * desktop 主进程 frame:false 后，窗口移动 / 双击最大化由 UI 标题栏承担：
