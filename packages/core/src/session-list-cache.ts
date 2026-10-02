@@ -63,6 +63,8 @@ export interface LightScan {
   modified: number;
   /** 是否出现过 role=user 的消息 —— 决定 title 是否需要回读 firstMessage 兜底 */
   hasFirstUser: boolean;
+  /** 是否出现过 pi-web subagent 标记（custom entry customType === "pi-web:subagent"） */
+  isSubagent: boolean;
 }
 
 /** 与 `sessions.ts` 的 `textOfContent` 同口径（content 各部分 text 拼接，无分隔符） */
@@ -185,6 +187,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     messageCount: 0,
     hasFirstUser: false,
     lastActivity: 0,
+    isSubagent: false,
   };
 
   /**
@@ -216,6 +219,9 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     const raw = e.name;
     state.name = typeof raw === "string" && raw.trim() ? raw.trim() : null;
   };
+  const applyCustom = (e: Record<string, unknown> | null): void => {
+    if (e && e.customType === "pi-web:subagent") state.isSubagent = true;
+  };
 
   const processLine = (line: string): void => {
     if (!line) return;
@@ -225,6 +231,8 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
       applyMessage(line, null);
     } else if (line.startsWith('{"type":"session_info",')) {
       applySessionInfo(parseJson(line));
+    } else if (line.startsWith('{"type":"custom",')) {
+      applyCustom(parseJson(line));
     } else if (line.startsWith('{"')) {
       // 键序变体：type 不在行首。整行只 parse 一次，再按真实 type 分派。
       const e = parseJson(line);
@@ -232,6 +240,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
       if (e.type === "session") applyHeader(e);
       else if (e.type === "message") applyMessage(line, e);
       else if (e.type === "session_info") applySessionInfo(e);
+      else if (e.type === "custom") applyCustom(e);
     }
   };
 
@@ -266,6 +275,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     created: typeof header.timestamp === "string" ? header.timestamp : new Date(st.mtimeMs).toISOString(),
     modified,
     hasFirstUser: state.hasFirstUser,
+    isSubagent: state.isSubagent,
   };
 }
 
