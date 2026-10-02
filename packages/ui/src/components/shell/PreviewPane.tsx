@@ -63,10 +63,12 @@ const PREVIEW_TABS = [
  * 顶部文件名条（`preview-file-bar`）+ 下方 `FilePreviewView`。
  * - 唯一入口：侧栏文件树的文件行点击（WorkingDirFileTree）；mock 形态下树不渲染，
  *   `isLiveEnabled()` 再挡一层（状态残留也不渲染文件形态），既有 mock 行为**一行不差**；
- * - **效果可渲染的文件**（html/htm/svg → iframe 沙箱；md/markdown → Markdown 组件）
- *   名条里带「预览效果 / 预览源码」双 Tab，打开默认落在**效果**态（mock 语义：点开即看
- *   渲染结果，源码是第二视图）；其余文件（ts/json/…）只有源码形态，**不渲染 Tab**
- *   （没有第二视图就不给哑 Tab，同 mock 哑交互禁令）；
+ * - **双 Tab 的**效果可渲染文件（html/htm/svg → iframe 沙箱；md/markdown → Markdown 组件）；
+ *   位图（png/jpg/jpeg/gif/webp/bmp → `<img>` 直连 `/fs/image`）有效果态但**无源码态**，
+ *   与纯源码文件同纪律「没有第二视图就不给哑 Tab」，故不渲染双 Tab。
+ *   上述双 Tab 在名条里带「预览效果 / 预览源码」，打开默认落在**效果**态（mock 语义：
+ *   点开即看渲染结果，源码是第二视图）；其余纯源码文件（ts/json/…）**不渲染 Tab**
+ *   （同 mock 哑交互禁令）；
  * - 关闭（`preview-file-close`）清空选择**并直接收起预览区**（2026-09-25 用户裁决——
  *   live 下 × 的落点是收起而非空态；下次手动展开看到的是 live 空态）；
  * - 自动刷新：`chat-store.fsVersion` 变化（agent 跑完一轮 / SSE 广播）重拉当前文件——
@@ -76,7 +78,9 @@ const PREVIEW_TABS = [
  * `preview-file-bar` / `preview-file-name` / `file-tab-effect` / `file-tab-code` /
  * `preview-file-close` / `preview-file-loading` / `preview-file-error` / `preview-file-retry` /
  * `preview-file-binary` / `preview-file-empty` / `preview-file-effect` / `preview-file-frame` /
- * `preview-file-source` / `preview-file-truncated`
+ * `preview-file-source` / `preview-file-truncated` /
+ * `preview-file-image` / `preview-file-image-img` /
+ * `preview-file-image-too-large` / `preview-file-image-error`
  */
 export const PreviewPane = forwardRef<HTMLElement, PreviewPaneProps>(function PreviewPane(
   { className, ...rest },
@@ -711,6 +715,18 @@ function FileImagePreview({ path, name, size }: { path: string; name: string; si
     );
   }
 
+  /*
+   * 桌面端拖图会触发浏览器**原生拖拽**，被拖走的是 <img> 元素本身（不是 overflow-auto 的
+   * 容器）⇒ 预览区留白，只能靠 fsVersion 变化或重开文件恢复；拖图是高频手势，必须挡住。
+   *
+   * 两个必须记下的坑（均已在本仓库真 Chrome 里实测）：
+   * 1. 必须给**字符串** `"false"` 而非布尔 `false`：React 对未收录的属性走
+   *    `setValueForAttribute`，布尔值会被当布尔属性处理 —— 非 data-/aria- 前缀一律
+   *    `removeAttribute`，结果是 `dragging={false}` 静默无效果、图片照样能被拖走。
+   * 2. @types/react 19.3 的 `ImgHTMLAttributes` 只收 `draggable` 不收 `dragging`，
+   *    直接写在 JSX 上会报 TS 2339，故用同义的原生 `draggable={false}` 挡住拖拽，
+   *    两者都是规范里的可拖拽开关，Chrome 上均使 <img> 不可拖。
+   */
   return (
     <div data-testid="preview-file-image" className="flex min-h-0 flex-1 overflow-auto bg-bg-subtle p-3">
       {/* object-contain ⇒ 大图等比缩进面板不裁切；mx-auto 居中；alt = 文件名（读屏友好） */}
@@ -718,6 +734,7 @@ function FileImagePreview({ path, name, size }: { path: string; name: string; si
         src={src}
         alt={name}
         data-testid="preview-file-image-img"
+        draggable={false}
         onError={() => setFailed(true)}
         className="mx-auto max-h-full max-w-full object-contain"
       />
