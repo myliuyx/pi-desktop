@@ -14,7 +14,7 @@
  *
  * **子会话过滤（2026-10-02）**：扫描时识别 pi-web subagent 的专属标记
  * （`custom` entry `customType === "pi-web:subagent"`）并置 `isSubagent`，
- * 清单与「续接最近」都默认排除它。**刻意不用 `header.parentSession` 判定** ——
+ * 清单与「续接最近」都始终排除它。**刻意不用 `header.parentSession` 判定** ——
  * 那是 Pi 的 fork / 跨 cwd 复制语义，用它过滤会误伤用户主动 fork 的会话。
  *
  * ## 失效判据为什么是「整文件指纹」而不是「尾读增量」
@@ -196,7 +196,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
   };
 
   /**
-   * 以下三个 apply* 是「分派后的逻辑」：快路径命中 `{"type":…,` 时零 parse 直达；
+   * 以下四个 apply* 是「分派后的逻辑」：快路径命中 `{"type":…,` 时零 parse 直达；
    * 键序变体（type 不在行首）先 parse 一次再按真实 type 调到这里。真实 Pi 文件
    * message 行占绝大多数且 type 在首位，新增 parse 只作用于少数非 message /
    * 非常见键序行 —— 「不逐行 parse」的性能意图不变。
@@ -370,7 +370,7 @@ export interface CacheInfo {
   created: string;
   modified: number;
   hasFirstUser: boolean;
-  /** 是否 pi-web subagent 子会话（清单默认排除，见 selectEntries） */
+  /** 是否 pi-web subagent 子会话（清单始终排除，见 selectEntries） */
   isSubagent: boolean;
 }
 export interface CacheEntry {
@@ -627,17 +627,24 @@ function refreshIndex(sessionDir: string | undefined): Promise<RefreshResult> {
   return task;
 }
 
-/** 从内存索引筛出当前 ref 的条目（`all=true` 不过滤 cwd；默认排除 subagent 子会话），按 modified 降序 */
+/**
+ * 过滤谓词：subagent 子会话**始终排除**（`all` 是否取值都不收回）；`all=false` 时
+ * 额外要求 cwd 匹配（`all=true` 只放开 cwd 过滤）。两处清单筛选共用，保证语义一致。
+ */
+function entryMatches(entry: CacheEntry, resolvedCwd: string, all: boolean): boolean {
+  if (entry.info.isSubagent) return false;
+  if (all) return true;
+  const ecwd = entry.info.cwd;
+  return !!ecwd && path.resolve(ecwd) === resolvedCwd;
+}
+
+/** 从内存索引筛出当前 ref 的条目（`all=true` 不过滤 cwd；始终排除 subagent 子会话），按 modified 降序 */
 function selectEntries(sessionDir: string | undefined, cwd: string, all: boolean): Array<{ path: string; info: CacheInfo }> {
   const index = loadIndex(sessionDir);
   const resolved = path.resolve(cwd);
   const out: Array<{ path: string; info: CacheInfo }> = [];
   for (const [filePath, entry] of index) {
-    if (entry.info.isSubagent) continue;
-    if (!all) {
-      const ecwd = entry.info.cwd;
-      if (!ecwd || path.resolve(ecwd) !== resolved) continue;
-    }
+    if (!entryMatches(entry, resolved, all)) continue;
     out.push({ path: filePath, info: entry.info });
   }
   out.sort((a, b) => b.info.modified - a.info.modified);
@@ -645,7 +652,7 @@ function selectEntries(sessionDir: string | undefined, cwd: string, all: boolean
 }
 
 /**
- * 最近一次会话的文件路径（排除 subagent 子会话）—— 供 `sessions.ts` 的
+ * 最近一次会话的文件路径（始终排除 subagent 子会话）—— 供 `sessions.ts` 的
  * `continueRecentSession()` 使用。
  *
  * 语义与 Pi 的 `findMostRecentSession()` 对齐：按**文件 mtime** 降序取第一个
@@ -662,11 +669,7 @@ export async function mostRecentSessionPath(
   const resolved = path.resolve(ref.cwd);
   let best: { path: string; mtimeMs: number } | undefined;
   for (const [filePath, entry] of index) {
-    if (entry.info.isSubagent) continue;
-    if (!options.all) {
-      const ecwd = entry.info.cwd;
-      if (!ecwd || path.resolve(ecwd) !== resolved) continue;
-    }
+    if (!entryMatches(entry, resolved, options.all === true)) continue;
     if (!best || entry.fp.mtimeMs > best.mtimeMs) best = { path: filePath, mtimeMs: entry.fp.mtimeMs };
   }
   return best?.path;
