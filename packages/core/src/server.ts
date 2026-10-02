@@ -22,6 +22,7 @@ import type { AgentEvent, ModelTestRequest, PromptDisposition, ProviderModelsReq
 import { DirListError, listDirectories } from "./fs-list.ts";
 import { FsSearchError, searchFiles } from "./fs-search.ts";
 import { FileReadError, readTextFile } from "./fs-read.ts";
+import { ImageFileError, readImageFile } from "./fs-image.ts";
 import { checkFileRefs, IMAGE_MAX_BYTES, type PromptImage } from "./prompt-files.ts";
 
 /** 单条消息贴图数量上限（D6；UI 侧 lib/image-attach.ts 的 MAX_IMAGES_PER_MESSAGE 同口径） */
@@ -162,7 +163,21 @@ const API_ROUTES = new Set([
 	"/fs/read",
 	// at-file · Composer @ 弹层的文件模糊搜索数据源（只读文件名）
 	"/fs/search",
+	// dir-file-预览 · 图片字节源（只读魔数定型 + 限长），位图 <img> 专用；
+	// 与 /fs/read 并列而非合并：源码要限长文本，图片要原始字节，两种形态
+	"/fs/image",
 ]);
+
+/**
+ * 接受 `?token=` 免 Bearer 头的路由白名单（鉴权段用，两元素字面量、无通配）。
+ *
+ * **为什么在模块级**：这是一份「新增人手登记」的静态字面量集 —— 每个 HTTP 请求都在
+ * 回调里 `new Set(...)` 纯属浪费（/fs/*、/prompt 都是短连接高频路径）。**它与紧挨着
+ * 鉴权段里那个 `queryToken` 推导量不同层**：`queryToken` 依赖本次请求的
+ * `url.searchParams`，是**推导量**，必须留在回调内；只有"哪些路由在名单里"是常量。
+ * 两者别一起提、也别一起留 —— 下一个人扩豁免面只改这里这一处，不动鉴权段。
+ */
+const TOKEN_IN_URL_ROUTES: ReadonlySet<string> = new Set(["/sessions/image", "/fs/image"]);
 
 /**
  * core 直发 AgentEvent 的放行判据（C1 根治，2026-09-29 用户裁决）。
@@ -454,26 +469,28 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		// ① 鉴权：Bearer token（仅对 API 端点生效；静态资源为公开 shell）
 		if (API_ROUTES.has(urlPath)) {
 			const auth = req.headers["authorization"];
-			// 唯一豁免：`/sessions/image` 额外接受 `?token=`（2026-10-01 图片预览批次）。
+			// `?token=` 豁免（2026-10-01 图片预览批次引入单点，2026-10-02 扩为两点）。
 			//
 			// 为什么需要这条豁免：调用方是浏览器里的 `<img src=...>`，而 `<img>` **无法携带
 			// 自定义请求头** —— fetch/XHR 能在 headers 里放 Authorization，img 标签不能（用
 			// cookie 就要改整套安全模型）。实测：带 Bearer 头的 agent 可以 GET，但页面里
-			// 任何一个 <img> 拿 /sessions/image 都是 401 ⇒ Task 6/7 的 UI 接线全部拿不到字节。
+			// 任何一个 <img> 拿取图端点都是 401 ⇒ UI 接线全部拿不到字节。
 			// 旁证：本仓已有同款先例 —— feature-flags.ts 的 `?token=`（跨源 dev 场景，
 			// UI 读 getLiveConfig().token），core 同源托管时还会把 token 注入
 			// `window.__CORE_TOKEN__`，本机进程本就能读 run/core.json。
 			//
-			// 为什么严格限定这一个路由：token 进 URL 会经 Referer 泄露给第三方资源、
+			// 为什么严格限定这两个路由：token 进 URL 会经 Referer 泄露给第三方资源、
 			// 落在浏览器历史/日志里 —— 这是 Bearer 头**没有**的额外暴露面。若整条
 			// API_ROUTES 都放开，任何一个能注入 <img>/<link> 的地方就等于把 core 的
 			// 全权限（能读任意文件、驱动 agent）交出去。豁免只给「只读、已在
-			// API_ROUTES 后面跑同一套 Host 白名单 + 三元组校验」的取图端点，不外扩。
+			// API_ROUTES 后面跑同一套 Host 白名单 + 字节自证」的取图端点，不外扩。
+			//
+			// ★ 2026-10-02 扩为两点（/sessions/image + /fs/image），**不构成第三次扩面的
+			// 先例**：两者都是「只读、同一套 Host 白名单 + 字节自证」的 <img> 数据源。
 			//
 			// 比对口径：**严格相等**（非空串、不做前缀/大小写宽容）；token 由 config 生成，
 			// 无形状可猜，猜中即等于拿到 Bearer 本身。
-			const queryToken =
-				urlPath === "/sessions/image" ? url.searchParams.get("token") ?? "" : "";
+			const queryToken = TOKEN_IN_URL_ROUTES.has(urlPath) ? url.searchParams.get("token") ?? "" : "";
 			if ((!auth || auth !== `Bearer ${token}`) && queryToken !== token) {
 				res.writeHead(401, { "Content-Type": "application/json" });
 				res.end(JSON.stringify({ error: "unauthorized" }));
@@ -641,6 +658,37 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 				if (e instanceof FileReadError) return json(e.status, { ok: false, error: e.message });
 				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
 			}
+		}
+
+		/* -----------------------------------------------------------------
+		 * dir-file-预览 · 图片字节（GET /fs/image?path=...，fs-image.ts）
+		 * 只读原始字节给 <img>：与 /fs/read 并列而非合并——源码要限长文本（256KB 截断），
+		 * 图片要完整字节（截断即破图）。MIME 已由 fs-image.ts 过魔数嗅探 + 白名单
+		 * （值域 = 代码常量，无任何磁盘数据），可直写响应头；可预期失败由
+		 * ImageFileError 带状态码（400 不存在/不是文件、403 无权限、413 超 8MB、
+		 * 415 非图片），与意外 500 区分——/fs/read 同款分支。
+		 * ----------------------------------------------------------------- */
+		if (req.method === "GET" && urlPath === "/fs/image") {
+			try {
+				const r = readImageFile(url.searchParams.get("path") ?? "", runtime.getCwd());
+				res.writeHead(200, {
+					// mimeType 来自魔数嗅探 + 5 种白名单，不含 CR/LF ⇒ 不触发 ERR_INVALID_CHAR
+					"Content-Type": r.mimeType,
+					"Content-Length": String(r.bytes.length),
+					// 磁盘图片**会被 agent 改写**，与 /sessions/image 的 append-only 恰相反 ⇒
+					// 不能 immutable，必须每次协商（那是会话 JSONL 的特例，不适用此处）
+					"Cache-Control": "no-cache",
+					// 成本 0：图片由白名单定型，不给浏览器嗅探空间
+					"X-Content-Type-Options": "nosniff",
+				});
+				res.end(r.bytes);
+			} catch (e) {
+				// 纵深：try 同时包住 writeHead（ERR_INVALID_CHAR 是 writeHead 抛的、不是
+				// readImageFile 抛的）。即使将来白名单被绕过，也只掉一条连接，不掉进程。
+				if (e instanceof ImageFileError) return json(e.status, { ok: false, error: e.message });
+				return json(500, { ok: false, error: e instanceof Error ? e.message : String(e) });
+			}
+			return;
 		}
 
 		/* -----------------------------------------------------------------

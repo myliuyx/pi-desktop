@@ -1,6 +1,6 @@
 {
   "name": "@myliuyx/pi-workbench",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "type": "module",
   "description": "Pi Workbench 自托管 web 形态 —— 一条命令起 Coding Agent 工作台（core HTTP/SSE 服务 + 同源托管 Web UI，浏览器随处访问）",

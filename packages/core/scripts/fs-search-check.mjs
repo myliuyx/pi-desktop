@@ -9,7 +9,8 @@
  *       同分下短路径在前（src/alpha.ts 排首）；
  *   S5  子序列：q=nodex ⇒ src/node-x.ts 命中（node_modules 不该抢——被排除，见 S6）；
  *   S6  walk 与 git 都排除重目录：plain/node_modules/deep/z.js 对 q=z 不可见；
- *   S7  .gitignore 过滤（仅 git 可用时有意义）：ignored.txt 不可见；
+ *   S7  .gitignore 过滤（仅 git 可用时有意义）：ignored.txt 不可见；无 git 时**显式跳过**
+ *       （打 skipped:true，不计入「已通过」，见下方 SKIPPED 注释）；
  *   S8  relPath 恒 POSIX 风格（无反斜杠）；
  *   S9  空 query ⇒ 全候选按短路径前，且只含文件；
  *   S10 非 git 目录 ⇒ walk 回退照常列出（path=plain）；
@@ -76,9 +77,26 @@ fs.mkdirSync(path.join(plainDir, "node_modules", "deep"), { recursive: true });
 fs.writeFileSync(path.join(plainDir, "node_modules", "deep", "z.js"), "z\n");
 
 const checks = [];
+/**
+ * 环境能力不足、判据**压根没跑**的条目登记处。
+ *
+ * 为什么要有（照抄同批次 fs-image-check.mjs 的口径，不自创第三种）：
+ *   S7 在本机无 git 时夹具走 walk 模式、`.gitignore` 过滤压根不可观测。若只写
+ *   `{pass:true}`，机读消费者（CI 面板、回归统计）与「.gitignore 过滤真的验过了」
+ *   **完全无法区分** —— skip 伪装成 pass 的变体。故：
+ *   1) 条目上打 `skipped:true`，不计入「已通过」；
+ *   2) 顶层 `skipped[]` 再列一遍（id + 理由 + 平台），证据文件里一眼可辨；
+ *   3) 收尾显式打印「跳过 N 项」。
+ */
+const SKIPPED = [];
 const check = (name, pass, detail) => {
   checks.push({ name, pass: !!pass, detail });
   console.log(`  ${pass ? "✓" : "✗"} ${name}${pass ? "" : `  ${JSON.stringify(detail ?? "")}`}`);
+};
+const skip = (name, detail, { id, reason }) => {
+  SKIPPED.push({ id, name, reason, platform: process.platform });
+  checks.push({ name, pass: true, skipped: true, detail });
+  console.log(`  - ${name}（SKIP）${reason}`);
 };
 
 function request(p, { token = TOKEN, timeoutMs = HTTP_TIMEOUT_MS } = {}) {
@@ -217,8 +235,10 @@ try {
       { entries: r.json?.entries },
     );
   } else {
-    checks.push({ name: "S7 .gitignore 过滤（git 模式）", pass: true, detail: "本机无 git，跳过" });
-    console.log("  - S7 跳过（本机无 git，夹具走 walk 模式）");
+    skip("S7 .gitignore 过滤（git 模式）", "本机无 git，夹具走 walk 模式，.gitignore 过滤不可观测", {
+      id: "S7",
+      reason: "本机无 git（execSync('git --version') 失败）⇒ cwd-fixture 未 git init，.gitignore 过滤无从观测",
+    });
   }
 
   /* ===== S8：relPath 恒 POSIX 风格 ===== */
@@ -310,11 +330,24 @@ try {
 
 evidence.finishedAt = new Date().toISOString();
 evidence.checks = checks;
+evidence.skipped = SKIPPED;
+// 「实跑通过」与「跳过」分列：机读消费者只数已验证的那部分
+evidence.summary = {
+  total: checks.length,
+  passed: checks.filter((c) => c.pass && !c.skipped).length,
+  skipped: checks.filter((c) => c.skipped).length,
+  failed: checks.filter((c) => !c.pass).length,
+  skippedIds: SKIPPED.map((s) => s.id),
+};
 fs.writeFileSync(evidencePath, JSON.stringify(evidence, null, 2));
 
-const failed = checks.filter((c) => !c.pass).length;
+const { failed, passed, total, skipped } = evidence.summary;
+const skipNote = skipped > 0 ? `，跳过 ${skipped} 项（本机无 git 时 .gitignore 过滤不可观测）` : "";
 if (failed > 0) {
-  console.error(`\nfs-search 检查失败 ${failed} 项（证据：${evidencePath}）`);
+  console.error(
+    `\nfs-search 检查失败 ${failed} 项${skipNote}（实跑通过 ${passed}/${total}，证据：${evidencePath}）`,
+  );
+  for (const c of checks.filter((x) => !x.pass)) console.error(`  ✗ ${c.name}`);
   process.exit(1);
 }
-console.log(`fs-search 检查全部通过：${checks.length} 项（证据：${evidencePath}）`);
+console.log(`fs-search 检查全部通过：${passed}/${total} 项实跑通过${skipNote}（证据：${evidencePath}）`);

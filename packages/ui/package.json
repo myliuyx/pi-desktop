@@ -1,7 +1,7 @@
 {
   "name": "@agent/ui",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "license": "MIT",
   "type": "module",
   "packageManager": "npm@10.9.7",
@@ -26,6 +26,7 @@
     "check:slash-menu": "node --experimental-strip-types scripts/slash-menu-check.mjs",
     "check:image-src": "node --experimental-strip-types scripts/image-src-check.mjs",
     "check:image-preview-size": "node --experimental-strip-types scripts/image-preview-size-check.mjs",
+    "check:fs-image-url": "node --experimental-strip-types scripts/fs-image-url-check.mjs",
     "check:turn-rail": "node --experimental-strip-types scripts/turn-rail-check.mjs",
     "check:skill-search-state": "node --experimental-strip-types scripts/skill-search-state-check.mjs",
     "check:approval-overlay": "node --experimental-strip-types scripts/approval-overlay-check.mjs",
@@ -54,10 +55,11 @@
     "probe:image-preview": "node scripts/probe-image-preview.mjs",
     "probe:tool-diff": "node scripts/probe-tool-diff.mjs",
     "probe:turn-files": "node scripts/probe-turn-files.mjs",
+"probe:preview-image": "node scripts/probe-preview-image.mjs",
     "probe:thinking-tail": "node scripts/probe-thinking-tail.mjs",
     "shots:m1": "node scripts/m1-shots.mjs",
-"check:message-height": "node --experimental-strip-types scripts/message-height-check.mjs",
-    "test:ci": "npm run typecheck && npm run check:format && npm run check:providers-source && npm run check:turns && npm run check:context-window && npm run check:cn && npm run check:tool-diff && npm run check:message-height && npm run check:turn-files && npm run check:sidebar-layout && npm run check:adapter && npm run check:contract && npm run check:slash-menu && npm run check:image-src && npm run check:image-preview-size && npm run check:turn-rail && npm run check:approval-overlay && npm run check:thinking-tail && npm run build"
+    "check:message-height": "node --experimental-strip-types scripts/message-height-check.mjs",
+    "test:ci": "npm run typecheck && npm run check:format && npm run check:providers-source && npm run check:turns && npm run check:context-window && npm run check:cn && npm run check:tool-diff && npm run check:message-height && npm run check:turn-files && npm run check:sidebar-layout && npm run check:adapter && npm run check:contract && npm run check:slash-menu && npm run check:image-src && npm run check:image-preview-size && npm run check:fs-image-url && npm run check:turn-rail && npm run check:approval-overlay && npm run check:thinking-tail && npm run build"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.13",
