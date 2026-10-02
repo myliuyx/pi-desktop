@@ -169,6 +169,17 @@ const API_ROUTES = new Set([
 ]);
 
 /**
+ * 接受 `?token=` 免 Bearer 头的路由白名单（鉴权段用，两元素字面量、无通配）。
+ *
+ * **为什么在模块级**：这是一份「新增人手登记」的静态字面量集 —— 每个 HTTP 请求都在
+ * 回调里 `new Set(...)` 纯属浪费（/fs/*、/prompt 都是短连接高频路径）。**它与紧挨着
+ * 鉴权段里那个 `queryToken` 推导量不同层**：`queryToken` 依赖本次请求的
+ * `url.searchParams`，是**推导量**，必须留在回调内；只有"哪些路由在名单里"是常量。
+ * 两者别一起提、也别一起留 —— 下一个人扩豁免面只改这里这一处，不动鉴权段。
+ */
+const TOKEN_IN_URL_ROUTES: ReadonlySet<string> = new Set(["/sessions/image", "/fs/image"]);
+
+/**
  * core 直发 AgentEvent 的放行判据（C1 根治，2026-09-29 用户裁决）。
  *
  * **为什么是集中登记放行而不是散落在函数体内的枚举白名单**：原实现是 5 个
@@ -396,23 +407,27 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		// ① 鉴权：Bearer token（仅对 API 端点生效；静态资源为公开 shell）
 		if (API_ROUTES.has(urlPath)) {
 			const auth = req.headers["authorization"];
+			// `?token=` 豁免（2026-10-01 图片预览批次引入单点，2026-10-02 扩为两点）。
 			//
-			// ★ 2026-10-02：豁免面从单点扩为两点（/sessions/image + /fs/image）。
-			// 论证同下方 /sessions/image 那段，**不构成第三次扩面的先例**：
-			// 两者都是「只读、已在 API_ROUTES 后面跑同一套 Host 白名单 + 字节自证」的
-			// <img> 数据源。<img> 带不了 Authorization 头是不可绕过的浏览器约束，
-			// 不是图省事——用 cookie 就要改整套安全模型。
+			// 为什么需要这条豁免：调用方是浏览器里的 `<img src=...>`，而 `<img>` **无法携带
+			// 自定义请求头** —— fetch/XHR 能在 headers 里放 Authorization，img 标签不能（用
+			// cookie 就要改整套安全模型）。实测：带 Bearer 头的 agent 可以 GET，但页面里
+			// 任何一个 <img> 拿取图端点都是 401 ⇒ UI 接线全部拿不到字节。
+			// 旁证：本仓已有同款先例 —— feature-flags.ts 的 `?token=`（跨源 dev 场景，
+			// UI 读 getLiveConfig().token），core 同源托管时还会把 token 注入
+			// `window.__CORE_TOKEN__`，本机进程本就能读 run/core.json。
 			//
-			// ⚠️ 仍**严格限定这两个路由**：token 进 URL 会经 Referer 泄露给第三方资源、
-			// 落在浏览器历史/日志里，是 Bearer 头没有的额外暴露面。若整条 API_ROUTES
-			// 都放开，任何一个能注入 <img>/<link> 的地方就等于把 core 的全权限
-			// （能读任意文件、驱动 agent）交出去。比对口径**严格相等**（非空串、
-			// 不做前缀/大小等宽容）；token 由 config 生成，无形状可猜。
+			// 为什么严格限定这两个路由：token 进 URL 会经 Referer 泄露给第三方资源、
+			// 落在浏览器历史/日志里 —— 这是 Bearer 头**没有**的额外暴露面。若整条
+			// API_ROUTES 都放开，任何一个能注入 <img>/<link> 的地方就等于把 core 的
+			// 全权限（能读任意文件、驱动 agent）交出去。豁免只给「只读、已在
+			// API_ROUTES 后面跑同一套 Host 白名单 + 字节自证」的取图端点，不外扩。
 			//
-			// 放回调内而非模块级：这是**每次请求的推导量**，不是登记处。
-			// 模块级只放 API_ROUTES / CORE_DIRECT_EVENT_TYPES 那种「新增人手登记」的
-			// 显式登记处；把这个也提上去，下一个人会误以为它俩同级、改豁免只改那一处。
-			const TOKEN_IN_URL_ROUTES: ReadonlySet<string> = new Set(["/sessions/image", "/fs/image"]);
+			// ★ 2026-10-02 扩为两点（/sessions/image + /fs/image），**不构成第三次扩面的
+			// 先例**：两者都是「只读、同一套 Host 白名单 + 字节自证」的 <img> 数据源。
+			//
+			// 比对口径：**严格相等**（非空串、不做前缀/大小写宽容）；token 由 config 生成，
+			// 无形状可猜，猜中即等于拿到 Bearer 本身。
 			const queryToken = TOKEN_IN_URL_ROUTES.has(urlPath) ? url.searchParams.get("token") ?? "" : "";
 			if ((!auth || auth !== `Bearer ${token}`) && queryToken !== token) {
 				res.writeHead(401, { "Content-Type": "application/json" });
