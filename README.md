@@ -116,6 +116,9 @@ cd ../desktop      && npm ci && npm run dist    # 产物在 release/
 | `packages/core` | `npm run check:sessions-new` `check:sessions-load` | 惰性建会话 / 「点开即切」验收 |
 | `packages/core` | `npm run check:run-dir` | `CORE_RUN_DIR` 覆盖口验收 |
 | `packages/core` | `npm run check:fs-list` | `/fs/list` 目录浏览端点验收（dir-picker） |
+| `packages/core` | `npm run check:fs-image` | `/fs/image` 图片字节端点验收（魔数/白名单/413/415/token 豁免） |
+| `packages/ui` | `npm run check:fs-image-url` | `fileImageUrl` 纯函数断言（含 `v=fsVersion` 缓存破门） |
+| `packages/ui` | `npm run probe:preview-image` | 预览区点开真图的 CDP 端到端（img 真解码） |
 | `packages/core` | `npm run security-check` / `smoke:check` | 安全三件套 / 真实会话冒烟 |
 | `packages/desktop` | `npm run dev` / `smoke` / `dist` | 开发窗口 / 无窗口冒烟 / 打安装包 |
 

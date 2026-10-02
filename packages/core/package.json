@@ -21,6 +21,7 @@
     "check:run-dir": "node scripts/run-dir-check.mjs",
     "check:fs-list": "node scripts/fs-list-check.mjs",
     "check:fs-search": "node scripts/fs-search-check.mjs",
+    "check:fs-image": "node scripts/fs-image-check.mjs",
     "check:prompt-filerefs": "node node_modules/tsx/dist/cli.mjs scripts/prompt-filerefs-check.mjs",
     "check:c5": "node scripts/c5-resources-models-check.mjs",
     "check:c6": "node scripts/c6-e2e-check.mjs",
@@ -41,7 +42,7 @@
     "check:file-perms": "node node_modules/tsx/dist/cli.mjs scripts/file-perms-check.mjs",
     "check:thinking-levels": "node scripts/thinking-levels-align-check.mjs",
     "check:model-info": "node node_modules/tsx/dist/cli.mjs scripts/model-info-check.mjs",
-    "test:ci": "npm run typecheck && npm run build && npm run check:thinking-levels && npm run check:model-info && npm run security-check && npm run check:trust && npm run check:run-dir && npm run check:fs-list && npm run check:fs-search && npm run check:prompt-filerefs && npm run check:error-visible && npm run check:usage-branch && npm run check:tool-details && npm run check:slash-commands && npm run check:session-title && npm run check:sessions-manage && npm run check:skills-install && npm run check:compat && npm run check:model-select && npm run check:file-perms && npm run check:session-cache-scan && npm run check:session-cache-index && npm run check:session-list-perf"
+    "test:ci": "npm run typecheck && npm run build && npm run check:thinking-levels && npm run check:model-info && npm run security-check && npm run check:trust && npm run check:run-dir && npm run check:fs-list && npm run check:fs-search && npm run check:fs-image && npm run check:prompt-filerefs && npm run check:error-visible && npm run check:usage-branch && npm run check:tool-details && npm run check:slash-commands && npm run check:session-title && npm run check:sessions-manage && npm run check:skills-install && npm run check:compat && npm run check:model-select && npm run check:file-perms && npm run check:session-cache-scan && npm run check:session-cache-index && npm run check:session-list-perf"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.99.2"
