@@ -305,6 +305,17 @@ try {
 	const synth = synthEntries(realHeader.cwd);
 	fs.writeFileSync(synthPath, synth.map((e) => JSON.stringify(e)).join("\n") + "\n");
 
+	// subagent 子会话：mtime 最新、且带 pi-web:subagent 标记 —— 清单与续接都必须跳过它
+	const subagentPath = path.join(realFileDir, "2026-09-23T11-00-00-000Z_c4-subagent-session.jsonl");
+	const subEntries = [
+		{ type: "session", version: 3, id: "c4-subagent-session", timestamp: ts(60), cwd: realHeader.cwd, parentSession: synthPath },
+		{ type: "custom", customType: "pi-web:subagent", id: "c1", parentId: null, timestamp: ts(60), data: { version: 1, parentSessionId: "c4-synth-session", parentSessionPath: synthPath, profile: "general-purpose" } },
+		{ type: "message", id: "m1", parentId: "c1", timestamp: ts(61), message: { role: "user", content: [{ type: "text", text: "子任务" }] } },
+	];
+	fs.writeFileSync(subagentPath, subEntries.map((e) => JSON.stringify(e)).join("\n") + "\n");
+	const now = new Date();
+	fs.utimesSync(subagentPath, now, now); // 钉死为最新 mtime，让「跳过子会话」成为真判据
+
 	const listRes2 = await request("GET", "/sessions");
 	const sessions2 = listRes2.json?.sessions ?? [];
 	check("①合成会话进入清单（清单 ≥2 条）", sessions2.length >= 2, sessions2.map((s) => ({ id: s.id, messageCount: s.messageCount })));
@@ -367,6 +378,9 @@ try {
 	const recentMessages = recent.json?.messages ?? [];
 	check("④continue-recent 返回 200 且 id 在清单内", recent.status === 200 && sessions2.some((s) => s.id === recent.json?.id), { status: recent.status, id: recent.json?.id, listed: sessions2.map((s) => s.id) });
 	check("④continue-recent 带回消息（≥1 条）", recentMessages.length >= 1, { count: recentMessages.length, id: recent.json?.id });
+	check("④continue-recent 不选 subagent 子会话", recent.json?.id !== "c4-subagent-session", recent.json?.id);
+	const listRes3 = await request("GET", "/sessions");
+	check("⑥subagent 子会话不进入历史清单", !(listRes3.json?.sessions ?? []).some((s) => s.id === "c4-subagent-session"), (listRes3.json?.sessions ?? []).map((s) => s.id));
 
 	/* ================================================================ 判据⑤：新端点的安全三件套 */
 	const noToken = await request("GET", "/sessions", undefined, { token: "" });
