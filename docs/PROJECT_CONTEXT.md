@@ -60,6 +60,8 @@ UI(React) --POST /prompt--> core --> @earendil-works/pi-coding-agent（agent 循
 4. 会话由 Pi 落盘持久化，core 用 `/sessions*` 端点列举 / 装载 / 新建；**真实发生对话才创建 session**。
 5. 模型配置固定取 `<agentDir>/models.json`（缺省 `~/.pi/agent/models.json`），`apiKey` 支持 `"$ENV_VAR"` 插值；设置页可增删 Provider、拉真实模型清单勾选。
 
+**`apiKey` 的 `!` 前缀（2026-10 P0-2 硬化）**：`!cmd` 语义是「在 core 进程内执行 shell 取凭证」，仅在 **Pi 读 models.json** 时生效（core 自己的保存路径走 `inspectCredential`，不执行）。**经 HTTP 入口一律 400 拒绝**（`POST /models/test` / `POST /providers/models`）—— 改前这是「拿到 token 的任意主体发一个请求 = 任意命令执行」的单请求 RCE。回归防线：`npm run check:security-hardening`。
+
 **契约镜像**：core 的 `contract.ts` 与 ui 的类型是镜像关系，`npm run check:contract`（contract-mirror-check）守护两端不漂移。
 
 **mock / live 双形态**：`mock/` 是**默认形态数据源**——无 core 也能全功能演示（打字机流式、授权卡、用量统计俱全），`?live=1` 切真实链路。纪律：**mock/live 共用同一套渲染逻辑，零特判**；涉及数据的 store 字段（如 `settledTurnKeys`）仅 live 写入、mock 恒空，让演示面自然等于「没有该能力」而不是另写一套。

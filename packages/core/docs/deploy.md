@@ -157,6 +157,8 @@ CORE_TOKEN=0f2a...full-random-long-token npm run smoke
 ## 4. 安全边界（务必阅读）
 
 > **任何拿到 token 的人都可以让 AI agent 在跑 core 的机器上执行任意 shell 命令、读写 cwd 内文件。所以：必须 HTTPS、token 必须保密、不要把 core 直接暴露公网。**
+>
+> 补充（2026-10 P0-2）：拿到 token **本身**不等于直接命令执行 —— `apiKey` 的 `!` 前缀（core 进程内跑 shell）已从 HTTP 入口移除，`POST /models/test` / `POST /providers/models` 收到 `!` 开头的 apiKey 会返回 400。命令执行能力仅存在于**经对话驱动的 agent 工具链**（有授权卡、有信任门、有审计），本节描述的边界依然成立。
 
 基于这条边界，部署时遵守以下建议：
 
