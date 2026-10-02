@@ -6,9 +6,13 @@
  * 限长只读是严格更弱的能力（与 fs-list.ts / fs-read.ts 头部同一段论证）。
  *
  * 与 `fs-read.ts`（`/fs/read`）的分工：
- * - `/fs/read` 出**限长文本**，供源码高亮/Markdown/HTML-iframe；
+ * - `/fs/read` 出**限长文本**，供源码高亮/Markdown/**HTML**（经 PreviewPane 的 iframe 沙箱）；
  * - `/fs/image` 出**原始字节**，供 `<img>` 标签。两个端点并列，UI 按 kind 分流——
  *   图片若走 `/fs/read`，其 256KB 截断会把超过 256KB 的 PNG 腰斩成破图。
+ * - **`.svg` 不走本文件**：UI 侧 `filePreviewKind` 把 svg 归进 html 分支，走 iframe 沙箱，
+ *   数据仍来自 `/fs/read`（server.ts `contentTypeOf` 的 `.svg: image/svg+xml` 是
+ *   静态资源的 MIME 表，与本文件的魔数白名单是两回事）。本文件的 MIME_WHITELIST
+ *   只管**位图**（png/jpeg/gif/webp/bmp），SVG 不在其内。
  *
  * 判定规则：
  * - 路径口径**照抄 fs-read.ts**（`expandHome` + `path.resolve` + statSync 跟随符号链接 +
