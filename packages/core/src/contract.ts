@@ -733,7 +733,12 @@ export interface CatalogPayload {
 /** `POST /models/test` 请求体（用表单里的 provider/model 配置构造一次性最小请求） */
 export interface ModelTestRequest {
   baseUrl: string;
-  /** API key 原文（`!`/`$ENV` 插值由 core 解析，不落盘、不改当前选择） */
+  /**
+   * API key 原文（`$ENV` 插值由 core 解析，不落盘、不改当前选择）。
+   *
+   * ⚠️ 2026-10 P0-2：`!` 前缀（core 进程内执行 shell）**经 HTTP 入口一律 400 拒绝**。
+   * 磁盘上的 `!cmd` 仍可保存、Pi 读盘时仍解析 —— 只有「发请求时临时跑命令取凭证」被切断。
+   */
   apiKey: string;
   /** API 类型（决定请求路径与报文形态） */
   api: string;

@@ -256,6 +256,39 @@ function contentTypeOf(p: string): string {
 	return map[ext] ?? "application/octet-stream";
 }
 
+/**
+ * P0-2 硬化：HTTP 入口拒绝 `apiKey` 以 `!` 开头的请求。
+ *
+ * 漏洞形状：apiKey 的 `!` 前缀语义（providers.ts 的 `resolveCredential`）会走
+ * `execSync(raw.slice(1), { shell })` 在 core 进程内执行 shell。而 `!`-前缀的
+ * `apiKey` 在「测试连接」路径上的**唯一来源就是 HTTP 请求体**
+ * （POST /models/test、POST /providers/models），且无任何前置条件
+ * （不需流式空闲、不需配过 models.json、不需目录受信任）⇒ 拿到 token 的任意主体
+ * 一个 HTTP 请求 = 任意命令执行。
+ *
+ * 为什么在这里拦、而不改 `resolveCredential`：
+ * - `!` 不是坏功能。保存到 models.json 后，Pi 自己读盘时仍会解析 `!`（该路径
+ *   走 `inspectCredential`，providers.ts 明确**不执行**命令）⇒ 保存功能零影响。
+ * - 唯一被切断的是「发测试请求时临时跑命令取凭证」这条便利路径（保存仍可用）。
+ *   收益：HTTP 面上彻底没有单请求 RCE。
+ * - 改 providers.ts 会连带影响磁盘上已配置的 `!` 凭证的读取口径，属过度改动。
+ *
+ * 与 deploy.md:159 的区别：那份声明的是「拿到 token 的人可以让 **agent** 执行命令」
+ * （经对话 + 授权卡 + 审计）。本条是**与对话/模型/授权完全无关**的裸 shell 面。
+ */
+function credentialCommandRejected(apiKey: unknown): boolean {
+	return typeof apiKey === "string" && apiKey.startsWith("!");
+}
+
+/** 与 `credentialCommandRejected` 配对的 400 响应（文案点明出路，不静默拒绝） */
+const credentialCommandRejectedResponse = () => ({
+	status: 400,
+	body: {
+		error: "不支持在请求里用 `!` 执行本机命令（安全限制）",
+		hint: "请改用 $ENV_NAME 引用环境变量，或直接填密钥字面量；`!cmd` 仍可保存到 models.json，Pi 读盘时会自行解析。",
+	},
+});
+
 function readBody(req: IncomingMessage): Promise<unknown> {
 	return new Promise((resolve) => {
 		let d = "";
@@ -330,7 +363,21 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			res.end("UI dist 未构建");
 			return;
 		}
-		let rel = decodeURIComponent(urlPath.split("?")[0]);
+		/*
+		 * P0-1 硬化：畸形百分号编码（`/%`、`/%zz`、`/a%2`）会让 decodeURIComponent 抛 URIError。
+		 * 抛出去 ⇒ createServer 的 async handler 变成 unhandled rejection ⇒ main.ts 无
+		 * unhandledRejection 兜底 ⇒ **整个 core 进程退出**（实测 GET /% ⇒ exit code=1）。
+		 * 桌面版更糟：core 一死 desktop/src/main.ts 弹窗并 app.quit()，用户应用被一条本地请求关掉。
+		 * ⇒ 400（客户端的错），不静默、不崩；不静默降级 ⇒ 走 HTTP 状态码而非假装 404。
+		 */
+		let rel: string;
+		try {
+			rel = decodeURIComponent(urlPath.split("?")[0]);
+		} catch {
+			res.writeHead(400, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ error: "bad request" }));
+			return;
+		}
 		if (rel === "/" || rel === "") rel = "/index.html";
 		const filePath = path.normalize(path.join(uiDist, rel));
 		// 防目录穿越
@@ -374,7 +421,22 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		});
 	}
 
-	const server = createServer(async (req, res) => {
+	/*
+	 * P0-1 硬化：请求处理收敛为具名函数 + 顶层 try/catch。
+	 *
+	 * 为什么要这一层（serveStatic 内的 decode 防护只是「最常见的触发点」）：
+	 * 整条链上任何一处抛错（未捕获的 JSON 解析、类型假设失败、上游库异常……）
+	 * 都会让这个 async handler 返回一个 rejected promise，而 `createServer` **不 await 它**
+	 * ⇒ unhandled rejection ⇒ 进程退出。也就是说「一个畸形请求打死后端」是个
+	 * 通用形状，不止 /% 这一种载荷。顶层兜底把这类失败一律收敛成 500，
+	 * core 继续服务 —— 单个坏请求不该让用户的整个应用消失。
+	 *
+	 * 纪律（与 main.ts:79 / skills-install.ts 一致）：错误必须**可见**。
+	 * 堆栈只进 core 的 stderr（桌面版下用户可经"查看日志"看到），不外泄给客户端；
+	 * 响应只给一句固定文案，不把 `String(e)` 直出（另见 P1-9）。
+	 */
+	const handleRequest = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+	try {
 		const url = new URL(req.url ?? "/", `http://127.0.0.1:${actualPort}`);
 		const urlPath = url.pathname;
 		// 白名单按「主机名」比对（与端口解耦）：默认仅本机。CORE_HOST=0.0.0.0 时
@@ -1091,6 +1153,10 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			if (!body || typeof body.baseUrl !== "string" || typeof body.modelId !== "string") {
 				return json(400, { error: "请求体缺少 baseUrl / modelId" });
 			}
+			if (credentialCommandRejected(body.apiKey)) {
+				const r = credentialCommandRejectedResponse();
+				return json(r.status, r.body);
+			}
 			try {
 				const result = await runtime.testModel(body);
 				return json(200, result);
@@ -1104,6 +1170,10 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 			const body = (await readBody(req)) as ProviderModelsRequest;
 			if (!body || typeof body.baseUrl !== "string") {
 				return json(400, { error: "请求体缺少 baseUrl" });
+			}
+			if (credentialCommandRejected(body.apiKey)) {
+				const r = credentialCommandRejectedResponse();
+				return json(r.status, r.body);
 			}
 			try {
 				const result = await runtime.listProviderModels(body);
@@ -1127,6 +1197,33 @@ export function startServer(runtime: CoreRuntime, opts: StartOptions = {}): Prom
 		}
 
 		return json(404, { error: "not found" });
+	} catch (e) {
+		/*
+		 * 逃逸到这里 = 某个 handler 抛了未预期的异常。记全堆栈（证据留给人），
+		 * 回 500（不假装成功、不静默吞掉）。响应已发出则只能记日志不能改状态码 ——
+		 * 那种情况下 res.writeHead 已抛 ERR_HTTP_HEADERS_SENT，再写会二次抛。
+		 */
+		console.error(`[core] ${req.method ?? "?"} ${req.url ?? "?"} 处理失败:`, e);
+		if (!res.headersSent) {
+			res.writeHead(500, { "Content-Type": "application/json" });
+			res.end(JSON.stringify({ error: "internal error" }));
+		}
+	}
+	};
+
+	const server = createServer((req, res) => {
+		// 显式吞掉 rejection：绝不把 async handler 的失败漏成 unhandledRejection
+		void handleRequest(req, res).catch((e) => {
+			console.error(`[core] ${req.method ?? "?"} ${req.url ?? "?"} 处理失败（外层）:`, e);
+			if (!res.headersSent && !res.writableEnded) {
+				try {
+					res.writeHead(500, { "Content-Type": "application/json" });
+					res.end(JSON.stringify({ error: "internal error" }));
+				} catch {
+					/* 响应已不可写：只留上面的日志 */
+				}
+			}
+		});
 	});
 
 	return new Promise((resolve) => {

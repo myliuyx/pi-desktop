@@ -182,6 +182,26 @@ try {
   process.exit(1);
 }
 
+/*
+ * P0-1 硬化：进程级兜底 —— 任何逃逸到事件循环的异常都在此收口。
+ *
+ * 为什么不退出（与 Node 官方 “uncaughtException 后应退出” 的建议相反，是本项目的
+ * 有意取舍）：core 是桌面版的 `ELECTRON_RUN_AS_NODE` 子进程，一旦退出，
+ * desktop/src/main.ts 会在健康检查失败后弹窗并 `app.quit()` —— 用户的整个应用消失。
+ * 「服务带着一条错误日志继续跑」的代价，远小于「一个边缘 bug 关闭用户的应用」。
+ * 异常本体已在本层之前被 server.ts 的 handler 顶层 try/catch 记录过一次；
+ * 这里只兜真正逃逸出来的（定时器回调、上游库内部、第三方 promise 链）。
+ *
+ * 纪律：记全堆栈（错误必须可见，不静默降级），但不 process.exit()。
+ * `exit(0)` 是错的（假装正常关闭，会让桌面版把「异常退出」读成「主动退出」）。
+ */
+process.on("unhandledRejection", (reason) => {
+	console.error("[core] 未处理的 Promise 拒绝（服务继续运行）:", reason);
+});
+process.on("uncaughtException", (err) => {
+	console.error("[core] 未捕获的异常（服务继续运行）:", err);
+});
+
 async function shutdown() {
   console.log("\n[core] 关闭中…");
   await handle.close();
