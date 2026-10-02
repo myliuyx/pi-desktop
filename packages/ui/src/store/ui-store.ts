@@ -319,6 +319,12 @@ interface UiState {
   recordRecentDir: (dir: string) => void;
 
   /**
+   * 从最近列表移除一条（菜单行内 × 按钮）。
+   * 只动 `recentDirs`：偏好（`workingDir`）与当前目录是另外的真相，删历史不碰它们。
+   */
+  removeRecentDir: (dir: string) => void;
+
+  /**
    * 清除工作目录偏好（「使用默认目录」的落地语义，2026-09-24 裁决）。
    *
    * ⚠️ **不写任何路径**：live 的「默认」是 core 未来启动时的 `process.cwd()`，
@@ -536,6 +542,12 @@ export const useUiStore = create<UiState>((set, get) => ({
 
   recordRecentDir: (dir) => {
     const recentDirs = pushRecentDir(get().recentDirs, dir);
+    writeRecentDirs(recentDirs);
+    set({ recentDirs });
+  },
+
+  removeRecentDir: (dir) => {
+    const recentDirs = get().recentDirs.filter((item) => item !== dir);
     writeRecentDirs(recentDirs);
     set({ recentDirs });
   },

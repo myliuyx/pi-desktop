@@ -6,7 +6,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, FolderOpen, Plus } from "lucide-react";
+import { Check, ChevronDown, FolderOpen, Plus, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Icon } from "@/components/common/icons";
 import { Button } from "@/components/primitives";
@@ -144,6 +144,7 @@ export function WorkingDirectoryMenu({
 
   const prefersReduced = usePrefersReducedMotion();
   const setWorkingDir = useUiStore((state) => state.setWorkingDir);
+  const removeRecentDir = useUiStore((state) => state.removeRecentDir);
   const clearWorkingDir = useUiStore((state) => state.clearWorkingDir);
   const sidebarCollapsed = useUiStore((state) => state.sidebarCollapsed);
   const settingsOpen = useUiStore((state) => state.settingsOpen);
@@ -548,22 +549,48 @@ export function WorkingDirectoryMenu({
                    * （原「下次启动」角标随 D7 热切换语义整体退场。）
                    */}
                   {restRecents.map((dir, index) => (
-                    <button
-                      key={dir}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={false}
-                      tabIndex={-1}
-                      data-testid={`sidebar-working-directory-recent-${index}`}
-                      title={dir}
-                      onClick={() => chooseDir(dir)}
-                      className={cn(menuItemClass, "text-text-secondary")}
-                    >
-                      <Icon icon={Check} size={14} className="invisible shrink-0" />
-                      <span className="min-w-0 flex-1 truncate font-mono text-xs">
-                        {truncatePathTail(dir)}
-                      </span>
-                    </button>
+                    <div key={dir} className="group relative">
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={false}
+                        tabIndex={-1}
+                        data-testid={`sidebar-working-directory-recent-${index}`}
+                        title={dir}
+                        onClick={() => chooseDir(dir)}
+                        className={cn(menuItemClass, "pr-7", "text-text-secondary")}
+                      >
+                        <Icon icon={Check} size={14} className="invisible shrink-0" />
+                        <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                          {truncatePathTail(dir)}
+                        </span>
+                      </button>
+                      {/*
+                       * 行内移除（悬停显形 / 移开即隐，纯 CSS 无状态）。三条结构约束：
+                       * ① 必须是 row button 的**兄弟**节点 —— button 内不容交互元素，
+                       *    兄弟点击也不冒泡进行 button，无误切换路径；
+                       * ② 不带 role="menuitem" —— 方向键漫游不停靠（低频删除动作，
+                       *    鼠标足够），panelItems/menuItems 的选择器也不会数到它；
+                       * ③ testid 以 `-remove` 结尾 —— probe-dir-menu 的 recent 查询带
+                       *    `/^…recent-\d+$/` 排除正则，此前缀变体不可改名撞上主锚点。
+                       * pr-7 预留：路径最长时截尾点也不与 × 重叠（cn 的 pr 组后写胜出）。
+                       */}
+                      <button
+                        type="button"
+                        tabIndex={-1}
+                        data-testid={`sidebar-working-directory-recent-${index}-remove`}
+                        aria-label={`移除最近目录 ${dir}`}
+                        title="移除"
+                        onClick={() => removeRecentDir(dir)}
+                        className={cn(
+                          "absolute right-1 top-1/2 -translate-y-1/2 rounded p-0.5",
+                          "text-text-tertiary transition-opacity hover:bg-bg-hover hover:text-text-primary",
+                          "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                        )}
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
                   ))}
                 </>
               ) : null}
