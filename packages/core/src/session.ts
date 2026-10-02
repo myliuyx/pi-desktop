@@ -908,10 +908,24 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 	 * 新建（换入）空白活动会话（task-new-session-page.md §4.7 · D7）：
 	 * UI 草稿态首条消息发送时调用。手势 = rebuildSession 去掉「打开旧文件」那步 ——
 	 * createAgentSession **不带 sessionManager** 即全新空白会话；settingsManager /
-	 * resourceLoader 是 cwd 绑定产物，同 cwd 直接复用（与 rebuildSession 同口径），
-	 * 不走信任门、不重载资源。半成品处置沿 bootProject 纪律：bind/subscribe 失败
-	 * 就地 dispose 新实例、旧会话原样保留；换引用顺序与 rebuildSession / switchCwd
-	 * 同规：先换 → 清用量 → 推零快照 → 最后 dispose 旧实例。
+	 * resourceLoader 是 cwd 绑定产物，同 cwd 复用其*对象*（与 rebuildSession 同口径）、
+	 * 不走信任门。半成品处置沿 bootProject 纪律：bind/subscribe 失败就地 dispose 新实例、
+	 * 旧会话原样保留；换引用顺序与 rebuildSession / switchCwd 同规：先换 → 清用量 →
+	 * 推零快照 → 最后 dispose 旧实例。
+	 *
+	 * ★ 为什么同 cwd 仍必须重载 resourceLoader 的内容（勿再简化回「不重载资源」）：
+	 *   cwd 绑定只对 settings / skills / prompts / themes 成立，对 **extension 不成立**。
+	 *   Extension 实例的生命周期绑在 ExtensionRunner 上，而下面 `previous?.dispose()`
+	 *   会调 `_extensionRunner.invalidate()`（pi core/agent-session.ts:931）把该 runtime
+	 *   **永久**标记为 stale（invalidate 仅在 staleMessage 未设时写入，不可逆）。
+	 *   新会话经 `sdk.ts:434 → resourceLoader.getExtensions()` 取回的是同一个
+	 *   `this.extensionsResult` 成员变量，于是新 runner 挂着一批已失效的实例；
+	 *   扩展工具 execute 里的第一个 ctx getter（如 ctx.ui，pi-subagents index.ts:1768）
+	 *   就会抛 "This extension ctx is stale…"。
+	 *   `reload()` 不传 opts 即不走信任门（同 cwd 信任已决，见 resource-loader.ts:394），
+	 *   且会 clearExtensionCache + 重建 runtime（loadFinalExtensionSet 无 preTrust 分支）。
+	 *   代价是每次 /new 多一次全量扩展重载（与 /reload 同量级）；换来 /new 语义正确。
+	 *   若日后成为性能问题，可降级为「只重建 extension runtime」的方案（需 pi 侧开口子）。
 	 */
 	const newSession = async (): Promise<string> => {
 		await ready;
@@ -919,6 +933,10 @@ export function createCoreRuntime(opts: CreateRuntimeOptions = {}): CoreBootstra
 			throw new Error("会话正在生成回复，请先停止再新建会话");
 		}
 		if (!modelRuntime || !settingsManager || !resourceLoader) throw new Error("会话组件未就绪，无法新建会话");
+		// ★ 重载资源内容（不传 opts → 不走信任门）。删掉这行会让新会话复用上一轮
+		//   dispose() 掉的 stale extension 实例，扩展工具一调 ctx 就报 ctx is stale。
+		//   详见上方注释的「为什么同 cwd 仍必须重载」。
+		await resourceLoader.reload();
 		const created = await createAgentSession({
 			// 无模型时整个字段省略（与启动路径同语义，见 ready 内的说明）
 			...(activeModel ? { model: activeModel } : {}),
