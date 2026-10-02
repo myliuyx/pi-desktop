@@ -24,6 +24,7 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { buildBootCoreEnv } from "./boot-env";
+import { mergeExitLastRun, type LastRunState } from "./last-run";
 
 /** --smoke：无窗口进程级冒烟（B3 的自动化口径） */
 const SMOKE = process.argv.includes("--smoke");
@@ -98,11 +99,19 @@ const preloadEntry = path.join(__dirname, "preload.js");
  * core 启动回落 process.cwd()）。与 core.json 分开放的原因：core.json 每次 spawn 前必须删
  * （防旧端口竞态），这份恰恰要跨启动存活。坏文件一律视同缺失，不崩、下次成功启动后覆盖写好。
  */
-interface LastRunState {
-	port: number;
-	cwd: string | null;
-}
-
+/**
+ * ★ F1/F4 断链修复（2026-10-02）：`writeLastRun` 的唯一调用点原本在启动编排的 `.then()`
+ * 里 —— 记忆只在 core 就绪那一刻写一次，运行期 `POST /cwd` 热切换**无人在场回写**
+ * ⇒ `last-run.json.cwd` 永远停在「上次启动时的快照」（A→B→C 用完退出，下次回到上次
+ * 启动时的目录而非 C）。
+ *
+ * 修复 = 退出时补写一次：core.json 的 cwd 由 core 的 `updateCoreJsonCwd` 在
+ * `POST /cwd` 返回 200 **之前**同步落盘（`writeFileSync`），恒为最后切到的目录、无竞态，
+ * 故退出时直读即可，无需新增通知通道。判定逻辑在纯函数 `last-run.ts`
+ * （`scripts/last-run-check.mjs` 回归）；取舍：崩溃/强杀丢这一次更新，退化到修复前行为。
+ *
+ * 读取失败（core 尚未就绪即被杀 / 旧版 core.json 无 cwd 字段）保留原记忆，见 mergeExitLastRun。
+ */
 function readLastRun(): LastRunState {
 	try {
 		const raw = JSON.parse(fs.readFileSync(path.join(runDir, "last-run.json"), "utf8")) as {
@@ -523,6 +532,10 @@ if (!gotLock) {
 		app.quit();
 	});
 	app.on("before-quit", () => {
+		// ★ 必须排在 killCore 之前：core.json 的 cwd 是同步落盘的实时真值，
+		// 但 core 一旦被杀后续写就没了 —— 先读后杀，顺序不能反。
+		// 写失败不影响本次运行（与 recent-dirs 同纪律）。
+		writeLastRun(mergeExitLastRun(readLastRun(), readCoreInfo()?.cwd));
 		quitting = true;
 		killCore();
 	});
