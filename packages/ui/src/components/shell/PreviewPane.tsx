@@ -9,7 +9,8 @@ import {
 } from "react";
 import { Check, Copy, File, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { isLiveEnabled } from "@/lib/feature-flags";
+import { getLiveConfig, isLiveEnabled } from "@/lib/feature-flags";
+import { fileImageUrl } from "@/lib/image-src";
 import { getLiveTransport } from "@/services/live-transport";
 import type { FileReadResult } from "@/services/agent-transport";
 import { useChatStore } from "@/store/chat-store";
@@ -349,15 +350,23 @@ function extToLang(name: string): string {
   return map[name.slice(dot + 1).toLowerCase()] ?? "plaintext";
 }
 
-/** 文件的效果态可渲染类型：html/svg 进 iframe 沙箱，md 进 Markdown 组件；
+/** 文件的效果态可渲染类型：html/svg 进 iframe 沙箱，md 进 Markdown 组件，位图进 <img>；
  * 其余文件（ts/json/…）没有「渲染结果」可言，只有源码形态、不渲染双 Tab。 */
-type FilePreviewKind = "html" | "markdown" | "source";
+type FilePreviewKind = "html" | "markdown" | "image" | "source";
+
+/**
+ * 可 <img> 预览的扩展名集。**与 core fs-image.ts 的魔数白名单一一对位**——
+ * 两侧口径必须一致：这里放行、core 嗅探却 415 的扩展名，会让预览区出现无解释的裂图。
+ * ICO/AVIF/HEIC 刻意不收（image-attach.ts 上传白名单同样没有，见 Global Constraints）。
+ */
+const IMAGE_EXTS: ReadonlySet<string> = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp"]);
 
 function filePreviewKind(name: string): FilePreviewKind {
   const dot = name.lastIndexOf(".");
   const ext = dot > 0 ? name.slice(dot + 1).toLowerCase() : "";
   if (ext === "html" || ext === "htm" || ext === "svg") return "html";
   if (ext === "md" || ext === "markdown") return "markdown";
+  if (IMAGE_EXTS.has(ext)) return "image";
   return "source";
 }
 
@@ -428,7 +437,9 @@ function FilePreviewView({ path, onClose }: { path: string; onClose: () => void 
   const data = state.status === "ready" ? state.data : undefined;
   const fileName = data?.name ?? path.split(/[\\/]/).pop() ?? path;
   const kind = data ? filePreviewKind(data.name) : "source";
-  const hasEffect = kind !== "source";
+  // image 有「效果态」但**无源码态**（二进制没什么源码可看）⇒ 不给双 Tab，
+  // 与 kind==="source" 同纪律「没有第二视图就不给哑 Tab」。图片恒落在效果态。
+  const hasEffect = kind !== "source" && kind !== "image";
 
   return (
     <>
@@ -507,6 +518,24 @@ function FilePreviewView({ path, onClose }: { path: string; onClose: () => void 
             </button>
           }
         />
+      ) : kind === "image" && data ? (
+        /*
+         * ★ 图片分支必须排在 data?.binary **之前**：PNG 在 /fs/read 的 0x00 嗅探下
+         * 恒 binary:true（签名第 8 字节就是 0x00），排在后头会被 binary 占位吞掉，
+         * 整个 feature 零生效。
+         *
+         * ⚠️ `&& data` 不是多余的（2026-10-02 实测订正）：`kind` 由 `data ?
+         * filePreviewKind(data.name) : "source"` 推出，TS 无法从「kind === image」
+         * 反推 data 非空。不写它，`npm run typecheck` 必红：
+         *   error TS18048: 'data' is possibly 'undefined'.
+         * 上面已有的 `state.status === "error"` 早退分支已经排除了 error 态，
+         * 所以 `&& data` 在语义上恒真（data 为 undefined 时 kind 必是 "source"），
+         * 是**纯类型闸门**、不改任何运行时行为。data 在此时必已 ready（loading 由上方早退接管）。
+         *
+         * 超 8MB 由这里**本地判定**（拿 /fs/read 已返回的真实 size，零新增请求）——
+         * <img> 拿不到 HTTP 413，让 core 去回码是无效设计。
+         */
+        <FileImagePreview path={path} name={data.name} size={data.size} />
       ) : data?.binary ? (
         <FileStatusBlock testId="preview-file-binary" text="二进制文件，暂不支持预览" hint={path} />
       ) : data && data.content.length === 0 ? (
@@ -620,6 +649,78 @@ function FileStatusBlock({
         </div>
       ) : null}
       {action}
+    </div>
+  );
+}
+
+/** 单图字节上限（与 core fs-image.ts 的 IMAGE_FILE_MAX_BYTES 同值，改动两侧要同步） */
+const FILE_IMAGE_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * 图片效果态：`<img>` 直连 `/fs/image` 字节流。
+ *
+ * ## 为什么 img 的 src 要带 fsVersion
+ *
+ * 磁盘图片**会被 agent 改写**。`fsVersion` 变化时本组件重渲染，但 `src` 字符串
+ * 若不随版本变，浏览器会直接吐缓存旧字节 ⇒「agent 改完图，预览纹丝不动」。
+ * `v=${fsVersion}` 是这条链上唯一的缓存破门（core 侧配的是 `no-cache` 协商缓存，
+ * 不是 `/sessions.image` 的 immutable）。
+ *
+ * ## 为什么超限在本地判
+ *
+ * `<img>` 拿不到 HTTP 状态码与响应体——core 回 413 时前端只看到一张裂图，
+ * 无法区分「文件不存在 / 非图片 / 过大」。超限判在这里用 `/fs/read` 已返回的
+ * 真实 size 本地做（零新增请求），给明确占位文案。其余失败（404/403/415/网络）
+ * 由 `onError` 兜底——那些场景的诚实呈现就是「裂了」，不硬编原因。
+ *
+ * ## 为什么不做棋盘格底
+ *
+ * 透明 PNG 在深色主题上会「只剩内容不见边界」。这是**已知取舍**（本轮 YAGNI）：
+ * 上 `bg-bg-subtle` 平淡底而非棋盘格 CSS。若后续实弹反馈不可辨，再单独立项补背景图案。
+ */
+function FileImagePreview({ path, name, size }: { path: string; name: string; size: number }) {
+  const fsVersion = useChatStore((state) => state.fsVersion);
+  /** img 解码失败（404/403/415/网络/缓存破门未生效）；文案诚实为「无法加载」，不猜原因 */
+  const [failed, setFailed] = useState(false);
+  const { token, baseUrl } = getLiveConfig();
+
+  const src = fileImageUrl(path, token, baseUrl, fsVersion);
+
+  // 换文件重置失败态：不 reset 的话，A 图裂了直接点 B 图，failed 仍 true ⇒ B 永不挂 <img>
+  useEffect(() => {
+    setFailed(false);
+  }, [path]);
+
+  if (size > FILE_IMAGE_MAX_BYTES) {
+    return (
+      <FileStatusBlock
+        testId="preview-file-image-too-large"
+        text="图片过大，暂不支持预览"
+        hint={`${name} · ${(size / (1024 * 1024)).toFixed(1)}MB`}
+      />
+    );
+  }
+
+  if (failed || !src) {
+    return (
+      <FileStatusBlock
+        testId="preview-file-image-error"
+        text="图片无法加载"
+        hint={path}
+      />
+    );
+  }
+
+  return (
+    <div data-testid="preview-file-image" className="flex min-h-0 flex-1 overflow-auto bg-bg-subtle p-3">
+      {/* object-contain ⇒ 大图等比缩进面板不裁切；mx-auto 居中；alt = 文件名（读屏友好） */}
+      <img
+        src={src}
+        alt={name}
+        data-testid="preview-file-image-img"
+        onError={() => setFailed(true)}
+        className="mx-auto max-h-full max-w-full object-contain"
+      />
     </div>
   );
 }
