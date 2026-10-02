@@ -109,3 +109,25 @@ export function collectTurnFiles(messages: Message[], turn: TurnGroup, cwd: stri
 
 	return [...byPath.values()];
 }
+
+/**
+ * 流式闸门（2026-10-02 用户裁决，推翻规格书 §〇「流式中实时累积」）：整轮进行中
+ * （send → agent_settled 全窗口）活动轮的 chips 压住不出——最终回复落地才显示。
+ *
+ * 活动轮 = lastTurnKey 指向的那段（进行中它恒为索引里最后一段）。活动轮尚未开口
+ * （messages 尾条还是 user：下一问已发出、模型未回）时**不压**——此时索引里根本
+ * 没有活动轮，lastTurnKey 实为上一轮，误压会把上一轮已显示的 chips 在整个等待
+ * 空窗里熄掉。中止/断线后 inFlight 已复位（chat-store 同批清零纪律），轮次视为
+ * 结束：已写成功的文件照常显示（诚实口径，不因没答完而吞掉实录）。
+ *
+ * 返回要从 chips 表剔除的轮次键；null = 不剔除。纯函数，供 turn-files-check 断言。
+ */
+export function inFlightSuppressedTurnKey(
+	messages: Message[],
+	lastTurnKey: string | null,
+	inFlight: boolean,
+): string | null {
+	if (!inFlight || lastTurnKey === null) return null;
+	const last = messages[messages.length - 1];
+	return last !== undefined && last.role === "assistant" ? lastTurnKey : null;
+}

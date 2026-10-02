@@ -4,7 +4,7 @@
  * 口径出处：lib/turn-files.ts 注释与 .plan/task-turn-file-chips.md §二/§三.1。
  */
 import { groupTurns } from "../src/lib/turns.ts";
-import { collectTurnFiles } from "../src/lib/turn-files.ts";
+import { collectTurnFiles, inFlightSuppressedTurnKey } from "../src/lib/turn-files.ts";
 
 let seq = 0;
 const user = () => ({ id: `u${++seq}`, role: "user", timestamp: 0, blocks: [{ type: "text", content: "q" }] });
@@ -218,6 +218,43 @@ function oneTurn(...assistants) {
 		assistant([text("done")]),
 	);
 	check("17 cwd 尾分隔符归一", collectTurnFiles(msgs, turn, "F:/proj/")[0]?.path, "F:/proj/src/j.ts");
+}
+
+/* 18-21. 流式闸门 inFlightSuppressedTurnKey（2026-10-02 裁决：chips 只在最终回复出现） */
+{
+	// 18. 已完结（inFlight=false）：不压——settled 后 chips 照常显示
+	check("18 settled 不压", inFlightSuppressedTurnKey([user(), assistant([text("done")])], "s1:t0", false), null);
+	// 19. 进行中 + 尾条 assistant（活动轮已开口）：压住活动轮
+	check(
+		"19 进行中压活动轮",
+		inFlightSuppressedTurnKey([user(), assistant([call("t1", "edit", { path: "a.ts" }), term("t1")])], "s1:t0", true),
+		"s1:t0",
+	);
+	// 20. 进行中 + 尾条 user（下一问已发出、模型未回）：不压——活动轮还没进索引，
+	//     lastTurnKey 实为上一轮，误压会把上一轮已显示的 chips 在等待空窗熄掉
+	check("20 等待空窗不误伤上一轮", inFlightSuppressedTurnKey([user(), assistant([text("done")]), user()], "s1:t0", true), null);
+	// 21. 进行中但索引为空（首轮模型还没开口）：无键可压
+	check("21 空索引不压", inFlightSuppressedTurnKey([user()], null, true), null);
+}
+
+/* 22. 闸门 × 收录端到端：多步轮次——第一步 write 成功、后续还在跑：
+     收集函数有值（数据层不变），闸门压住；agent_settled 后闸门放行 */
+{
+	const { msgs, turn } = oneTurn(
+		assistant([call("t1", "write", { path: "src/step1.ts", content: "x" }), term("t1")]),
+		assistant([call("t2", "bash", { command: "ls" }), term("t2")]),
+	);
+	const key = turn.key;
+	// 进行中（尾条是 assistant=bash 轮仍在跑）：数据已收集，但键被闸门剔除 → 不渲染
+	const inFlight = inFlightSuppressedTurnKey(msgs, key, true);
+	check("22 进行中数据已备", collectTurnFiles(msgs, turn, null).length, 1);
+	check("22 进行中闸门压住", inFlight, key);
+	// 等价渲染口径：表里删掉被压键后查不到 → chips 行不渲染
+	const midTurnMap = new Map([[key, collectTurnFiles(msgs, turn, null)]]);
+	if (inFlight !== null) midTurnMap.delete(inFlight);
+	check("22 进行中表查无", midTurnMap.get(key), undefined);
+	// settled：闸门放行，chips 出现在最终回复所在尾条
+	check("22 settled 闸门放行", inFlightSuppressedTurnKey(msgs, key, false), null);
 }
 
 console.log(failed === 0 ? "\n全部通过" : `\n${failed} 项失败`);
