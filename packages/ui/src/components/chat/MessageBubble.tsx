@@ -5,6 +5,7 @@ import { MESSAGE_MAX_WIDTH } from "@/lib/layout";
 import type { MessageRole, TextBlock } from "@/mock/types";
 import { Markdown } from "@/components/common/Markdown";
 import { Icon } from "@/components/common/icons";
+import { MessageAttachment } from "./MessageAttachment";
 
 export interface MessageBubbleProps extends HTMLAttributes<HTMLDivElement> {
   block: TextBlock;
@@ -16,6 +17,16 @@ export interface MessageBubbleProps extends HTMLAttributes<HTMLDivElement> {
    * message 所以由它传）。仅乐观回显存在（core 序列化恒不写），历史回放没有该字段。
    */
   attachments?: { id: string; dataUrl: string }[];
+  /**
+   * 打开大图预览（与 MessageItem / BlockView 同一个回调，一路上冒到 MessageList 层，
+   * 弹层只有一份 —— 见 MessageList 的 preview state 注释）。
+   *
+   * **必传**：本组件全仓只有 `BlockView` 的 `case "text"` 一个调用点，那里恒有
+   * `onPreviewImage`（见 BlockView 自身同款注释的「哑交互禁令」）。可选化等于允许
+   * 出现「贴图点了没反应」—— ★ 那正是 2026-10-02 修复的缺陷本身。
+   * 第三参是触发按钮，MessageList 据此在关闭时归还焦点（G7）。
+   */
+  onPreviewImage: (src: string, alt: string, trigger?: HTMLElement | null) => void;
 }
 
 /* -------------------------------------------------------------------------
@@ -110,7 +121,7 @@ function FileBlockChip({ name, body }: { name: string; body: string }) {
  * Markdown 的 overflow-wrap 不撑破容器（验收 2-18）。
  */
 export const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(function MessageBubble(
-  { block, role, streaming = false, attachments, className, ...rest },
+  { block, role, streaming = false, attachments, onPreviewImage, className, ...rest },
   ref,
 ) {
   // F1 §2.4：空文本（mock 首字未到的占位块）不渲染 —— 否则等待占位行下方会并存一个空壳气泡。
@@ -144,18 +155,29 @@ export const MessageBubble = forwardRef<HTMLDivElement, MessageBubbleProps>(func
       ) : (
         <Markdown content={block.content} />
       )}
-      {/* 粘图批次：user 气泡的贴图缩略图（乐观回显）。纯展示不做灯箱；样式全走 rgb token（G1） */}
+      {/* 粘图批次：user 气泡的贴图缩略图（乐观回显）。
+
+          ★ 2026-10-02 修复：此前这里是裸 img（无 button / 无 onClick），用户点自己刚发的图
+          毫无反应，而历史通道正常 —— 两处各写一份的实现漏接了预览接线。现改用
+          MessageAttachment（与历史通道同一份实现，尺寸同为 h-16）。testId 沿用原值
+          message-attachment- + id（只是从 img 挪到 button 上），不打碎任何按它定位的东西。
+
+          ⚠️ 本注释刻意不用反引号包元素名/组件名：JSX 注释里的反引号会被解析成模板字符串
+          的开头，整段解析崩掉（表现为 TS1005，且报错行号指向下一行 JSX，极难定位）。 */}
       {attachments && attachments.length > 0 ? (
         <div data-testid="message-attachments" className="mt-1.5 flex max-w-full flex-wrap gap-1.5">
-          {attachments.map((g) => (
-            <img
-              key={g.id}
-              src={g.dataUrl}
-              alt="粘贴的图片"
-              data-testid={`message-attachment-${g.id}`}
-              className="h-16 max-w-full rounded-lg border border-border-subtle object-cover"
-            />
-          ))}
+          {attachments.map((g) => {
+            const alt = "粘贴的图片";
+            return (
+              <MessageAttachment
+                key={g.id}
+                src={g.dataUrl}
+                alt={alt}
+                testId={`message-attachment-${g.id}`}
+                onPreview={(trigger) => onPreviewImage(g.dataUrl, alt, trigger)}
+              />
+            );
+          })}
         </div>
       ) : null}
       {streaming ? (

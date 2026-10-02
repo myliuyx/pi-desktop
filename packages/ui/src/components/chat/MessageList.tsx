@@ -43,6 +43,7 @@ import {
   type RailPreview,
 } from "@/lib/turn-rail";
 import { MessageBubble } from "./MessageBubble";
+import { MessageAttachment } from "./MessageAttachment";
 import { ThinkingCard } from "./ThinkingCard";
 import { ThinkingPending } from "./ThinkingPending";
 import { MessageFooter } from "./MessageFooter";
@@ -1209,8 +1210,11 @@ function BlockView({
           block={block}
           role={message.role}
           streaming={block.streaming}
-          /* 粘图批次：贴图附件随 user 消息回显（仅乐观回显存在；core 历史回放恒无此字段） */
+          /* 粘图批次：贴图附件随 user 消息回显（仅乐观回显存在；core 历史回放恒无此字段）。
+             onPreviewImage 必需：修复前这条通道渲染裸 <img>，点了没反应（见
+             MessageAttachment 文件头「为什么必须是同一个组件」）—— 没有它就是哑交互。 */
           attachments={message.role === "user" ? message.attachments : undefined}
+          onPreviewImage={onPreviewImage}
         />
       );
     case "thinking":
@@ -1246,53 +1250,5 @@ function ToolCallInline({ block }: { block: Extract<Block, { type: "tool_call" }
       <span className="font-medium text-text-primary">{block.toolName}</span>
       <span className="min-w-0 truncate font-mono text-xs text-text-tertiary">{argsPreview}</span>
     </div>
-  );
-}
-
-/**
- * 历史消息里的图片缩略图（ImageBlock）—— 64px 与既有 attachments 缩略图同尺寸，
- * 保证视觉一致；点击开大图预览。
- *
- * ⚠️ 尺寸是几何契约的一部分（既有探针按 h-16 采样），不要改。
- *
- * `onPreview` 回调带上**按钮自身**（= 事件 currentTarget）：MessageList 存下来，
- * 关闭预览时把焦点还回去（G7）。用回调传 ref 而不是 `document.activeElement` 快照 ——
- * 鼠标点击会把焦点放到按钮上没问题，但由键盘/程序触发时 activeElement 可能还在别处。
- */
-function MessageAttachment({
-  src,
-  alt,
-  onPreview,
-}: {
-  src: string;
-  alt: string;
-  onPreview: (trigger: HTMLButtonElement) => void;
-}) {
-  /*
-   * 加载失败要直接可见（2026-09-28 用户裁决「失败要可见，不许静默」，同 contract.ts 的
-   * 诚实展示纪律）：`<img>` 无 onError 时加载失败只留浏览器默认碎图标，user 完全看不出
-   * 「图真的存在但没加载出来」——而取图失败在跨源形态、跨 cwd 档位、entryId 失效等
-   * 场景下都会发生，静默会让排查无从下手。
-   * 预览弹层里已有独立的失败态文案，这里给缩略图补上同一口径。
-   */
-  const [failed, setFailed] = useState(false);
-  return (
-    <button
-      type="button"
-      onClick={(e) => onPreview(e.currentTarget)}
-      title="点击查看大图"
-      aria-label={`查看${alt}`}
-      data-testid="message-image-thumb"
-      data-load-state={failed ? "error" : "ok"}
-      className="group inline-block h-16 max-w-full cursor-zoom-in overflow-hidden rounded-lg border border-border-subtle"
-    >
-      {failed ? (
-        <span className="flex h-16 w-16 items-center justify-center text-text-tertiary" data-testid="message-image-failed">
-          <span className="text-xs">图未能加载</span>
-        </span>
-      ) : (
-        <img src={src} alt={alt} onError={() => setFailed(true)} className="h-16 max-w-full object-cover" />
-      )}
-    </button>
   );
 }

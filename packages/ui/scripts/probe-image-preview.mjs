@@ -33,7 +33,14 @@
  * ├─ C5  焦点归还：`document.activeElement` 回到那个缩略图，**不是 body**
  * ├─ C6  composer 待发区：粘贴 ⇒ 缩略图可点开大图（dataUrl 通道，与历史图通道对照）
  * ├─ C7  点「移除」不误开预览（且图确实被移除）
- * └─ C8  坏坐标不崩：不存在的 entryId ⇒ 404（不是 500）、core 进程不死、页面不崩
+ * ├─ C8  坏坐标不崩：不存在的 entryId ⇒ 404（不是 500）、core 进程不死、页面不崩
+ * └─ C9  「刚发送」通道（Message.attachments 乐观回显）：缩略图可点开大图 + 焦点归还
+ *
+ * ★★ C9 为什么不能省（2026-10-02 修复时补）：历史通道（C1–C5）与「刚发送」通道
+ *   **渲染在不同组件**（MessageList 的 MessageAttachment vs MessageBubble 的
+ *   attachments 行），共用的只有弹层。当时后者是裸 `<img>`，点了没反应，
+ *   而 C1–C5 全绿 —— 缺陷从所有既有判据的缝里漏了过去。
+ *   C9 是**唯一**覆盖这条通道的判据。
  *
  * 关于 C8 的来历：前一版取图端点有个 Critical —— 恶意/非法 mimeType 会让
  * `writeHead` 抛 `ERR_INVALID_CHAR`，**整个 core 进程死亡**。已修（Content-Type
@@ -673,6 +680,176 @@ try {
         错误体是json: (inPage?.bearer?.ct ?? "").includes("json"),
         错误体有error字段: typeof inPage?.bearer?.body === "string" && inPage.bearer.body.includes("error"),
         页面仍可响应: inPage?.pageAlive === true,
+      });
+    }
+
+    /* =============================================================== C9 */
+    {
+      /*
+       * 「刚发送」通道（Message.attachments 乐观回显）的可点预览。
+       *
+       * ★ 为什么必须单独覆盖：这条通道与 C1–C5 的历史通道**渲染在不同组件里**
+       *   （MessageBubble 的 attachments 行 vs MessageList 的 MessageAttachment），
+       *   共用的只有弹层本身。它曾长期是**裸 `<img>`**（无 button / 无 onClick），
+       *   点它毫无反应 —— 而 C1–C5 全绿（历史通道正常），
+       *   ★★ 所以这个缺陷不会被任何既有判据发现：闸门测的是另一条路。
+       *   这正是「两处各写一份实现」的典型漏网。
+       *
+       * 零副作用手法：直接向 window.__chatStore 注入一条带 attachments 的 user 消息
+       *   —— 与 C6 的粘贴同源（走的是 chat-store 真实的 attachments 快照路径），
+       *   但**不触发任何网络请求、不调用模型**，纯内存渲染。
+       *
+       * ⚠️ 判据不设「含图历史会话」前置依赖（C0 那种），因此本段在任何 live 实例上
+       *   都能独立跑 —— 与 C6 同理。
+       */
+      const ATTACH_ID = "probe-c9-img";
+      const injected = await cdp.eval(
+        `(() => {
+           const st = window.__chatStore;
+           if (!st) return { ok: false, why: 'no __chatStore' };
+           const now = Date.now();
+           const prev = st.getState().messages;
+           // 注入到末尾且不与既有消息同 id；探针结束时由 reload 复位（浏览器 profile 一次性）
+           st.setState({
+             messages: [...prev, {
+               id: 'probe-c9-' + now,
+               role: 'user',
+               timestamp: now,
+               blocks: [{ type: 'text', content: 'C9 附件通道', streaming: false }],
+               attachments: [{ id: ${JSON.stringify(ATTACH_ID)}, dataUrl: 'data:image/png;base64,' + ${JSON.stringify(PNG_1PX)} }],
+             }],
+             streaming: false,
+             awaitingModel: false,
+             pendingSince: null,
+           });
+           return { ok: true, total: st.getState().messages.length };
+         })()`,
+      );
+      ctx.record("C9_注入附件通道消息", injected);
+      /*
+       * 等虚拟列表把新行渲染出来。
+       *
+       * ⚠️ 注入的消息追加在**末尾**，而当前会话可能有上百条消息（虚拟列表只渲染窗口内
+       * 几十行）⇒ 直接 sleep 后 querySelector 必然为 null。那样断言会红在
+       * 「缩略图存在」这个探针自造的失败上，看不出产品到底行不行。
+       *
+       * ⚠️⚠️ 真正的坑（2026-10-02 实测踩到）：滚到位之后**不能**只 sleep 就去量坐标。
+       *   MessageList 的自动贴底机制（pinningRef / ResizeObserver 补滚，见
+       *   MessageList.scrollToBottom 注释）会在那段时间里把 scrollTop 又推回底部，
+       *   于是按旧坐标派发的鼠标事件落在空气里 —— 而 **el.click() 依然能打开弹层**，
+       *   对照组会把人引向「产品坏了」的错误结论（C3/C5 那类红就是这么来的）。
+       *   所以：先复测真实几何，取到的是**当前**坐标才发事件；弹层若仍未出现，
+       *   就地重取坐标重试一次（覆盖贴底与拖动之间的时间窗）。
+       */
+      let c9box = null;
+      let c9opened = null;
+      /*
+       * 先等元素真的进 DOM（最多 10s）：注入只是改了 store，React 提交 + 虚拟列表
+       * 测量是异步的，首次求值很可能早于渲染。★ 不等就会拿到 null，断言红在
+       * 「缩略图存在」——那是探针自己的时序问题，看不出产品行不行。
+       */
+      const appeared = await cdp.eval(
+        `new Promise((r) => {
+           const t0 = Date.now();
+           const spin = () => {
+             if (window.__IP.q('[data-testid="message-attachment-${ATTACH_ID}"]')) { r(true); return; }
+             const list = window.__IP.q('[data-testid="message-list"]');
+             if (list) list.scrollTop = list.scrollHeight;   // 贴底，让末行进渲染窗口
+             if (Date.now() - t0 > 10000) { r(false); return; }
+             setTimeout(spin, 200);
+           };
+           spin();
+         })`,
+        true,
+      );
+      ctx.record("C9_等附件缩略图渲染", { 已出现: appeared === true });
+
+      for (let attempt = 0; attempt < 3 && !(c9opened?.dialogExists && c9opened?.dialogVisible); attempt++) {
+        c9box = await cdp.eval(
+          `(() => {
+             const el = window.__IP.q('[data-testid="message-attachment-${ATTACH_ID}"]');
+             if (!el) return null;
+             const list = window.__IP.q('[data-testid="message-list"]');
+             if (list) list.scrollTop = list.scrollHeight;   // 贴底，让末行进渲染窗口
+             el.scrollIntoView({ block: 'center' });
+             const r = el.getBoundingClientRect();
+             return {
+               tag: el.tagName.toLowerCase(),
+               inButton: !!el.closest('button'),
+               cursor: getComputedStyle(el).cursor,
+               x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2),
+               w: Math.round(r.width), h: Math.round(r.height),
+             };
+           })()`,
+        );
+        if (!c9box || c9box.w === 0) {
+          await sleep(400);
+          continue;
+        }
+        // 真实鼠标事件（同 C3 纪律：el.click() 不产生 userActivation）
+        for (const type of ["mousePressed", "mouseReleased"]) {
+          await cdp.send("Input.dispatchMouseEvent", {
+            type, x: c9box.x, y: c9box.y, button: "left", clickCount: 1,
+          });
+        }
+        c9opened = await cdp.eval(
+          `new Promise((r) => {
+             const t0 = Date.now();
+             const iv = setInterval(() => {
+               const dlg = window.__IP.dialog();
+               const img = window.__IP.dialogImg();
+               if (dlg && img && img.complete && img.naturalWidth > 0) {
+                 clearInterval(iv);
+                 r({ dialogExists: true, dialogVisible: getComputedStyle(dlg).opacity === '1',
+                     img: window.__IP.imgInfo(img), focusInDialog: !!dlg.contains(document.activeElement) });
+               } else if (Date.now() - t0 > 3000) {
+                 clearInterval(iv);
+                 r({ dialogExists: !!dlg, dialogVisible: dlg ? getComputedStyle(dlg).opacity === '1' : false,
+                     img: window.__IP.imgInfo(img), 超时: true });
+               }
+             }, 100);
+           })`,
+          true,
+        );
+        if (c9opened?.dialogExists && c9opened?.dialogVisible) break;
+        // 没弹出来：可能弹层开着（上轮已开但尚未采样），先 Esc 复位再重试
+        await cdp.pressKey({ key: "Escape", code: "Escape", virtualKeyCode: 27 });
+        await sleep(500);
+      }
+      ctx.record("C9_附件缩略图DOM", { box: c9box, 重试次数: c9box ? undefined : "未找到元素" });
+      ctx.record("C9_点附件缩略图后", c9opened);
+      ctx.assert("C9 刚发送通道（attachments）的缩略图可点开大图", {
+        注入成功: injected.ok === true,
+        // 缩略图能渲染进 DOM（前置条件：虚拟列表窗口覆盖到该行）
+        缩略图存在: !!c9box,
+        // ★ 回归点：修复前这里是裸 <img>（inButton=false、tag=img）
+        是button元素: c9box?.tag === "button" && c9box?.inButton === true,
+        缩略图有尺寸可点: (c9box?.w ?? 0) > 0 && (c9box?.h ?? 0) > 0,
+        弹层已打开: c9opened?.dialogExists === true && c9opened?.dialogVisible === true,
+        "弹层大图naturalWidth大于0": (c9opened?.img?.naturalWidth ?? 0) > 0,
+        // dataUrl 通道不经过 core，src 必须是 data: 而不是 /sessions/image
+        走的是dataUrl通道: typeof c9opened?.img?.src === "string" && c9opened.img.src.startsWith("data:image/"),
+        焦点已进弹层: c9opened?.focusInDialog === true,
+      });
+
+      // 关闭：真实 Esc ⇒ 焦点归还给附件缩略图（与 C5 同一断言口径）
+      await cdp.pressKey({ key: "Escape", code: "Escape", virtualKeyCode: 27 });
+      await sleep(700);
+      const c9closed = await cdp.eval(`(() => {
+        const el = window.__IP.q('[data-testid="message-attachment-${ATTACH_ID}"]');
+        const a = document.activeElement;
+        return {
+          弹层已卸载: !window.__IP.dialog(),
+          activeTestid: a && a.dataset ? (a.dataset.testid ?? null) : null,
+          active是附件缩略图: !!el && el === a,
+          active不是body: !!a && a !== document.body,
+        };
+      })()`);
+      ctx.record("C9_Esc关闭后", c9closed);
+      ctx.assert("C9b 关闭后焦点归还给附件缩略图（不是 body）", {
+        弹层已卸载: c9closed.弹层已卸载 === true,
+        activeElement是附件缩略图: c9closed.active是附件缩略图 === true,
+        activeElement不是body: c9closed.active不是body === true,
       });
     }
 
