@@ -250,6 +250,50 @@ try {
 }
 check("L2 scan 之后文件消失：readFirstUserText 返回 null 而非抛异常", tocThrew === false && tocResult === null, { tocThrew, tocResult });
 
+/* ---------- J. subagent 标记识别（pi-web:subagent）---------- */
+const subagentMeta = (tsIso) => ({
+  type: "custom",
+  customType: "pi-web:subagent",
+  id: "c1",
+  parentId: "x",
+  timestamp: tsIso,
+  data: { version: 1, parentSessionId: "p", parentSessionPath: "/p.jsonl", profile: "general-purpose" },
+});
+const headerWithParent = (id, cwd, ts, parent) => ({ type: "session", version: 3, id, cwd, timestamp: ts, parentSession: parent });
+
+// J1：普通会话（A 段 fixture 无 custom 行）
+check("J1 无 custom 标记 → isSubagent=false", scanSessionFileLight(fA)?.isSubagent === false, scanSessionFileLight(fA));
+
+// J2：第 2 行是 custom pi-web:subagent → true
+const fSub = fixture("subagent.jsonl", [
+  headerWithParent("id-SUB", "/proj/sub", "2026-09-30T09:00:00.000Z", "/proj/parent.jsonl"),
+  subagentMeta("2026-09-30T09:00:00.000Z"),
+  msg("user", "子任务", "2026-09-30T09:00:01.000Z"),
+]);
+check("J2 custom pi-web:subagent → isSubagent=true", scanSessionFileLight(fSub)?.isSubagent === true, scanSessionFileLight(fSub));
+
+// J3：只有 header.parentSession（fork），无 custom → false（不得误伤 fork）
+const fFork = fixture("fork.jsonl", [
+  headerWithParent("id-FORK", "/proj/fork", "2026-09-30T09:00:00.000Z", "/proj/parent.jsonl"),
+  msg("user", "fork 分支", "2026-09-30T09:00:01.000Z"),
+]);
+check("J3 仅 header.parentSession（fork）→ isSubagent=false", scanSessionFileLight(fFork)?.isSubagent === false, scanSessionFileLight(fFork));
+
+// J4：诱饵 —— message 文本里含字面 pi-web:subagent 不得误判
+const fDecoySub = fixture("decoy-subagent.jsonl", [
+  header("id-DSUB", "/proj/dsub", "2026-09-30T09:00:00.000Z"),
+  { type: "message", id: "m1", parentId: "x", timestamp: "2026-09-30T09:00:01.000Z", message: { role: "user", content: [{ type: "text", text: "pi-web:subagent 是标记" }] } },
+]);
+check("J4 message 内字面 pi-web:subagent 不误判", scanSessionFileLight(fDecoySub)?.isSubagent === false, scanSessionFileLight(fDecoySub));
+
+// J5：键序变体（customType 在 type 之前）也要识别
+const fReorder = fixture("subagent-reorder.jsonl", [
+  header("id-RSUB", "/proj/rsub", "2026-09-30T09:00:00.000Z"),
+  { customType: "pi-web:subagent", type: "custom", id: "c1", parentId: "x", timestamp: "2026-09-30T09:00:00.000Z", data: {} },
+  msg("user", "x", "2026-09-30T09:00:01.000Z"),
+]);
+check("J5 键序变体 custom 仍识别", scanSessionFileLight(fReorder)?.isSubagent === true, scanSessionFileLight(fReorder));
+
 fs.rmSync(tmpRoot, { recursive: true, force: true });
 const failed = checks.filter((c) => !c.pass);
 console.log(`\n  ${checks.length - failed.length}/${checks.length} 通过`);

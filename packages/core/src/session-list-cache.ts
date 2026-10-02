@@ -12,6 +12,11 @@
  * - **热层** 进程内 Map：命中只做 `stat`（实测 197 文件 2ms）。
  * - **冷底** `<agentDir>/session-index.json`：core 重启后首屏也是毫秒级。
  *
+ * **子会话过滤（2026-10-02）**：扫描时识别 pi-web subagent 的专属标记
+ * （`custom` entry `customType === "pi-web:subagent"`）并置 `isSubagent`，
+ * 清单与「续接最近」都始终排除它。**刻意不用 `header.parentSession` 判定** ——
+ * 那是 Pi 的 fork / 跨 cwd 复制语义，用它过滤会误伤用户主动 fork 的会话。
+ *
  * ## 失效判据为什么是「整文件指纹」而不是「尾读增量」
  *
  * Pi 的 `session-manager.ts` `_rewriteFile()` 会 `openSync(file, "w")` **全量重写**
@@ -63,6 +68,8 @@ export interface LightScan {
   modified: number;
   /** 是否出现过 role=user 的消息 —— 决定 title 是否需要回读 firstMessage 兜底 */
   hasFirstUser: boolean;
+  /** 是否出现过 pi-web subagent 标记（custom entry customType === "pi-web:subagent"） */
+  isSubagent: boolean;
 }
 
 /** 与 `sessions.ts` 的 `textOfContent` 同口径（content 各部分 text 拼接，无分隔符） */
@@ -185,10 +192,11 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     messageCount: 0,
     hasFirstUser: false,
     lastActivity: 0,
+    isSubagent: false,
   };
 
   /**
-   * 以下三个 apply* 是「分派后的逻辑」：快路径命中 `{"type":…,` 时零 parse 直达；
+   * 以下四个 apply* 是「分派后的逻辑」：快路径命中 `{"type":…,` 时零 parse 直达；
    * 键序变体（type 不在行首）先 parse 一次再按真实 type 调到这里。真实 Pi 文件
    * message 行占绝大多数且 type 在首位，新增 parse 只作用于少数非 message /
    * 非常见键序行 —— 「不逐行 parse」的性能意图不变。
@@ -216,6 +224,9 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     const raw = e.name;
     state.name = typeof raw === "string" && raw.trim() ? raw.trim() : null;
   };
+  const applyCustom = (e: Record<string, unknown> | null): void => {
+    if (e && e.customType === "pi-web:subagent") state.isSubagent = true;
+  };
 
   const processLine = (line: string): void => {
     if (!line) return;
@@ -225,6 +236,8 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
       applyMessage(line, null);
     } else if (line.startsWith('{"type":"session_info",')) {
       applySessionInfo(parseJson(line));
+    } else if (line.startsWith('{"type":"custom",')) {
+      applyCustom(parseJson(line));
     } else if (line.startsWith('{"')) {
       // 键序变体：type 不在行首。整行只 parse 一次，再按真实 type 分派。
       const e = parseJson(line);
@@ -232,6 +245,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
       if (e.type === "session") applyHeader(e);
       else if (e.type === "message") applyMessage(line, e);
       else if (e.type === "session_info") applySessionInfo(e);
+      else if (e.type === "custom") applyCustom(e);
     }
   };
 
@@ -266,6 +280,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     created: typeof header.timestamp === "string" ? header.timestamp : new Date(st.mtimeMs).toISOString(),
     modified,
     hasFirstUser: state.hasFirstUser,
+    isSubagent: state.isSubagent,
   };
 }
 
@@ -338,9 +353,10 @@ export function readFirstUserText(filePath: string): string | null {
  * 索引格式版本。变更语义时必须 bump —— 指纹 `(size, mtimeMs)` 未变的存量条目
  * 不会被重扫，旧语义会一直生效到文件恰好被改动。v2：`modified` 改为 Pi
  * `getMessageActivityTime` 同口径（`message.timestamp` 数字 + 仅 user/assistant）。
+ * v3：`CacheInfo` 新增 `isSubagent`（pi-web subagent 子会话标记）。
  * `loadIndex` 遇到版本不符会静默丢弃整份索引并冷重建，使新语义立即对全体会话生效。
  */
-export const INDEX_VERSION = 2;
+export const INDEX_VERSION = 3;
 export const INDEX_FILENAME = "session-index.json";
 /** 写盘 debounce（spec §3.7）：连续对话每轮都触发 refreshSessions，不能每次都写 5MB */
 const SAVE_DEBOUNCE_MS = 2000;
@@ -354,6 +370,8 @@ export interface CacheInfo {
   created: string;
   modified: number;
   hasFirstUser: boolean;
+  /** 是否 pi-web subagent 子会话（清单始终排除，见 selectEntries） */
+  isSubagent: boolean;
 }
 export interface CacheEntry {
   fp: { size: number; mtimeMs: number };
@@ -432,7 +450,8 @@ function isCacheEntry(v: unknown): v is CacheEntry {
     typeof e.info.messageCount === "number" &&
     typeof e.info.created === "string" &&
     typeof e.info.modified === "number" &&
-    typeof e.info.hasFirstUser === "boolean"
+    typeof e.info.hasFirstUser === "boolean" &&
+    typeof e.info.isSubagent === "boolean"
   );
 }
 
@@ -608,20 +627,52 @@ function refreshIndex(sessionDir: string | undefined): Promise<RefreshResult> {
   return task;
 }
 
-/** 从内存索引筛出当前 ref 的条目（`all=true` 不过滤 cwd），按 modified 降序 */
+/**
+ * 过滤谓词：subagent 子会话**始终排除**（`all` 是否取值都不收回）；`all=false` 时
+ * 额外要求 cwd 匹配（`all=true` 只放开 cwd 过滤）。两处清单筛选共用，保证语义一致。
+ */
+function entryMatches(entry: CacheEntry, resolvedCwd: string, all: boolean): boolean {
+  if (entry.info.isSubagent) return false;
+  if (all) return true;
+  const ecwd = entry.info.cwd;
+  return !!ecwd && path.resolve(ecwd) === resolvedCwd;
+}
+
+/** 从内存索引筛出当前 ref 的条目（`all=true` 不过滤 cwd；始终排除 subagent 子会话），按 modified 降序 */
 function selectEntries(sessionDir: string | undefined, cwd: string, all: boolean): Array<{ path: string; info: CacheInfo }> {
   const index = loadIndex(sessionDir);
   const resolved = path.resolve(cwd);
   const out: Array<{ path: string; info: CacheInfo }> = [];
   for (const [filePath, entry] of index) {
-    if (!all) {
-      const ecwd = entry.info.cwd;
-      if (!ecwd || path.resolve(ecwd) !== resolved) continue;
-    }
+    if (!entryMatches(entry, resolved, all)) continue;
     out.push({ path: filePath, info: entry.info });
   }
   out.sort((a, b) => b.info.modified - a.info.modified);
   return out;
+}
+
+/**
+ * 最近一次会话的文件路径（始终排除 subagent 子会话）—— 供 `sessions.ts` 的
+ * `continueRecentSession()` 使用。
+ *
+ * 语义与 Pi 的 `findMostRecentSession()` 对齐：按**文件 mtime** 降序取第一个
+ * cwd 匹配的会话；差别只在于这里是复用索引（`CacheEntry.fp.mtimeMs`）并跳过
+ * `isSubagent`，避免子会话抢占「续接最近」。
+ */
+export async function mostRecentSessionPath(
+  ref: { cwd: string; sessionDir?: string },
+  options: { all?: boolean } = {},
+): Promise<string | undefined> {
+  const stats = await refreshIndex(ref.sessionDir);
+  if (stats.changed) scheduleSave(ref.sessionDir, getIndex());
+  const index = getIndex();
+  const resolved = path.resolve(ref.cwd);
+  let best: { path: string; mtimeMs: number } | undefined;
+  for (const [filePath, entry] of index) {
+    if (!entryMatches(entry, resolved, options.all === true)) continue;
+    if (!best || entry.fp.mtimeMs > best.mtimeMs) best = { path: filePath, mtimeMs: entry.fp.mtimeMs };
+  }
+  return best?.path;
 }
 
 /**
