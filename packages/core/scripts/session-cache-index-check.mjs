@@ -144,10 +144,35 @@ const gref = { cwd: GAMMA, sessionDir: gammaDir };
 resetIndexCacheForTests();
 const rG = await listSessionsCached(gref);
 check("H1 子会话被排除出 entries", !rG.entries.some((e) => e.info.id === "g-sub"), ids(rG));
-check("H2 fork（仅 parentSession）保留", rG.entries.some((e) => e.info.id === "g-fork"), ids(rG));
+/*
+ * H2 语义变更（2026-10-03）：本条从「fork 保留」改为「派生会话一律排除」。
+ *
+ * 起因：用户换装 @tintinweb/pi-subagents 后，子会话只带 header.parentSession、
+ * 不带任何 custom 标记，仅认 `pi-web:subagent` 的清单会漏出子会话（已实测复现）。
+ * Pi 的 fork 与 subagent 在 header 层面同形（都用 SessionHeader.parentSession），
+ * 单看 header 无法区分。取舍：Workbench 自身不暴露 fork 入口（sessions.ts:25
+ * 「分支/fork 的 UI 明确记为后期」），故在 Workbench 清单语境下 hasParent 即子会话。
+ *
+ * 已知代价：若将来加入 fork 入口，fork 产出的会话会被一并隐藏。届时需按
+ * 「与父会话 entry id 是否重叠」细分（fork 的 createBranchedSession/forkFrom
+ * 会原样复制源 entry，id 必然重叠；subagent 从零新建，必然不重叠）。
+ */
+check("H2 派生会话（仅 parentSession）也排除 —— 修订语义", !rG.entries.some((e) => e.info.id === "g-fork"), ids(rG));
 check("H3 普通会话保留", rG.entries.some((e) => e.info.id === "g-normal"), ids(rG));
 check("H4 stats.files 仍扫描全部文件（含子会话；>仅 gamma）", rG.stats.files >= 3, rG.stats);
 check("H5 扫描层对子会话置 isSubagent=true", scanSessionFileLight(path.join(gammaDir, "subagent.jsonl"))?.isSubagent === true, scanSessionFileLight(path.join(gammaDir, "subagent.jsonl")));
+
+/* ---------- H6. 回归：tintinweb 形态子会话（无 custom 标记）也必须排除 ---------- */
+// 这正是 2026-10-03 实锤的漏网形态：只有 header.parentSession + `general-purpose#xxxx` 名。
+writeRaw("subagent-tintin.jsonl", [
+  gammaHeader("g-tintin", "/proj/gamma/parent.jsonl"),
+  { type: "session_info", id: "si1", parentId: "mc1", timestamp: "2026-10-03T04:19:28.733Z", name: "general-purpose#25d2c547" },
+  { type: "message", id: "tm1", parentId: "si1", timestamp: "2026-10-03T04:19:28.753Z", message: { role: "user", content: [{ type: "text", text: "这是一次连通性测试" }] } },
+]);
+resetIndexCacheForTests();
+const rT = await listSessionsCached(gref);
+check("H6 无标记的派生子会话不进清单", !rT.entries.some((e) => e.info.id === "g-tintin"), ids(rT));
+check("H6b 该子会话扫描层 hasParent=true", scanSessionFileLight(path.join(gammaDir, "subagent-tintin.jsonl"))?.hasParent === true, scanSessionFileLight(path.join(gammaDir, "subagent-tintin.jsonl")));
 
 fs.rmSync(tmpRoot, { recursive: true, force: true });
 const failed = checks.filter((c) => !c.pass);

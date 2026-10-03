@@ -86,6 +86,35 @@ const empty = await continueRecentSession(onlyRef);
 check("C1 无普通会话时返回空壳（无 path、无消息）", !empty.path && empty.result.messages.length === 0, { path: empty.path, count: empty.result.messages.length });
 check("C2 空壳仍有非空 id", typeof empty.result.id === "string" && empty.result.id.length > 0, empty.result.id);
 
+/* ---------- D. 回归：无标记的 tintinweb 形态子会话也不得抢占续接 ---------- */
+/*
+ * 2026-10-03 实锤：@tintinweb/pi-subagents 的子会话不写 pi-web:subagent 标记
+ * （它写的 subagents:record 落在父会话里），子会话文件本身零 custom entry，
+ * 标题形如 general-purpose#25d2c547。只认标记的判据会让它抢占「续接最近」。
+ */
+const tintinDir = path.join(sessionsRoot, "--proj-tintin--");
+fs.mkdirSync(tintinDir, { recursive: true });
+const tintinNewest = path.join(tintinDir, "2026-10-03T04-19-28-732Z_tintin.jsonl");
+fs.writeFileSync(
+  tintinNewest,
+  [
+    header("tintin-sub", "2026-10-03T04:19:28.732Z", "/proj/tintin/parent.jsonl", "/proj/tintin"),
+    { type: "session_info", id: "si1", parentId: "mc1", timestamp: "2026-10-03T04:19:28.733Z", name: "general-purpose#25d2c547" },
+    { type: "message", id: "tm1", parentId: "si1", timestamp: "2026-10-03T04:19:28.753Z", message: { role: "user", content: [{ type: "text", text: "这是一次连通性测试" }] } },
+  ].map((e) => JSON.stringify(e)).join("\n") + "\n",
+);
+// 与 alpha 目录的主会话比：tintin 的 mtime 更新
+fs.utimesSync(tintinNewest, new Date(base + 300 * 60_000), new Date(base + 300 * 60_000));
+const tintinRef = { cwd: "/proj/tintin", sessionDir: tintinDir };
+
+resetIndexCacheForTests();
+const tintinListed = await listSessions(tintinRef);
+check("D1 无标记子会话不进清单", !tintinListed.some((s) => s.id === "tintin-sub"), tintinListed.map((s) => s.id));
+
+resetIndexCacheForTests();
+const tintinEmpty = await continueRecentSession(tintinRef);
+check("D2 无标记子会话不被续接（返回空壳）", !tintinEmpty.path && tintinEmpty.result.messages.length === 0, { path: tintinEmpty.path, count: tintinEmpty.result.messages.length });
+
 fs.rmSync(tmpRoot, { recursive: true, force: true });
 const failed = checks.filter((c) => !c.pass);
 console.log(`\n  ${checks.length - failed.length}/${checks.length} 通过`);

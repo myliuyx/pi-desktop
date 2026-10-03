@@ -272,12 +272,15 @@ const fSub = fixture("subagent.jsonl", [
 ]);
 check("J2 custom pi-web:subagent → isSubagent=true", scanSessionFileLight(fSub)?.isSubagent === true, scanSessionFileLight(fSub));
 
-// J3：只有 header.parentSession（fork），无 custom → false（不得误伤 fork）
+// J3：只有 header.parentSession，无 custom 标记
+//   2026-10-03 修订：hasParent 独立成字段后，本例 hasParent=true / isSubagent=false ——
+//   isSubagent 仍只认 custom 标记（那是扩展私有字符串，语义窄）；
+//   真正的排除判据在索引层用 hasParent，见 K 段。
 const fFork = fixture("fork.jsonl", [
   headerWithParent("id-FORK", "/proj/fork", "2026-09-30T09:00:00.000Z", "/proj/parent.jsonl"),
   msg("user", "fork 分支", "2026-09-30T09:00:01.000Z"),
 ]);
-check("J3 仅 header.parentSession（fork）→ isSubagent=false", scanSessionFileLight(fFork)?.isSubagent === false, scanSessionFileLight(fFork));
+check("J3 仅 header.parentSession → isSubagent=false（标记判据不扩大）", scanSessionFileLight(fFork)?.isSubagent === false, scanSessionFileLight(fFork));
 
 // J4：诱饵 —— message 文本里含字面 pi-web:subagent 不得误判
 const fDecoySub = fixture("decoy-subagent.jsonl", [
@@ -293,6 +296,61 @@ const fReorder = fixture("subagent-reorder.jsonl", [
   msg("user", "x", "2026-09-30T09:00:01.000Z"),
 ]);
 check("J5 键序变体 custom 仍识别", scanSessionFileLight(fReorder)?.isSubagent === true, scanSessionFileLight(fReorder));
+
+/* ---------- K. hasParent 识别（子会话的扩展无关判据）---------- */
+/*
+ * 背景（2026-10-03 实锤）：用户换装 @tintinweb/pi-subagents 后，子会话**不写**
+ * `pi-web:subagent` 标记（它写 `subagents:record`，但那条 entry 落在**父会话**里，
+ * 子会话文件本身零 custom entry），且标题形如 `general-purpose#25d2c547`。
+ * 于是仅凭 isSubagent 的清单照旧漏出子会话 —— 该判据依赖扩展私有字符串，不通用。
+ *
+ * 通用判据：会话头带 `parentSession` ⇒ 该会话是挂在别的会话下派生的。
+ * Pi 的两种写入路径（session-manager.ts）：
+ *   - SessionManager.create(…, {parentSession})  ← subagent 扩展走这条
+ *   - SessionManager.forkFrom / createBranchedSession ← fork 走这两条
+ * 二者在 header 层面同形，故 hasParent 是「派生会话」的**必要**信号；
+ * Workbench 自身不暴露 fork（sessions.ts:25 记为后期），故在 Workbench 清单里
+ * hasParent 等价于「子会话」。fork 的精确区分（entry id 是否与父重叠）见计划文档。
+ */
+const fNoParent = fixture("no-parent.jsonl", [
+  header("id-NP", "/proj/np", "2026-09-30T09:00:00.000Z"),
+  msg("user", "主会话", "2026-09-30T09:00:01.000Z"),
+]);
+check("K1 无 parentSession → hasParent=false", scanSessionFileLight(fNoParent)?.hasParent === false, scanSessionFileLight(fNoParent));
+
+// K2：tintinweb 形态的真实子会话 —— 有 parentSession、无任何 custom 标记
+const fTintin = fixture("subagent-tintin.jsonl", [
+  headerWithParent("id-TINT", "/proj/tint", "2026-10-03T04:19:28.732Z", "/proj/parent.jsonl"),
+  { type: "model_change", id: "mc1", parentId: null, timestamp: "2026-10-03T04:19:28.732Z", provider: "opencodex", modelId: "command-code/stealth/space-bunny-alpha" },
+  { type: "session_info", id: "si1", parentId: "mc1", timestamp: "2026-10-03T04:19:28.733Z", name: "general-purpose#25d2c547" },
+  { type: "message", id: "m1", parentId: "si1", timestamp: "2026-10-03T04:19:28.753Z", message: { role: "user", content: [{ type: "text", text: "这是一次连通性测试" }] } },
+]);
+check("K2 有 parentSession 无标记 → hasParent=true", scanSessionFileLight(fTintin)?.hasParent === true, scanSessionFileLight(fTintin));
+check("K2b 该形态 isSubagent 仍为 false（标记判据不误扩）", scanSessionFileLight(fTintin)?.isSubagent === false, scanSessionFileLight(fTintin));
+
+// K3：pi-web 系子会话两者皆 true
+check("K3 pi-web 子会话 hasParent 与 isSubagent 同时为 true", (() => { const r = scanSessionFileLight(fSub); return r?.hasParent === true && r?.isSubagent === true; })(), scanSessionFileLight(fSub));
+
+// K4：诱饵 —— message 文本里含字面 parentSession 不得误判
+const fDecoyParent = fixture("decoy-parent.jsonl", [
+  header("id-DP", "/proj/dp", "2026-09-30T09:00:00.000Z"),
+  { type: "message", id: "m1", parentId: "x", timestamp: "2026-09-30T09:00:01.000Z", message: { role: "user", content: [{ type: "text", text: "parentSession 是个字段" }] } },
+]);
+check("K4 message 内字面 parentSession 不误判 → hasParent=false", scanSessionFileLight(fDecoyParent)?.hasParent === false, scanSessionFileLight(fDecoyParent));
+
+// K5：键序变体（parentSession 不在固定位）也要识别
+const fParentReorder = fixture("parent-reorder.jsonl", [
+  { cwd: "/proj/pr", timestamp: "2026-09-30T09:00:00.000Z", parentSession: "/proj/parent.jsonl", id: "id-PR", version: 3, type: "session" },
+  msg("user", "x", "2026-09-30T09:00:01.000Z"),
+]);
+check("K5 键序变体 header 仍识别 parentSession", scanSessionFileLight(fParentReorder)?.hasParent === true, scanSessionFileLight(fParentReorder));
+
+// K6：空字符串 / 非字符串 parentSession 不得当成 true
+const fParentEmpty = fixture("parent-empty.jsonl", [
+  headerWithParent("id-PE", "/proj/pe", "2026-09-30T09:00:00.000Z", ""),
+  msg("user", "x", "2026-09-30T09:00:01.000Z"),
+]);
+check("K6 空 parentSession → hasParent=false", scanSessionFileLight(fParentEmpty)?.hasParent === false, scanSessionFileLight(fParentEmpty));
 
 fs.rmSync(tmpRoot, { recursive: true, force: true });
 const failed = checks.filter((c) => !c.pass);

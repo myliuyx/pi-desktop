@@ -12,10 +12,24 @@
  * - **热层** 进程内 Map：命中只做 `stat`（实测 197 文件 2ms）。
  * - **冷底** `<agentDir>/session-index.json`：core 重启后首屏也是毫秒级。
  *
- * **子会话过滤（2026-10-02）**：扫描时识别 pi-web subagent 的专属标记
- * （`custom` entry `customType === "pi-web:subagent"`）并置 `isSubagent`，
- * 清单与「续接最近」都始终排除它。**刻意不用 `header.parentSession` 判定** ——
- * 那是 Pi 的 fork / 跨 cwd 复制语义，用它过滤会误伤用户主动 fork 的会话。
+ * **子会话过滤（2026-10-02 首版，2026-10-03 修订判据）**：扫描时识别 pi-web subagent 的
+ * 专属标记（`custom` entry `customType === "pi-web:subagent"`）并置 `isSubagent`；
+ * 2026-10-03 增取 `header.parentSession` 置 `hasParent`，两者取或作为排除条件。
+ *
+ * **为何加 `hasParent`（实锤过程）**：用户换装 `@tintinweb/pi-subagents` 后，子会话
+ * **不写** pi-web 标记 —— 它写的 `subagents:record` 落在**父会话**里，子会话文件本身
+ * 零 custom entry，标题形如 `general-purpose#25d2c547`。只认标记的清单因此原样漏出
+ * 子会话（侧栏可见 + 抢占「续接最近」）。`hasParent` 不依赖任何扩展私有字符串。
+ *
+ * **已知代价**：Pi 的 fork 同样写 `header.parentSession`，会被一并排除。当前
+ * Workbench 未暴露 fork 入口，故不构成实际场景；将来加 fork 时需按「与父会话 entry id
+ * 是否重叠」细分（详见 `entryMatches` 注释）。
+ *
+ * **为什么 `hasParent` 不宣称自己就是 subagent 的定论**：`header.parentSession` 在 Pi
+ * 内部是 fork 与 subagent **共用**的同一字段（`SessionHeader.parentSession`，
+ * 两者都经 `NewSessionOptions.parentSession` 写入）。故本模块只用它表达
+ * 「派生会话」这个可确证的弱事实，而把「一定是子 agent」交给 `isSubagent`。
+ * 二者取或后，fork 被隐藏是已知且被记录的代价（见 `entryMatches` 注释），而非疏漏。
  *
  * ## 失效判据为什么是「整文件指纹」而不是「尾读增量」
  *
@@ -70,6 +84,14 @@ export interface LightScan {
   hasFirstUser: boolean;
   /** 是否出现过 pi-web subagent 标记（custom entry customType === "pi-web:subagent"） */
   isSubagent: boolean;
+  /**
+   * 会话头是否声明了 `parentSession` —— 即该会话是**挂在别的会话下派生**的。
+   *
+   * 这是子会话的**扩展无关**判据：`isSubagent` 只认 pi-web 系的私有标记
+   * （`pi-web:subagent`），换扩展即失效（2026-10-03 实锤：@tintinweb/pi-subagents
+   * 的子会话只带 header.parentSession，文件内零 custom entry）。
+   */
+  hasParent: boolean;
 }
 
 /** 与 `sessions.ts` 的 `textOfContent` 同口径（content 各部分 text 拼接，无分隔符） */
@@ -193,6 +215,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     hasFirstUser: false,
     lastActivity: 0,
     isSubagent: false,
+    hasParent: false,
   };
 
   /**
@@ -202,7 +225,17 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
    * 非常见键序行 —— 「不逐行 parse」的性能意图不变。
    */
   const applyHeader = (e: Record<string, unknown> | null): void => {
-    if (!state.header && e) state.header = e;
+    if (!state.header && e) {
+      state.header = e;
+      /*
+       * parentSession 只认**非空字符串**。空串 / 非字符串均视为无父（Pi 的
+       * `SessionHeader.parentSession?: string` 是可选字段；`createBranchedSession`
+       * 在非持久化模式下会写 `parentSession: undefined` 被 JSON.stringify 抹掉）。
+       * 键序无关 —— 这里拿的是已 parse 的对象，快路径与兜底路径共用。
+       */
+      const parent = e.parentSession;
+      state.hasParent = typeof parent === "string" && parent.length > 0;
+    }
   };
   const applyMessage = (line: string, parsed: Record<string, unknown> | null): void => {
     state.messageCount++;
@@ -281,6 +314,7 @@ export function scanSessionFileLight(filePath: string): LightScan | null {
     modified,
     hasFirstUser: state.hasFirstUser,
     isSubagent: state.isSubagent,
+    hasParent: state.hasParent,
   };
 }
 
@@ -354,9 +388,10 @@ export function readFirstUserText(filePath: string): string | null {
  * 不会被重扫，旧语义会一直生效到文件恰好被改动。v2：`modified` 改为 Pi
  * `getMessageActivityTime` 同口径（`message.timestamp` 数字 + 仅 user/assistant）。
  * v3：`CacheInfo` 新增 `isSubagent`（pi-web subagent 子会话标记）。
+ * v4：`CacheInfo` 新增 `hasParent`（派生会话的扩展无关判据），且排除谓词改用它。
  * `loadIndex` 遇到版本不符会静默丢弃整份索引并冷重建，使新语义立即对全体会话生效。
  */
-export const INDEX_VERSION = 3;
+export const INDEX_VERSION = 4;
 export const INDEX_FILENAME = "session-index.json";
 /** 写盘 debounce（spec §3.7）：连续对话每轮都触发 refreshSessions，不能每次都写 5MB */
 const SAVE_DEBOUNCE_MS = 2000;
@@ -372,6 +407,8 @@ export interface CacheInfo {
   hasFirstUser: boolean;
   /** 是否 pi-web subagent 子会话（清单始终排除，见 selectEntries） */
   isSubagent: boolean;
+  /** 是否派生会话（header 带 parentSession）—— 清单始终排除，见 entryMatches */
+  hasParent: boolean;
 }
 export interface CacheEntry {
   fp: { size: number; mtimeMs: number };
@@ -451,7 +488,8 @@ function isCacheEntry(v: unknown): v is CacheEntry {
     typeof e.info.created === "string" &&
     typeof e.info.modified === "number" &&
     typeof e.info.hasFirstUser === "boolean" &&
-    typeof e.info.isSubagent === "boolean"
+    typeof e.info.isSubagent === "boolean" &&
+    typeof e.info.hasParent === "boolean"
   );
 }
 
@@ -628,11 +666,25 @@ function refreshIndex(sessionDir: string | undefined): Promise<RefreshResult> {
 }
 
 /**
- * 过滤谓词：subagent 子会话**始终排除**（`all` 是否取值都不收回）；`all=false` 时
+ * 过滤谓词：**派生会话始终排除**（`all` 是否取值都不收回）；`all=false` 时
  * 额外要求 cwd 匹配（`all=true` 只放开 cwd 过滤）。两处清单筛选共用，保证语义一致。
+ *
+ * 判据用 `isSubagent || hasParent`（2026-10-03 实锤修订）：
+ * - `isSubagent`（pi-web 私有标记）保留 —— 它是 subagent 的**确定**信号，
+ *   且覆盖「不声明 parentSession 却打了标记」的边角。
+ * - `hasParent`（header 带 parentSession）是**扩展无关**的兜底 ——
+ *   换子代理扩展（@tintinweb/pi-subagents 等）时它依然成立，
+ *   那些扩展不写 pi-web 标记，只按 Pi 惯例挂 parentSession。
+ *
+ * **已知代价（将来加 fork 入口时必须处理）**：Pi 的 fork
+ * （`SessionManager.forkFrom` / `createBranchedSession`）**同样**写 header.parentSession，
+ * 故 fork 产出的会话会被一并隐藏。当前 Workbench 未暴露 fork 入口
+ * （`sessions.ts` 文件头：「分支/fork 的 UI 明确记为后期」），故不存在该场景。
+ * 届时需按「与父会话 entry id 是否重叠」细分：fork 原样复制源 entry（id 必然重叠），
+ * subagent 从零新建（必然不重叠）。
  */
 function entryMatches(entry: CacheEntry, resolvedCwd: string, all: boolean): boolean {
-  if (entry.info.isSubagent) return false;
+  if (entry.info.isSubagent || entry.info.hasParent) return false;
   if (all) return true;
   const ecwd = entry.info.cwd;
   return !!ecwd && path.resolve(ecwd) === resolvedCwd;
