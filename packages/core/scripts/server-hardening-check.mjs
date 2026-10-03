@@ -22,6 +22,14 @@
  *
  * 端口：5220（避开 trust-policy 的 5210、c3 的 5197-5204）。
  * ⚠️ 与所有会起 core 的脚本同规：**必须串行跑**（core 启动即清空 run/events.jsonl）。
+ *
+ * ⚠️ **不依赖 ui/dist**（CR-064 后续，v0.2.2 发版事故的直接原因）：
+ * 本检查要验的是 server.ts 的 URL 解码与 SPA 回退逻辑本身，不是 vite 的真实产物。
+ * main.ts 默认从 `../../ui/dist` 取 uiDist；CI 的 core test:ci 跑在 ui test:ci **之前**，
+ * 该目录尚不存在 ⇒ serveStatic 的 spa 回退落到 404 ⇒ D0b/D4/D6 三项误红
+ * （v0.2.2 run 14 就这样把整个 build 门打挂，桌面三平台连带 Release 全没产出）。
+ * ⇒ 这里自建**最小 ui 夹具**（只有一个 index.html），经 CORE_UI_DIST 注入，
+ * 检查从此与「ui 有没有构建过」「CI job 顺序如何」彻底解耦：本地和 CI 行为一致。
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -50,6 +58,11 @@ const agentDir = path.join(tmpRoot, "agentdir");
 fs.mkdirSync(agentDir, { recursive: true });
 seedModelsJson(agentDir);
 
+/* 最小 ui 夹具：SPA 回退只需命中 index.html（server.ts: rel="/" → /index.html）。 */
+const uiFixture = path.join(tmpRoot, "ui-dist");
+fs.mkdirSync(uiFixture, { recursive: true });
+fs.writeFileSync(path.join(uiFixture, "index.html"), "<!doctype html><title>server-hardening fixture</title>\n");
+
 const checks = [];
 const check = (name, pass, detail) => {
 	checks.push({ name, pass: !!pass, detail });
@@ -65,7 +78,7 @@ const logPath = path.join(runDir, "server-hardening-core.log");
 const logFd = fs.openSync(logPath, "w");
 const child = spawn(process.execPath, [tsxPath, mainPath], {
 	cwd: coreDir,
-	env: childEnv({ CORE_TOKEN: TOKEN, CORE_PORT: String(PORT), CORE_AGENT_DIR: agentDir, CORE_RUN_DIR: tmpRoot }),
+	env: childEnv({ CORE_TOKEN: TOKEN, CORE_PORT: String(PORT), CORE_AGENT_DIR: agentDir, CORE_RUN_DIR: tmpRoot, CORE_UI_DIST: uiFixture }),
 	stdio: ["ignore", logFd, logFd],
 });
 let exited = false;
