@@ -2,7 +2,7 @@
   "name": "@agent/desktop",
   "productName": "Pi Workbench",
   "private": true,
-  "version": "0.2.2",
+  "version": "0.2.3",
   "license": "MIT",
   "description": "Pi Workbench —— 本地 core 服务 + 浏览器套壳的桌面封装",
   "homepage": "https://github.com/myliuyx/pi-workbench",

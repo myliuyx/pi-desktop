@@ -132,7 +132,11 @@ jobs:
   release:
     name: release (attach installers)
     needs: build
-    if: ${{ !cancelled() && github.ref_type == 'tag' }}
+    # 保持原有语义（v0.1.1 用户反馈：部分平台失败不阻塞发版——已成功平台的包照挂，
+    # 全军覆没时由下方 Ensure at least one artifact 守卫显式报错）。注意 `fail-fast: false`
+    # 下任一平台失败都会让 needs.build.result == 'failure'，故这里**不能**用 success()。
+    # 仅在 build 被 upstream test 门 skipped（result == 'skipped'）时拒绝发空 Release。
+    if: ${{ !cancelled() && needs.build.result != 'skipped' && github.ref_type == 'tag' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -162,10 +166,16 @@ jobs:
   # npm 发布：tag 推送时发 @myliuyx/pi-workbench（自托管 web 形态的 CLI 包，npx 即跑）。
   # 依赖仓库 secret NPM_TOKEN（npm automation token，账号须拥有 myliuyx scope）；
   # 未配置时降级为警告跳过——桌面构建与 Release 不受影响，配置后重打 tag 即补发。
+  #
+  # ⚠️ 门禁说明（v0.2.2 半发版事故的修复）：原条件是 `!cancelled() && ref_type == 'tag'`，
+  # 而 build 矩阵因上游 test 门红而被 **skipped** 时，`!cancelled()` 仍为真 ⇒ 桌面三平台
+  # 一个安装包都没产出，npm 却照样把 @myliuyx/pi-workbench@0.2.2 发了出去（latest 已指向
+  # 它），桌面用户却拿不到包。⇒ 现要求 build 矩阵**真正成功**才发 npm，与 release 对齐，
+  # 避免再次出现「npm 有、桌面没有」的割裂版本。
   publish:
     name: publish @myliuyx/pi-workbench
     needs: build
-    if: ${{ !cancelled() && github.ref_type == 'tag' }}
+    if: ${{ success() && needs.build.result == 'success' && github.ref_type == 'tag' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
